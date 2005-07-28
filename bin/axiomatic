@@ -1,0 +1,3 @@
+#!/usr/bin/python
+from axiom.scripts import axiomatic
+axiomatic.main()
