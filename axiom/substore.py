@@ -15,6 +15,14 @@ class SubStore(Item):
     def __init__(self, store, path, *a, **kw):
         super(SubStore, self).__init__(store=store, *a, **kw)
         self.storepath = store.newDirectory(*path)
+        # Force a database to exist if it didn't
+        self.open()
+        self.close()
+
+    def close(self):
+        self.substore.close()
+        del self.substore._openSubStore
+        del self.substore
 
     def open(self):
         if hasattr(self, 'substore'):
