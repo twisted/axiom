@@ -231,8 +231,8 @@ class text(SQLAttribute):
 
     def infilter(self, pyval, oself):
         if not isinstance(pyval, unicode) or '\x00' in pyval:
-            raise TypeError("text must be (unicode string without NULL bytes); not %r" %
-                            (type(pyval).__name__,))
+            raise TypeError("attribute [%s.%s = text()] must be (unicode string without NULL bytes); not %r" %
+                            (self.classname, self.attrname, type(pyval).__name__,))
         return pyval
 
     def outfilter(self, dbval, oself):
