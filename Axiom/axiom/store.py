@@ -61,7 +61,10 @@ class AtomicFile(file):
     def abort(self):
         os.unlink(self.name)
 
-class PowerCable(Item):
+class _PowerupConnector(Item):
+    """
+    I am a connector between the store and a powerup.
+    """
     typeName = 'powerup_connector'
     schemaVersion = 1
 
@@ -71,6 +74,9 @@ class PowerCable(Item):
 
 POWERUP_BEFORE = 1              # Priority for 'high' priority powerups.
 POWERUP_AFTER = -1              # Priority for 'low' priority powerups.
+
+_noItem = object()              # tag for optional argument to getItemByID
+                                # default
 
 class Store:
 
@@ -168,13 +174,12 @@ class Store:
         @param priority: An int; preferably either POWERUP_BEFORE,
         POWERUP_AFTER, or unspecified.
         """
-        PowerCable(store=self,
-                   interface=unicode(qual(interface)),
-                   powerup=powerup,
-                   priority=priority)
+        _PowerupConnector(store=self,
+                          interface=unicode(qual(interface)),
+                          powerup=powerup,
+                          priority=priority)
 
     def __conform__(self, interface):
-
         if interface == IService:
             if self.service is not None:
                 return self.service
@@ -191,9 +196,9 @@ class Store:
         """
         Returns powerups installed using C{powerUp}.
         """
-        for cable in self.query(PowerCable,
-                                PowerCable.interface == unicode(qual(interface)),
-                                sort=PowerCable.priority.descending):
+        for cable in self.query(_PowerupConnector,
+                                _PowerupConnector.interface == unicode(qual(interface)),
+                                sort=_PowerupConnector.priority.descending):
             yield cable.powerup
 
     def newFile(self, *path):
@@ -450,7 +455,7 @@ class Store:
             self.tableQueries[typename, version] = query
         return self.tableQueries[typename, version]
 
-    def getItemByID(self, storeID, autoUpgrade=True):
+    def getItemByID(self, storeID, default=_noItem, autoUpgrade=True):
         """
         """
         assert storeID is not None
@@ -488,8 +493,9 @@ class Store:
                 # X is upgraded all the way
                 self.objectCache.cache(storeID, x)
             return x
-        else:
+        if default is _noItem:
             raise KeyError(storeID)
+        return default
 
     def _normalizeSQL(self, sql):
         assert "'" not in sql, "Strings are _NOT ALLOWED_"
@@ -568,23 +574,17 @@ class StorageService(MultiService):
         self.store = None
 
     def privilegedStartService(self):
-        print 'privstartserv'
         self.store = Store(*self.a, **self.k)
-        print 'store open'
         IService(self.store).setServiceParent(self)
-        print 'service parent set'
         MultiService.privilegedStartService(self)
-        print 'service parent started', list(IService(self.store))
 
     def close(self, ignored=None):
         # final close method, called after the service has been stopped
-        print 'close'
         self.store.close()
         self.store = None
         return ignored
 
     def stopService(self):
-        print 'stopping service'
         return defer.maybeDeferred(
             MultiService.stopService, self).addBoth(
             self.close)

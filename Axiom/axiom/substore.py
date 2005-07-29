@@ -28,5 +28,6 @@ class SubStore(Item):
             return s
 
     def __conform__(self, interface):
-        return interface(self.open())
+        ifa = interface(self.open(), None)
+        return ifa
 
