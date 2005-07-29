@@ -44,7 +44,8 @@ class LoginAccount(Item):
     disabled = integer()
 
     def __conform__(self, interface):
-        return interface(self.avatars, None)
+        ifa = interface(self.avatars, None)
+        return ifa
 
 class LoginSystem(Item):
     implements(IRealm, ICredentialsChecker)
