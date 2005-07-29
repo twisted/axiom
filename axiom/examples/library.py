@@ -1,7 +1,9 @@
 
 import random
 
-from axiom.item import varchar, timestamp, reference, Store, Item
+from axiom.item import Item
+from axiom.attributes import text, timestamp, reference, integer
+from axiom.store import Store
 from axiom import extime
 
 _d = extime.Time.fromISO8601TimeAndDate
@@ -19,16 +21,16 @@ _borrowers = [u'Anne', u'Bob', u'Carol', u'Dave']
 class Borrower(Item):
     typeName = 'borrower'
     schemaVersion = 1
-    name = varchar(indexed=True)
+    name = text(indexed=True)
 
 class Book(Item):
     typeName = 'book'
     schemaVersion = 1
 
-    title = varchar()
-    author = varchar()
-    isbn = varchar()
-    pages = varchar()
+    title = text()
+    author = text()
+    isbn = text()
+    pages = integer()
     datePublished = timestamp()
 
     lentTo = reference()
@@ -38,7 +40,7 @@ class LendingLibrary(Item):
     typeName = 'lending_library'
     schemaVersion = 1
 
-    name = varchar()
+    name = text()
 
     def books(self):
         return self.store.query(Book,
@@ -48,8 +50,8 @@ class LendingLibrary(Item):
         for b in self.store.query(Borrower,
                                   Borrower.name == name):
             return b
-        b = Borrower(name=name)
-        b.addToStore(self.store)
+        b = Borrower(name=name,
+                     store=self.store)
         return b
 
     def initialize(self):
@@ -60,15 +62,15 @@ class LendingLibrary(Item):
                 isbn=isbn,
                 pages=pages,
                 datePublished=published,
-                library=self)
-            b.addToStore(self.store)
+                library=self,
+                store=self.store)
 
 
     def displayBooks(self):
         for book in self.books():
-            print book.title
+            print book.title,
             if book.lentTo is not None:
-                print 'lent to', book.lentTo.name
+                print 'lent to', '['+book.lentTo.name+']'
             else:
                 print 'in library'
 
@@ -89,8 +91,7 @@ def main(s):
         break
     else:
         print 'creating new library'
-        ll = LendingLibrary()
-        ll.addToStore(s)
+        ll = LendingLibrary(store=s)
         ll.initialize()
     ll.displayBooks()
     print '***'
