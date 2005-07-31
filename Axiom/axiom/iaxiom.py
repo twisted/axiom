@@ -54,7 +54,7 @@ class IAtomicFile(Interface):
         with semantics the same as those previously described for the
         return value of the callable.
 
-        @rtype: C{atop.store.StoreRelativePath}
+        @rtype: C{axiom.store.StoreRelativePath}
         @return: A Deferred which fires with the full path to the file
         when it has been closed, or which fails if there is some error
         closing the file.

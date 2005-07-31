@@ -40,7 +40,7 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         if T.typeName in _typeNameToMostRecentClass:
             if T.__legacy__:
                 return T
-            raise RuntimeError("2 definitions of atop typename %r: %r %r" % (
+            raise RuntimeError("2 definitions of axiom typename %r: %r %r" % (
                     T.typeName, T, _typeNameToMostRecentClass[T.typeName]))
         _typeNameToMostRecentClass[T.typeName] = T
         return T
@@ -69,7 +69,7 @@ class Item:
     # Python-Special Attributes
     __metaclass__ = MetaItem
 
-    # Atop-Special Attributes
+    # Axiom-Special Attributes
     __dirty__ = inmemory()
     __legacy__ = False
 
@@ -387,7 +387,7 @@ def dummyItemSubclass(typeName, schemaVersion, attributes, dummyBases):
     and the base Item methods, but no methods of its own.  This is for use
     with upgrading.
 
-    @param typeName: a string, the Atop TypeName to have attributes for.
+    @param typeName: a string, the Axiom TypeName to have attributes for.
     @param schemaVersion: an int, the (old) version of the schema this is a proxy
     for.
     @param attributes: a dict mapping {columnName: attr instance}
