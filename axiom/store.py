@@ -120,7 +120,7 @@ class Store:
 
         # install powerups if we've never powered on before;
         create = not self.querySQL(_schema.HAS_SCHEMA_FEATURE,
-                                   ['table', 'atop_types'])[0][0]
+                                   ['table', 'axiom_types'])[0][0]
         if create:
             for stmt in _schema.BASE_SCHEMA:
                 self.executeSQL(stmt)
@@ -442,7 +442,7 @@ class Store:
 
         self.executeSQL(''.join(sqlstr))
         for index in indexes:
-            self.executeSQL('CREATE INDEX atopidx_%s_%s ON %s(%s)'
+            self.executeSQL('CREATE INDEX axiomidx_%s_%s ON %s(%s)'
                             % (tableName, index,
                                tableName, index))
 

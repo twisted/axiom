@@ -49,8 +49,8 @@ class SQLAttribute(inmemory):
 
     # requiredSlots must be called before it's run
 
-    prefix = "_atop_memory_"
-    dbprefix = "_atop_store_"
+    prefix = "_axiom_memory_"
+    dbprefix = "_axiom_store_"
 
     def requiredSlots(self, modname, classname, attrname):
         self.modname = modname
@@ -186,11 +186,17 @@ class AND:
 class OR(AND):
     pass
 
+
+TOO_BIG = 2 ** 63
+
 class integer(SQLAttribute):
     sqltype = 'INTEGER'
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
+        if pyval >= TOO_BIG:
+            raise OverflowError(
+                "Integers larger than 2**63 don't fit in the database.")
         return int(pyval)
 
 class bytes(SQLAttribute):
@@ -264,7 +270,7 @@ class timestamp(integer):
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
-        return int(pyval.asPOSIXTimestamp() * MICRO)
+        return integer.infilter(self, pyval.asPOSIXTimestamp() * MICRO, oself)
 
     def outfilter(self, dbval, oself):
         if dbval is None:
@@ -288,7 +294,7 @@ class reference(integer):
             raise AttributeError(
                 "TODO: Setting references on items outside of stores is "
                 "currently unsupported.  Set .store first.")
-        return pyval.storeID
+        return integer.infilter(self, pyval.storeID, oself)
 
     def outfilter(self, dbval, oself):
         if dbval is None:
