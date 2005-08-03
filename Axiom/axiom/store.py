@@ -66,6 +66,8 @@ _noItem = object()              # tag for optional argument to getItemByID
 
 class Store(Empowered):
 
+    implements(iaxiom.IBeneficiary)
+
     transaction = None          # current transaction object
 
     storeID = -1                # I have a StoreID so that things can reference
@@ -285,6 +287,8 @@ class Store(Empowered):
             item.revert()
 
     def transact(self, f, *a, **k):
+        if self.transaction is not None:
+            return f(*a, **k)
         self.transaction = set()
         self.autocommit = False
         try:

@@ -125,6 +125,11 @@ class Empowered(object):
             sort=_PowerupConnector.priority.descending):
             yield cable.powerup
 
+def transacted(callable):
+    def _(item, *a, **kw):
+        return item.store.transact(callable, item, *a, **kw)
+    _.func_name = callable.func_name
+    return _
 
 class Item(Empowered):
     # Python-Special Attributes

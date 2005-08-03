@@ -79,3 +79,17 @@ class IAxiomaticCommand(Interface):
 
     description = Attribute("""
     """)
+
+
+
+class IBeneficiary(Interface):
+    """
+    Interface to adapt to when looking for an appropriate application-level
+    object to install powerups on.
+    """
+
+    def powerUp(implementor, interface):
+        """ Install a powerup on this object.  There is not necessarily any inverse
+        powerupsFor on a beneficiary, although there may be; installations may
+        be forwarded to a different implementation object, or deferred.
+        """

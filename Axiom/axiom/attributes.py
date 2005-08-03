@@ -248,6 +248,8 @@ class bytes(SQLAttribute):
     sqltype = 'BLOB'
 
     def infilter(self, pyval, oself):
+        if pyval is None:
+            return None
         return buffer(pyval)
 
     def outfilter(self, dbval, oself):
