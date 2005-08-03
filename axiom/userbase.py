@@ -77,17 +77,19 @@ class LoginSystem(Item):
                                          LoginAccount.username == username)):
             return account
 
-    def addAccount(self, username, domain, password):
+    def addAccount(self, username, domain, password, avatars=None):
         username = unicode(username)
         domain = unicode(domain)
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)
+        if avatars is None:
+            avatars = SubStore(self.store,
+                               ('account', domain, username))
         return LoginAccount(store=self.store,
                             username=username,
                             domain=dflip(domain),
                             password=password,
-                            avatars=SubStore(self.store,
-                                             ('account', domain, username)),
+                            avatars=avatars,
                             disabled=0)
 
     def logoutFactory(self, obj):
