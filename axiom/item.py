@@ -118,10 +118,11 @@ class Empowered(object):
         """
         Returns powerups installed using C{powerUp}.
         """
-        for cable in self.query(_PowerupConnector,
-                                AND(_PowerupConnector.interface == unicode(qual(interface)),
-                                    _PowerupConnector.item == self),
-                                sort=_PowerupConnector.priority.descending):
+        for cable in self.store.query(
+            _PowerupConnector,
+            AND(_PowerupConnector.interface == unicode(qual(interface)),
+                _PowerupConnector.item == self),
+            sort=_PowerupConnector.priority.descending):
             yield cable.powerup
 
 
