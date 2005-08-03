@@ -2,10 +2,12 @@
 __metaclass__ = type
 
 from twisted.python.reflect import qual
+from twisted.application.service import IService, MultiService
 
 from axiom import slotmachine, _schema
 
-from axiom.attributes import SQLAttribute, ColumnComparer, inmemory
+from axiom.attributes import SQLAttribute, ColumnComparer, inmemory, \
+    reference, text, integer, AND
 
 _typeNameToMostRecentClass = {}
 
@@ -65,7 +67,65 @@ class _SpecialStoreIDAttribute(slotmachine.SetOnce):
 
     columnName = 'oid'
 
-class Item:
+def serviceSpecialCase(item, pups):
+    if item.service is not None:
+        return item.service
+    svc = MultiService()
+    for subsvc in pups:
+        subsvc.setServiceParent(svc)
+    item.service = svc
+    return svc
+
+aggregateInterfaces = {IService: serviceSpecialCase}
+
+class Empowered(object):
+
+    def powerUp(self, powerup, interface, priority=0):
+        """
+        Installs a powerup (e.g. plugin) on an item or store.
+
+        Powerups will be returned in an iterator when queried for using the
+        'powerupsFor' method.  Normally they will be returned in order of
+        installation [this may change in future versions, so please don't
+        depend on it].  Higher priorities are returned first.  If you have
+        something that should run before "normal" powerups, pass
+        POWERUP_BEFORE; if you have something that should run after, pass
+        POWERUP_AFTER.  We suggest not depending too heavily on order of
+        execution of your powerups, but if finer-grained control is necessary
+        you may pass any integer.  Normal (unspecified) priority is zero.
+
+        @param powerup: an Item that implements C{interface}
+        @param interface: a zope interface
+
+        @param priority: An int; preferably either POWERUP_BEFORE,
+        POWERUP_AFTER, or unspecified.
+        """
+        _PowerupConnector(store=self.store,
+                          item=self,
+                          interface=unicode(qual(interface)),
+                          powerup=powerup,
+                          priority=priority)
+
+
+    def __conform__(self, interface):
+        pups = self.powerupsFor(interface)
+        if interface in aggregateInterfaces:
+            return aggregateInterfaces[interface](self, pups)
+        for p in pups:
+            return p
+
+    def powerupsFor(self, interface):
+        """
+        Returns powerups installed using C{powerUp}.
+        """
+        for cable in self.query(_PowerupConnector,
+                                AND(_PowerupConnector.interface == unicode(qual(interface)),
+                                    _PowerupConnector.item == self),
+                                sort=_PowerupConnector.priority.descending):
+            yield cable.powerup
+
+
+class Item(Empowered):
     # Python-Special Attributes
     __metaclass__ = MetaItem
 
@@ -95,6 +155,7 @@ class Item:
                                   # part of an upgrade)
 
     storeID = _SpecialStoreIDAttribute(default=None)
+    service = inmemory()
 
     def store():
         def get(self):
@@ -414,6 +475,21 @@ def dummyItemSubclass(typeName, schemaVersion, attributes, dummyBases):
     _legacyTypes[(typeName, schemaVersion)] = result
     return result
 
-# Promotions
-import axiom
-axiom.Item = Item
+
+
+class _PowerupConnector(Item):
+    """
+    I am a connector between the store and a powerup.
+    """
+    typeName = 'axiom_powerup_connector'
+    schemaVersion = 1
+
+    powerup = reference()
+    item = reference()
+    interface = text()
+    priority = integer()
+
+
+POWERUP_BEFORE = 1              # Priority for 'high' priority powerups.
+POWERUP_AFTER = -1              # Priority for 'low' priority powerups.
+
