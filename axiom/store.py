@@ -17,7 +17,7 @@ from pysqlite2 import dbapi2 as sqlite
 
 from axiom.item import Item, \
     _typeNameToMostRecentClass, dummyItemSubclass,\
-    _legacyTypes, TABLE_NAME
+    _legacyTypes, TABLE_NAME, Empowered
 
 IN_MEMORY_DATABASE = ':memory:'
 
@@ -61,26 +61,19 @@ class AtomicFile(file):
     def abort(self):
         os.unlink(self.name)
 
-class _PowerupConnector(Item):
-    """
-    I am a connector between the store and a powerup.
-    """
-    typeName = 'powerup_connector'
-    schemaVersion = 1
-
-    powerup = attributes.reference()
-    interface = attributes.text()
-    priority = attributes.integer()
-
-POWERUP_BEFORE = 1              # Priority for 'high' priority powerups.
-POWERUP_AFTER = -1              # Priority for 'low' priority powerups.
-
 _noItem = object()              # tag for optional argument to getItemByID
                                 # default
 
-class Store:
+class Store(Empowered):
 
     transaction = None          # current transaction object
+
+    storeID = -1                # I have a StoreID so that things can reference
+                                # me
+
+    store = property(lambda self: self) # I have a 'store' attribute because I
+                                        # am 'stored' within myself; this is
+                                        # also for references to use.
 
     def __init__(self, dbdir=None, debug=False, parent=None, idInParent=None):
         if parent is not None or idInParent is not None:
@@ -153,53 +146,6 @@ class Store:
 
         for typename in self.typenameToID:
             self.checkTypeSchemaConsistency(typename)
-
-    def powerUp(self, powerup, interface, priority=0):
-        """
-        Installs a powerup (e.g. plugin) on the store.
-
-        Powerups will be returned in an iterator when queried for using the
-        'powerupsFor' method.  Normally they will be returned in order of
-        installation [this may change in future versions, so please don't
-        depend on it].  Higher priorities are returned first.  If you have
-        something that should run before "normal" powerups, pass
-        POWERUP_BEFORE; if you have something that should run after, pass
-        POWERUP_AFTER.  We suggest not depending too heavily on order of
-        execution of your powerups, but if finer-grained control is necessary
-        you may pass any integer.  Normal (unspecified) priority is zero.
-
-        @param powerup: an Item that implements C{interface}
-        @param interface: a zope interface
-
-        @param priority: An int; preferably either POWERUP_BEFORE,
-        POWERUP_AFTER, or unspecified.
-        """
-        _PowerupConnector(store=self,
-                          interface=unicode(qual(interface)),
-                          powerup=powerup,
-                          priority=priority)
-
-    def __conform__(self, interface):
-        if interface == IService:
-            if self.service is not None:
-                return self.service
-            svc = MultiService()
-            for subsvc in self.powerupsFor(interface):
-                subsvc.setServiceParent(svc)
-            self.service = svc
-            return svc
-
-        for i in self.powerupsFor(interface):
-            return i
-
-    def powerupsFor(self, interface):
-        """
-        Returns powerups installed using C{powerUp}.
-        """
-        for cable in self.query(_PowerupConnector,
-                                _PowerupConnector.interface == unicode(qual(interface)),
-                                sort=_PowerupConnector.priority.descending):
-            yield cable.powerup
 
     def newFile(self, *path):
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
