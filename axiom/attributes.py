@@ -14,7 +14,20 @@ class SQLAttribute(inmemory):
     Abstract superclass of all attributes.
 
     _Not_ an attribute itself.
+
+    @ivar indexed: A C{bool} indicating whether this attribute will be indexed
+    in the database.
+
+    @ivar default: The value used for this attribute, if no value is specified.
     """
+    sqltype = None
+
+    def __init__(self, doc='', indexed=False, default=None):
+        inmemory.__init__(self, doc)
+        self.indexed = indexed
+        self.default = default
+
+
     def coercer(self, value):
         """
         must return a value equivalent to the data being passed in for it to be
@@ -23,12 +36,6 @@ class SQLAttribute(inmemory):
         """
 
         raise NotImplementedError()
-
-    sqltype = None
-
-    def __init__(self, doc='', indexed=False):
-        inmemory.__init__(self, doc)
-        self.indexed = indexed
 
 
     def infilter(self, pyval, oself):
@@ -76,7 +83,31 @@ class SQLAttribute(inmemory):
         if pyval is _NEEDS_FETCH:
             dbval = getattr(oself, self.dbunderlying, _NEEDS_FETCH)
             if dbval is _NEEDS_FETCH:
-                raise AttributeError(self.attrname)
+                # here is what *is* happening here:
+
+                # SQL attributes are always loaded when an Item is created by
+                # loading from the database, either via a query, a getItemByID
+                # or an attribute access.  If an attribute is left un-set, that
+                # means that the item it is on was just created, and we fill in
+                # the default value.
+
+                # Here is what *should be*, but *is not* happening here:
+
+                # this condition ought to indicate that a value may exist in
+                # the database, but it is not currently available in memory.
+                # It would then query the database immediately, loading all
+                # SQL-resident attributes related to this item to minimize the
+                # number of queries run (e.g. rather than one per attribute)
+
+                # this is a more desireable condition because it means that you
+                # can create items "for free", so doing, for example,
+                # self.bar.storeID is a much cheaper operation than doing
+                # self.bar.baz.  This particular idiom is frequently used in
+                # queries and so speeding it up to avoid having to do a
+                # database hit unless you actually need an item's attributes
+                # would be worthwhile.
+
+                return self.default
             # cache python value
             pyval = self.outfilter(dbval, oself)
             setattr(oself, self.underlying, pyval)
@@ -109,6 +140,7 @@ class ColumnComparer:
         assert not self.compared # activation time
         self.compared = True
         # interim: maybe we want objects later?  right now strings should be fine
+        a = self.preArgs = []
         if isinstance(other, ColumnComparer):
             self.otherComp = other
             self.sql = ('(%s.%s %s %s.%s)' % (self.type.getTableName(),
@@ -116,14 +148,21 @@ class ColumnComparer:
                                             sqlop,
                                             other.type.getTableName(),
                                             other.attribute.columnName))
-            self.preArgs = []
+        elif other is None:
+            col = (self.type.getTableName(), self.attribute.columnName)
+            if sqlop == '=':
+                self.sql = '%s.%s IS NULL' % col
+            elif sqlop == '!=':
+                self.sql = '%s.%s NOT NULL' % col
+            else:
+                raise TypeError(
+                    "None/NULL does not work with %s comparison" % (sqlop,))
         else:
             # convert to constant usable in the database
             self.sql = ('(%s.%s %s ?)' % (self.type.getTableName(),
                                         self.attribute.columnName,
                                         sqlop))
-            self.preArgs = [other]
-            sql = '?'
+            a.append(other)
         return self
 
     def __eq__(self, other):
@@ -187,17 +226,18 @@ class OR(AND):
     pass
 
 
-TOO_BIG = 2 ** 63
+TOO_BIG = (2 ** 63)-1
 
 class integer(SQLAttribute):
     sqltype = 'INTEGER'
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
-        if pyval >= TOO_BIG:
+        bigness = int(pyval)
+        if bigness >= TOO_BIG:
             raise OverflowError(
-                "Integers larger than 2**63 don't fit in the database.")
-        return int(pyval)
+                "Integers larger than %r, such as %r don't fit in the database." % (TOO_BIG, bigness))
+        return bigness
 
 class bytes(SQLAttribute):
     """

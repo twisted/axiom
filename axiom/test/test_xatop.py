@@ -102,3 +102,53 @@ class ItemTests(unittest.TestCase):
         else:
             self.fail("Transaction should have raised an exception")
 
+
+class AttributefulItem(item.Item):
+    schemaVersion = 1
+    typeName = 'test_attributeful_item'
+
+    withDefault = attributes.integer(default=42)
+    withoutDefault = attributes.integer()
+
+    def __repr__(self):
+        return 'AttributeItem(oid=%s,withDefault=%s,withoutDefault=%s)'%  (
+            self.storeID, self.withDefault, self.withoutDefault)
+
+class AttributeTests(unittest.TestCase):
+    def testGetAttribute(self):
+        s = store.Store()
+        def testGetAttribute():
+            x = AttributefulItem(store=s)
+            y = AttributefulItem(store=s, withDefault=20)
+            z = AttributefulItem(store=s, withoutDefault=30)
+            for o in x, y, z:
+                o.checkpoint()
+
+            self.assertEquals(x.withDefault, 42)
+            self.assertEquals(x.withoutDefault, None)
+            self.assertEquals(y.withDefault, 20)
+            self.assertEquals(y.withoutDefault, None)
+            self.assertEquals(z.withDefault, 42)
+            self.assertEquals(z.withoutDefault, 30)
+        s.transact(testGetAttribute)
+
+    def testQueries(self):
+        s = store.Store()
+        def testQueries():
+            x = AttributefulItem(store=s, withDefault=50)
+            y = AttributefulItem(store=s, withDefault=30)
+            z = AttributefulItem(store=s, withoutDefault=30)
+
+            for o in x, y, z:
+                o.checkpoint()
+
+            self.assertEquals(
+                list(s.query(AttributefulItem, AttributefulItem.withoutDefault != None,
+                             sort=AttributefulItem.withoutDefault.desc)),
+                [z])
+
+            self.assertEquals(
+                list(s.query(AttributefulItem, sort=AttributefulItem.withDefault.desc)),
+                [x, z, y])
+
+        s.transact(testQueries)

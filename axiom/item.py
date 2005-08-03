@@ -331,7 +331,7 @@ class Item(Empowered):
             # XXX this isn't atomic, gross.
             self.store.executeSQL(self._baseInsertSQL(),
                 [self.storeID] +
-                [self.__dirty__.get(a[1].attrname) for a in attrs])
+                [self.__dirty__.get(a[1].attrname, a[1].default) for a in attrs])
             self.__everInserted = True
 
         if self.store.autocommit:
