@@ -204,26 +204,41 @@ class ColumnComparer:
     asc = ascending
     desc = descending
 
-class AND:
-    def __init__(self, a, b):
-        self.a = a
-        self.b = b
+
+class _BooleanCondition:
+    operator = None
+    
+    def __init__(self, *conditions):
+        if self.operator is None:
+            raise NotImplementedError, ('%s cannot be used; you want AND or OR.'
+                                        % self.__class__.__name__)
+        if not conditions:
+            raise ValueError, ('%s condition requires at least one argument'
+                               % self.operator)
+        self.conditions = conditions
 
     def getQuery(self):
-        return ' '.join(['(',
-                         self.a.getQuery(),
-                         self.__class__.__name__,
-                         self.b.getQuery(),
-                         ')'])
+        oper = ' %s ' % self.operator
+        return '(%s)' % oper.join(
+            [condition.getQuery() for condition in self.conditions])
 
     def getArgsFor(self, store):
-        return self.a.getArgsFor(store) + self.b.getArgsFor(store)
+        args = []
+        for cond in self.conditions:
+            args += cond.getArgsFor(store)
+        return args
 
     def getTableNames(self):
-        return (self.a.getTableNames() + self.b.getTableNames())
+        tbls = []
+        for cond in self.conditions:
+            tbls += cond.getTableNames()
+        return tbls
 
-class OR(AND):
-    pass
+class AND(_BooleanCondition):
+    operator = 'AND'
+
+class OR(_BooleanCondition):
+    operator = 'OR'
 
 
 TOO_BIG = (2 ** 63)-1
