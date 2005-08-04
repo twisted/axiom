@@ -3,7 +3,7 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import reference, text, bytes, AND
+from axiom.attributes import reference, text, bytes, AND, OR
 
 class A(Item):
     schemaVersion = 1
@@ -157,3 +157,38 @@ class BasicQuery(TestCase):
         s.transact(createAndStuff)
         s.close()
 
+
+
+class AndOrQueries(TestCase):
+    def testBooleanCondition(self):
+        from axiom.attributes import _BooleanCondition
+        self.assertRaises(NotImplementedError, _BooleanCondition)
+
+    def testNoConditions(self):
+        self.assertRaises(ValueError, AND)
+        self.assertRaises(ValueError, OR)
+
+    def testOneCondition(self):
+        query1 = AND(A.type == u'Narf!').getQuery()
+        query2 =  OR(A.type == u'Narf!').getQuery()
+        expected = '((item_a_v1.type = ?))'
+        self.assertEquals(query1, expected)
+        self.assertEquals(query2, expected)
+
+    def testMultipleAndConditions(self):
+        condition = AND(
+            A.type == u'Narf!',
+            A.type == u'Poiuyt!',
+            A.type == u'Try to take over the world')
+        self.assertEquals(
+            condition.getQuery(),
+            '((item_a_v1.type = ?) AND (item_a_v1.type = ?) AND (item_a_v1.type = ?))')
+
+    def testMultipleOrConditions(self):
+        condition = OR(
+            A.type == u'Narf!',
+            A.type == u'Poiuyt!',
+            A.type == u'Try to take over the world')
+        self.assertEquals(
+            condition.getQuery(),
+            '((item_a_v1.type = ?) OR (item_a_v1.type = ?) OR (item_a_v1.type = ?))')
