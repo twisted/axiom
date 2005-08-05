@@ -93,3 +93,19 @@ class IBeneficiary(Interface):
         powerupsFor on a beneficiary, although there may be; installations may
         be forwarded to a different implementation object, or deferred.
         """
+
+class IScheduler(Interface):
+    """
+    An interface for scheduling tasks.  Quite often the store will be adaptable
+    to this; in any Mantissa application, for example; so it is reasonable to
+    assume that it is if your application needs to schedule timed events or
+    queue tasks.
+    """
+    def schedule(self, runnable, when):
+        """
+        @param runnable: any Item with a 'run' method.
+
+        @param when: a Time instance describing when the runnable's run()
+        method will be called.  See extime.Time's documentation for more
+        details.
+        """

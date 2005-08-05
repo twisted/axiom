@@ -6,8 +6,8 @@ from twisted.application.service import Service, IService
 from axiom.item import Item
 from axiom.attributes import timestamp, reference, text, integer, inmemory
 from axiom.extime import Time
-
 from axiom.slotmachine import Attribute
+from axiom.iaxiom import IScheduler
 
 class TimedEvent(Item):
     typeName = 'timed_event'
@@ -43,6 +43,7 @@ class Scheduler(Item, Service):
 
     def install(self):
         self.store.powerUp(self, IService)
+        self.store.powerUp(self, IScheduler)
 
     def now(self):
         # testing hook

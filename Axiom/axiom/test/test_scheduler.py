@@ -12,6 +12,7 @@ from axiom.item import Item
 
 from axiom.attributes import integer, inmemory
 from axiom.extime import Time
+from axiom.iaxiom import IScheduler
 
 
 class TestEvent(Item):
@@ -50,8 +51,7 @@ class SchedTest(unittest.TestCase):
 
     def setUp(self):
         self.store = Store()
-        self.sched = Scheduler(store=self.store)
-        self.sched.install()
+        Scheduler(store=self.store).install()
         IService(self.store).startService()
 
     def testScheduler(self):
@@ -75,9 +75,11 @@ class SchedTest(unittest.TestCase):
         now = Time()
         self.ts = [t1, t2, t3]
 
-        self.sched.schedule(t1, now + timedelta(seconds=interval * 1))
-        self.sched.schedule(t2, now + timedelta(seconds=interval * 2))
-        self.sched.schedule(t3, now + timedelta(seconds=interval * 20))
+        S = IScheduler(s)
+
+        S.schedule(t1, now + timedelta(seconds=interval * 1))
+        S.schedule(t2, now + timedelta(seconds=interval * 2))
+        S.schedule(t3, now + timedelta(seconds=interval * 20))
 
         return d
 
