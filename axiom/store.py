@@ -149,6 +149,11 @@ class Store(Empowered):
         for typename in self.typenameToID:
             self.checkTypeSchemaConsistency(typename)
 
+
+    def __repr__(self):
+        return '<Store %s>' % (self.dbdir,)
+
+
     def newFile(self, *path):
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
         tmpname = os.path.join(self.dbdir, 'temp', str(tempCounter.next())+".tmp")
