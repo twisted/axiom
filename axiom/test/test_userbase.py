@@ -70,7 +70,7 @@ class CommandTestCase(unittest.TestCase):
     def testUserBaseInstall(self):
         dbdir = self.mktemp()
         axiomatic.main([
-                '-d', dbdir, 'userbase'])
+                '-d', dbdir, 'userbase', 'install'])
 
         s = Store(dbdir)
         IRealm(s)
@@ -81,9 +81,7 @@ class CommandTestCase(unittest.TestCase):
         dbdir = self.mktemp()
         axiomatic.main([
                 '-d', dbdir, 'userbase',
-                '-u', 'alice',
-                '-d', 'localhost',
-                '-p', SECRET])
+                'create', 'alice', 'localhost', SECRET])
 
         s = Store(dbdir)
         cc = ICredentialsChecker(s)
