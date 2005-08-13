@@ -10,7 +10,7 @@ from axiom.substore import SubStore
 from axiom.item import Item
 from axiom.attributes import text, bytes, integer, reference, AND
 
-from zope.interface import implements, Interface
+from zope.interface import implements, Interface, Attribute
 
 def dflip(x):
     l = x.split('.')
@@ -26,6 +26,20 @@ class NoSuchUser(UnauthorizedLogin):
 class DuplicateUser(Exception):
     pass
 
+
+class IPreauthCredentials(Interface):
+    """
+    Credentials used to indicate the user has indeed authenticated
+    already, even though we have no credentials to present at the moment.
+    """
+    username = Attribute("username@domain-style string")
+
+
+class Preauthenticated(object):
+    implements(IPreauthCredentials)
+
+    def __init__(self, username):
+        self.username = username
 
 
 class LoginAccount(Item):
@@ -50,7 +64,7 @@ class LoginAccount(Item):
 class LoginSystem(Item):
     implements(IRealm, ICredentialsChecker)
 
-    credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword)
+    credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword, IPreauthCredentials)
 
     schemaVersion = 1
     typeName = 'login_system'
@@ -117,11 +131,14 @@ class LoginSystem(Item):
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:
-            password = acct.password
-            if credentials.checkPassword(password):
+            if IPreauthCredentials.providedBy(credentials):
                 return acct.storeID
             else:
-                self.failedLogins += 1
-                raise BadCredentials()
-        raise NoSuchUser()
+                password = acct.password
+                if credentials.checkPassword(password):
+                    return acct.storeID
+                else:
+                    self.failedLogins += 1
+                    raise BadCredentials()
+        raise NoSuchUser(credentials.username)
 
