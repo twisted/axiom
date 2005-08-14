@@ -124,21 +124,23 @@ class LoginSystem(Item):
     def requestAvatarId(self, credentials):
         passwordSecure = IUsernameHashedPassword(credentials, None) is not None
         # ^ need to do something with this.  security warning perhaps?
-        username, domain = credentials.username.split('@', 1)
 
-        username = unicode(username)
-        domain = unicode(domain)
+        try:
+            username, domain = credentials.username.split('@', 1)
+            username = unicode(username)
+            domain = unicode(domain)
 
-        acct = self.accountByAddress(username, domain)
-        if acct is not None:
-            if IPreauthCredentials.providedBy(credentials):
-                return acct.storeID
-            else:
-                password = acct.password
-                if credentials.checkPassword(password):
+            acct = self.accountByAddress(username, domain)
+            if acct is not None:
+                if IPreauthCredentials.providedBy(credentials):
                     return acct.storeID
                 else:
-                    self.failedLogins += 1
-                    raise BadCredentials()
-        raise NoSuchUser(credentials.username)
-
+                    password = acct.password
+                    if credentials.checkPassword(password):
+                        return acct.storeID
+                    else:
+                        raise BadCredentials()
+            raise NoSuchUser(credentials.username)
+        except:
+            self.failedLogins += 1
+            raise
