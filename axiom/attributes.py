@@ -22,10 +22,11 @@ class SQLAttribute(inmemory):
     """
     sqltype = None
 
-    def __init__(self, doc='', indexed=False, default=None):
+    def __init__(self, doc='', indexed=False, default=None, allowNone=True):
         inmemory.__init__(self, doc)
         self.indexed = indexed
         self.default = default
+        self.allowNone = allowNone
 
 
     def coercer(self, value):
@@ -121,6 +122,10 @@ class SQLAttribute(inmemory):
 
     def __set__(self, oself, pyval):
         # convert to dbval later, I guess?
+        if pyval is None and not self.allowNone:
+            raise TypeError("attribute [%s.%s = %s()] must not be None" % (
+                    self.classname, self.attrname, self.__class__.__name__))
+
         st = oself.store
         dbval = self.infilter(pyval, oself)
         oself.__dirty__[self.attrname] = dbval
@@ -207,7 +212,7 @@ class ColumnComparer:
 
 class _BooleanCondition:
     operator = None
-    
+
     def __init__(self, *conditions):
         if self.operator is None:
             raise NotImplementedError, ('%s cannot be used; you want AND or OR.'
@@ -293,6 +298,8 @@ class text(SQLAttribute):
         self.caseSensitive = caseSensitive
 
     def infilter(self, pyval, oself):
+        if pyval is None:
+            return None
         if not isinstance(pyval, unicode) or '\x00' in pyval:
             raise TypeError("attribute [%s.%s = text()] must be (unicode string without NULL bytes); not %r" %
                             (self.classname, self.attrname, type(pyval).__name__,))
@@ -335,8 +342,8 @@ class timestamp(integer):
         return Time.fromPOSIXTimestamp(dbval / MICRO)
 
 class reference(integer):
-    def __init__(self, doc='', indexed=True, reftype=None):
-        integer.__init__(self, doc, indexed)
+    def __init__(self, doc='', indexed=True, allowNone=True, reftype=None):
+        integer.__init__(self, doc, indexed, None, allowNone)
         self.reftype = reftype
 
     def infilter(self, pyval, oself):

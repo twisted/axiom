@@ -182,7 +182,7 @@ class Store(Empowered):
         actualType = _typeNameToMostRecentClass[typename]
         #
         inMemorySchema = [(storedAttribute.indexed, storedAttribute.sqltype,
-                           storedAttribute.columnName)
+                           storedAttribute.allowNone, storedAttribute.columnName)
                           for (name, storedAttribute) in actualType.getSchema()]
 
         onDiskSchema = self.querySQL(_schema.IDENTIFYING_SCHEMA, [typeID])
@@ -368,8 +368,8 @@ class Store(Empowered):
             self.executeSQL(
                 _schema.ADD_SCHEMA_ATTRIBUTE,
                 [typeID, n, storedAttribute.indexed, storedAttribute.sqltype,
-                 storedAttribute.columnName, storedAttribute.doc,
-                 storedAttribute.__class__.__name__])
+                 storedAttribute.allowNone, storedAttribute.columnName,
+                 storedAttribute.doc, storedAttribute.__class__.__name__])
             # XXX probably need something better for pythontype eventually,
             # when we figure out a good way to do user-defined attributes or we
             # start parameterizing references.

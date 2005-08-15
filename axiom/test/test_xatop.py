@@ -26,7 +26,6 @@ class TestItem(item.Item):
     foo = attributes.integer(indexed=True)
     bar = attributes.text()
     baz = attributes.timestamp()
-    quux = attributes.reference()
 
 
 class ItemTests(unittest.TestCase):
@@ -114,6 +113,13 @@ class AttributefulItem(item.Item):
         return 'AttributeItem(oid=%s,withDefault=%s,withoutDefault=%s)'%  (
             self.storeID, self.withDefault, self.withoutDefault)
 
+class StricterItem(item.Item):
+    schemaVersion = 1
+    typeName = 'test_stricter_item'
+
+    aRef = attributes.reference(allowNone=False)
+
+
 class AttributeTests(unittest.TestCase):
     def testGetAttribute(self):
         s = store.Store()
@@ -152,3 +158,25 @@ class AttributeTests(unittest.TestCase):
                 [x, z, y])
 
         s.transact(testQueries)
+
+    def testDontAllowNone(self):
+        s = store.Store()
+        def testDontAllowNone():
+            try:
+                x = StricterItem(store=s)
+            except TypeError:
+                pass
+            else:
+                self.fail("Creating a StricterItem without an aRef value should have failed")
+
+            a = AttributefulItem(store=s)
+            x = StricterItem(store=s, aRef=a)
+            self.assertEquals(x.aRef, a)
+
+            try:
+                x.aRef = None
+            except TypeError:
+                pass
+            else:
+                self.fail("Setting aRef to None on a StricterItem should have failed")
+        s.transact(testDontAllowNone)
