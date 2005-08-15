@@ -24,6 +24,7 @@ CREATE TABLE axiom_attributes (
     row_offset INTEGER,
     indexed BOOLEAN,
     sqltype VARCHAR,
+    allow_none BOOLEAN,
     pythontype VARCHAR,
     attribute VARCHAR,
     docstring TEXT
@@ -40,14 +41,14 @@ SELECT axiom_types.typename, axiom_types.version
 HAS_SCHEMA_FEATURE = ("SELECT COUNT(oid) FROM sqlite_master "
                       "WHERE type = ? AND name = ?")
 
-IDENTIFYING_SCHEMA = ('SELECT indexed, sqltype, attribute '
+IDENTIFYING_SCHEMA = ('SELECT indexed, sqltype, allow_none, attribute '
                       'FROM axiom_attributes WHERE type_id = ? '
                       'ORDER BY row_offset')
 
 ADD_SCHEMA_ATTRIBUTE = (
     'INSERT INTO axiom_attributes '
-    '(type_id, row_offset, indexed, sqltype, attribute, docstring, pythontype) '
-    'VALUES (?, ?, ?, ?, ?, ?, ?)')
+    '(type_id, row_offset, indexed, sqltype, allow_none, attribute, docstring, pythontype) '
+    'VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
 
 ALL_TYPES = 'SELECT oid, typename, version FROM axiom_types'
 
