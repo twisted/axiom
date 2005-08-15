@@ -228,9 +228,10 @@ class Item(Empowered):
         if tostore != None:
             self.store = tostore
 
-        for (name, attr) in self.getSchema():
-            if name not in kw and not attr.allowNone:
-                kw[name] = attr.default
+        if not self.__everInserted:
+            for (name, attr) in self.getSchema():
+                if name not in kw and not attr.allowNone:
+                    kw[name] = attr.default
 
         for k, v in kw.iteritems():
             setattr(self, k, v)
