@@ -244,6 +244,7 @@ class Item(Empowered):
         return noop
 
     def existingInStore(cls, store, storeID, attrs):
+        """Create and return a new instance from a row from the store."""
         self = cls.__new__(cls)
 
         self.__justCreated = False
@@ -251,10 +252,10 @@ class Item(Empowered):
                          storeID=storeID,
                          __everInserted=True)
 
-        scm = list(self.getSchema())
-        assert len(scm) == len(attrs), "invalid number of attributes"
-        for data, (nam, atr) in zip(attrs, scm):
-            atr.loaded(self, data)
+        schema = list(self.getSchema())
+        assert len(schema) == len(attrs), "invalid number of attributes"
+        for data, (name, attr) in zip(attrs, schema):
+            attr.loaded(self, data)
         # self.activate()?
         return self
 
@@ -264,9 +265,9 @@ class Item(Empowered):
         """
         return all persistent class attributes
         """
-        for nam, atr in cls.__attributes__:
+        for name, atr in cls.__attributes__:
             if isinstance(atr, SQLAttribute):
-                yield (nam, atr)
+                yield (name, atr)
 
     getSchema = classmethod(getSchema)
 
@@ -287,7 +288,7 @@ class Item(Empowered):
                                      self.schemaVersion),
             [self.storeID])[0]
 
-        for data, (nam, atr) in zip(dbattrs, self.getSchema()):
+        for data, (name, atr) in zip(dbattrs, self.getSchema()):
             atr.loaded(self, data)
 
         self.__deleting = False
