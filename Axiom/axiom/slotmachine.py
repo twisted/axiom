@@ -53,7 +53,7 @@ class SlotMetaMachine(type):
     def __new__(meta, name, bases, dictionary):
         dictionary['__name__'] = name
         slots = ['__weakref__'] + list(
-            meta.determineSchema.im_func(meta, dictionary))
+            meta.determineSchema(dictionary))
         if bases:
             borrowedBases = tuple([borrow(x, slots.extend) for x in bases])
         else:
@@ -95,6 +95,8 @@ class SlotMetaMachine(type):
             raise AssertionError(
                 "When using SlotMachine, specify 'slots' not '__slots__'")
         return dictionary.get("slots", [])
+
+    determineSchema = classmethod(determineSchema)
 
 
 class DescriptorWithDefault(object):
@@ -154,8 +156,8 @@ class SchemaMetaMachine(SlotMetaMachine):
 
     def determineSchema(meta, dictionary):
         attrs = dictionary['__attributes__'] = []
-        cn = dictionary['__name__']
-        mn = dictionary['__module__']
+        name = dictionary['__name__']
+        moduleName = dictionary['__module__']
         dictitems = dictionary.items()
         dictitems.sort()        # deterministic ordering is important because
                                 # we generate SQL schemas from these attribute
@@ -169,10 +171,12 @@ class SchemaMetaMachine(SlotMetaMachine):
         for k, v in dictitems:
             if isinstance(v, Attribute):
                 attrs.append((k, v))
-                for slot in v.requiredSlots(mn, cn, k):
+                for slot in v.requiredSlots(moduleName, name, k):
                     if slot == k:
                         del dictionary[k]
                     yield slot
+
+    determineSchema = classmethod(determineSchema)
 
 class SchemaMachine:
     __metaclass__ = SchemaMetaMachine
