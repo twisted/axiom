@@ -254,7 +254,7 @@ class integer(SQLAttribute):
         if pyval is None:
             return None
         bigness = int(pyval)
-        if bigness >= TOO_BIG:
+        if bigness > TOO_BIG:
             raise OverflowError(
                 "Integers larger than %r, such as %r don't fit in the database." % (TOO_BIG, bigness))
         return bigness
@@ -300,7 +300,7 @@ class text(SQLAttribute):
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
-        if not isinstance(pyval, unicode) or '\x00' in pyval:
+        if not isinstance(pyval, unicode) or u'\0' in pyval:
             raise TypeError("attribute [%s.%s = text()] must be (unicode string without NULL bytes); not %r" %
                             (self.classname, self.attrname, type(pyval).__name__,))
         return pyval
@@ -364,5 +364,3 @@ class reference(integer):
         if dbval is None:
             return None
         return oself.store.getItemByID(dbval, autoUpgrade=not oself.__legacy__)
-
-# promotions
