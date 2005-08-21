@@ -239,6 +239,7 @@ class Item(Empowered):
     def __init__(self, **kw):
         self.__justCreated = True
         self.__subinit__(**kw)
+        self.activate()
 
     def __finalizer__(self):
         return noop
@@ -256,10 +257,13 @@ class Item(Empowered):
         assert len(schema) == len(attrs), "invalid number of attributes"
         for data, (name, attr) in zip(attrs, schema):
             attr.loaded(self, data)
-        # self.activate()?
+        self.activate()
         return self
-
     existingInStore = classmethod(existingInStore)
+
+    def activate(self):
+        """The object was loaded from the store.
+        """
 
     def getSchema(cls):
         """

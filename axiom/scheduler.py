@@ -30,8 +30,7 @@ class Scheduler(Item, Service):
     lastEventAt = timestamp()
     nextEventAt = timestamp()
 
-    def __subinit__(self, **kw):
-        super(Scheduler, self).__subinit__(**kw)
+    def activate(self):
         self.timer = None
         self.running = False
 
@@ -67,6 +66,8 @@ class Scheduler(Item, Service):
                 event.time = newTime
             else:
                 event.deleteFromStore()
+                # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX omfg what
+                event.checkpoint()
             any = 1
         if any:
             self.lastEventAt = now
