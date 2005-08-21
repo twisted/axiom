@@ -102,7 +102,8 @@ class Store(Empowered):
             if os.path.isdir(dbdir):
                 if not os.path.exists(dbfpath):
                     raise OSError(
-                        "The path %r is already a directory, but not an XAtop Store")
+                        "The path %r is already a directory, "
+                        "but not an Axiom Store" % (dbfpath,))
             else:
                 _md(dbdir)
                 _md(self.filesdir)
