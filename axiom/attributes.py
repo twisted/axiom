@@ -4,8 +4,9 @@ import os
 
 from twisted.python.filepath import FilePath
 
+from epsilon.extime import Time
+
 from axiom.slotmachine import Attribute as inmemory
-from axiom.extime import Time
 
 _NEEDS_FETCH = object()         # token indicating that a value was not found
 
