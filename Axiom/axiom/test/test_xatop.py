@@ -1,7 +1,8 @@
 
 from twisted.trial import unittest
 
-from axiom import attributes, item, store, extime
+from epsilon import extime
+from axiom import attributes, item, store
 
 class StoreTests(unittest.TestCase):
     def testCreation(self):
