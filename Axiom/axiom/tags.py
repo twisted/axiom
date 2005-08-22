@@ -1,9 +1,10 @@
 
 import itertools, operator
 
+from epsilon.extime import Time
+
 from axiom.item import Item
 from axiom.attributes import text, reference, integer, AND, timestamp
-from axiom.extime import Time
 
 class Tag(Item):
     typeName = 'tag'

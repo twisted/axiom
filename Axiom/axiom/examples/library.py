@@ -4,7 +4,7 @@ import random
 from axiom.item import Item
 from axiom.attributes import text, timestamp, reference, integer
 from axiom.store import Store
-from axiom import extime
+from epsilon import extime
 
 _d = extime.Time.fromISO8601TimeAndDate
 

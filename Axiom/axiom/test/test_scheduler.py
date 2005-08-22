@@ -6,12 +6,13 @@ from twisted.trial import unittest
 from twisted.application.service import IService
 from twisted.internet.defer import Deferred
 
+from epsilon.extime import Time
+
 from axiom.scheduler import Scheduler
 from axiom.store import Store
 from axiom.item import Item
 
 from axiom.attributes import integer, inmemory
-from axiom.extime import Time
 from axiom.iaxiom import IScheduler
 
 

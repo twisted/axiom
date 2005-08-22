@@ -2,10 +2,10 @@
 from twisted.internet import reactor
 
 from twisted.application.service import Service, IService
+from epsilon.extime import Time
 
 from axiom.item import Item
 from axiom.attributes import timestamp, reference, text, integer, inmemory
-from axiom.extime import Time
 from axiom.slotmachine import Attribute
 from axiom.iaxiom import IScheduler
 
