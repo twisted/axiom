@@ -155,25 +155,57 @@ class Store(Empowered):
         return '<Store %s>' % (self.dbdir,)
 
 
-    def findOrCreate(self, Type, **attrs):
+    def newFilePath(self, *path):
+        return XFilePath(os.path.join(self.dbdir, 'files', *path))
+
+    def findOrCreate(self, userItemClass, __ifnew=None, **attrs):
+        """
+        Usage:
+
+            s.findOrCreate(userItemClass [, function] [, x=1, y=2, ...])
+
+        Example:
+
+            class YourItemType(Item):
+                a = integer()
+                b = text()
+                c = integer()
+
+            def f(x):
+                print x, "-- it's new!"
+            s.findOrCreate(YourItemType, f, a=1, b=u'2')
+
+        Search for an item with columns in the database that match the passed
+        set of keyword arguments, returning the first match if one is found,
+        creating one with the given attributes if not.  Takes an optional
+        positional argument function to call on the new item if it is new.
+        """
 
         andargs = []
         for k, v in attrs.iteritems():
-            col = getattr(Type, k)
+            col = getattr(userItemClass, k)
             andargs.append(col == v)
 
-        for result in self.query(Type, attributes.AND(*andargs)):
+        if len(andargs) == 0:
+            cond = []
+        elif len(andargs) == 1:
+            cond = [andargs[0]]
+        else:
+            cond = [attributes.AND(*andargs)]
+
+        for result in self.query(userItemClass, *cond):
             return result
 
-        return Type(store=self, **attrs)
+        newItem = userItemClass(store=self, **attrs)
+        if __ifnew is not None:
+            __ifnew(newItem)
+        return newItem
 
 
     def newFile(self, *path):
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
         tmpname = os.path.join(self.dbdir, 'temp', str(tempCounter.next())+".tmp")
-        return AtomicFile(
-            tmpname,
-            XFilePath(os.path.join(self.dbdir, 'files', *path)))
+        return AtomicFile(tmpname, self.newFilePath(*path))
 
     def newDirectory(self, *path):
         assert self.dbdir is not None, "Cannot create directories in in-memory Stores (yet)"

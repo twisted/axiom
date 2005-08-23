@@ -66,3 +66,19 @@ class PowerUpTest(unittest.TestCase):
         self.assertEquals(mm.doSum(), 6)
 
         s.close()
+
+    def testPowerupIdentity(self):
+        s = Store()
+        mm = Summer(store=s)
+        s.powerUp(mm, ISumProducer)
+
+        sc3 = SumContributor(store=s, value=3)
+
+        s.powerUp(SumContributor(store=s, value=1), IValueHaver)
+        s.powerUp(SumContributor(store=s, value=2), IValueHaver)
+        s.powerUp(sc3, IValueHaver)
+        s.powerUp(sc3, IValueHaver)
+
+        self.assertEquals(mm.doSum(), 6)
+
+        s.close()

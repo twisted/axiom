@@ -181,3 +181,39 @@ class AttributeTests(unittest.TestCase):
             else:
                 self.fail("Setting aRef to None on a StricterItem should have failed")
         s.transact(testDontAllowNone)
+
+
+class TestFindOrCreate(unittest.TestCase):
+
+    def testCreate(self):
+        s = store.Store()
+        ai = s.findOrCreate(AttributefulItem)
+        self.assertEquals(ai.withDefault, 42)
+        self.assertEquals(ai.withoutDefault, None)
+
+    def testFind(self):
+        s = store.Store()
+        ai = s.findOrCreate(AttributefulItem, withoutDefault=1234)
+        ai2 = s.findOrCreate(AttributefulItem, withDefault=42)
+        ai3 = s.findOrCreate(AttributefulItem)
+
+        ai4 = s.findOrCreate(AttributefulItem, withDefault=71)
+        ai5 = s.findOrCreate(AttributefulItem, withDefault=71)
+
+        self.assertIdentical(ai, ai2)
+        self.assertIdentical(ai3, ai2)
+        self.assertIdentical(ai4, ai5)
+        self.assertNotIdentical(ai, ai4)
+
+    def testIfNew(self):
+        l = []
+        s = store.Store()
+
+        ai1 = s.findOrCreate(AttributefulItem, l.append, withDefault=1234)
+        ai2 = s.findOrCreate(AttributefulItem, l.append, withDefault=1234)
+        ai3 = s.findOrCreate(AttributefulItem, l.append, withDefault=4321)
+        ai4 = s.findOrCreate(AttributefulItem, l.append, withDefault=4321)
+
+        self.assertEquals(len(l), 2)
+        self.assertEquals(l, [ai1, ai3])
+
