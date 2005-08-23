@@ -183,6 +183,7 @@ class Item(Empowered):
                 self.checkpoint()
             else:
                 self.touch()
+            self.activate()
         return get, set, """
 
         A reference to a Store; when set for the first time, inserts this object
@@ -242,9 +243,20 @@ class Item(Empowered):
             setattr(self, k, v)
 
     def __init__(self, **kw):
+        """
+        Create a new Item.  This is called on an item *only* when it is being created
+        for the first time, not when it is loaded from the database.  The
+        'activate()' hook is called every time an item is loaded from the
+        database, as well as the first time that an item is inserted into the
+        store.  This will be inside __init__ if you pass a 'store' keyword
+        argument to an Item's constructor.
+
+        This takes an arbitrary set of keyword arguments, which will be set as
+        attributes on the created item.  Subclasses of Item must honor this
+        signature.
+        """
         self.__justCreated = True
         self.__subinit__(**kw)
-        self.activate()
 
     def __finalizer__(self):
         return noop
