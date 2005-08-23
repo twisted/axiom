@@ -155,6 +155,19 @@ class Store(Empowered):
         return '<Store %s>' % (self.dbdir,)
 
 
+    def findOrCreate(self, Type, **attrs):
+
+        andargs = []
+        for k, v in attrs.iteritems():
+            col = getattr(Type, k)
+            andargs.append(col == v)
+
+        for result in self.query(Type, attributes.AND(*andargs)):
+            return result
+
+        return Type(store=self, **attrs)
+
+
     def newFile(self, *path):
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
         tmpname = os.path.join(self.dbdir, 'temp', str(tempCounter.next())+".tmp")
