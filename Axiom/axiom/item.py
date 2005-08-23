@@ -94,17 +94,22 @@ class Empowered(object):
         execution of your powerups, but if finer-grained control is necessary
         you may pass any integer.  Normal (unspecified) priority is zero.
 
+        Powerups will only be installed once on a given item.  If you install a
+        powerup for a given interface with priority 1, then again with priority
+        30, the powerup will be adjusted to priority 30 but future calls to
+        powerupFor will still only return that powerup once.
+
         @param powerup: an Item that implements C{interface}
         @param interface: a zope interface
 
         @param priority: An int; preferably either POWERUP_BEFORE,
         POWERUP_AFTER, or unspecified.
         """
-        _PowerupConnector(store=self.store,
-                          item=self,
-                          interface=unicode(qual(interface)),
-                          powerup=powerup,
-                          priority=priority)
+        forc = self.store.findOrCreate(_PowerupConnector,
+                                       item=self,
+                                       interface=unicode(qual(interface)),
+                                       powerup=powerup)
+        forc.priority = priority
 
 
     def __conform__(self, interface):
