@@ -290,8 +290,8 @@ class text(SQLAttribute):
     memory as a Python 'unicode'.
     """
 
-    def __init__(self, doc='', indexed=False, caseSensitive=False):
-        SQLAttribute.__init__(self, doc, indexed)
+    def __init__(self, caseSensitive=False, **kw):
+        SQLAttribute.__init__(self, **kw)
         if caseSensitive:
             self.sqltype = 'TEXT'
         else:
