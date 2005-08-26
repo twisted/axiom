@@ -9,6 +9,7 @@ from twisted.python import log
 from axiom.substore import SubStore
 from axiom.item import Item
 from axiom.attributes import text, bytes, integer, reference, AND
+from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
 
 from zope.interface import implements, Interface, Attribute
 
@@ -16,15 +17,6 @@ def dflip(x):
     l = x.split('.')
     l.reverse()
     return '.'.join(l)
-
-class BadCredentials(UnauthorizedLogin):
-    pass
-
-class NoSuchUser(UnauthorizedLogin):
-    pass
-
-class DuplicateUser(Exception):
-    pass
 
 
 class IPreauthCredentials(Interface):

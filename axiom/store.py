@@ -152,7 +152,12 @@ class Store(Empowered):
 
 
     def __repr__(self):
-        return '<Store %s>' % (self.dbdir,)
+        d = self.dbdir
+        if d is None:
+            d = '(in memory)'
+        else:
+            d = repr(d)
+        return '<Store %s@%x>' % (self.dbdir, id(self))
 
 
     def newFilePath(self, *path):
