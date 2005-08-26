@@ -278,6 +278,8 @@ class Store(Empowered):
               comparison=None,
               limit=None, offset=None,
               sort=None):
+        if not self.autocommit:
+            self.checkpoint()
         if (tableClass.typeName,
             tableClass.schemaVersion) not in self.typenameAndVersionToID:
             return
@@ -337,9 +339,12 @@ class Store(Empowered):
         for item in self.transaction:
             item.revert()
 
+    executedThisTransaction = None
+
     def transact(self, f, *a, **k):
         if self.transaction is not None:
             return f(*a, **k)
+        self.executedThisTransaction = []
         self.transaction = set()
         self.autocommit = False
         try:
@@ -357,6 +362,7 @@ class Store(Empowered):
         finally:
             self.autocommit = True
             self.transaction = None
+            self.executedThisTransaction = None
 
     def commit(self):
         if self.debug:
@@ -407,6 +413,18 @@ class Store(Empowered):
         sqlstr.append(', '.join(sqlarg))
         sqlstr.append(')')
 
+        if not self.autocommit:
+            self.connection.rollback()
+
+        self.createSQL(''.join(sqlstr))
+        for index in indexes:
+            self.createSQL('CREATE INDEX axiomidx_%s_%s ON %s(%s)'
+                           % (tableName, index,
+                              tableName, index))
+
+        if not self.autocommit:
+            self._reexecute()
+
         typeID = self.executeSQL(_schema.CREATE_TYPE, [tableClass.typeName,
                                                        tableClass.schemaVersion])
 
@@ -423,29 +441,6 @@ class Store(Empowered):
         self.typenameToID[tableClass.typeName] = typeID
         self.typenameAndVersionToID[key] = typeID
         self.idToTypename[typeID] = tableClass.typeName
-
-        # The table and index creation code is executed last, because SQLite
-        # has the extremely unfortunate habit of committing transactions as
-        # soon as you issue a (CREATE|DROP) (TABLE|INDEX)
-
-        # There is an obscure condition where the database could be left in an
-        # inconsistent state.  If you do something that needs to be
-        # transactional, create the first instance of a particular item type,
-        # then do something which potentially raises an exception, then
-        # checkpoint, THEN do something that depends on your first
-        # transactional action, the database will commit as soon as the new
-        # item type is created.
-
-        # Note, however, that it is perfectly safe to do this _without_ a call
-        # to checkpoint() because none of the Python-level SQL will run until
-        # the database has checkpointed, either from user code or at the end of
-        # the transaction.
-
-        self.executeSQL(''.join(sqlstr))
-        for index in indexes:
-            self.executeSQL('CREATE INDEX axiomidx_%s_%s ON %s(%s)'
-                            % (tableName, index,
-                               tableName, index))
 
         return typeID
 
@@ -539,18 +534,43 @@ class Store(Empowered):
             print '  result:', result
         return result
 
-    def executeSQL(self, sql, args=()):
+    def createSQL(self, sql, args=()):
+        """ For use with auto-committing statements such as CREATE TABLE or CREATE
+        INDEX.
         """
-        For use with UPDATE, INSERT or CREATE statements.
-        """
+        self._execSQL(sql, args)
+
+    def _execSQL(self, sql, args):
         sql = self._normalizeSQL(sql)
         if self.debug:
             rows = timeinto(self.execTimes, self._queryandfetch, sql, args)
         else:
             rows = self._queryandfetch(sql, args)
         assert not rows
+        return sql
+
+    def executeSQL(self, sql, args=()):
+        """
+        For use with UPDATE or INSERT statements.
+        """
+        sql = self._execSQL(sql, args)
         result = self.cursor.lastrowid
+        if self.executedThisTransaction is not None:
+            self.executedThisTransaction.append((result, sql, args))
         return result
+
+    def _reexecute(self):
+        assert self.executedThisTransaction is not None
+        for resultLastTime, sql, args in self.executedThisTransaction:
+            self._execSQL(sql, args)
+            resultThisTime = self.cursor.lastrowid
+            if resultLastTime != resultThisTime:
+                raise TableCreationConcurrencyError(
+                    "Expected to get %s as a result "
+                    "of %r:%r, got %s" % (
+                        resultLastTime,
+                        sql, args,
+                        resultThisTime))
 
 
 def timeinto(l, f, *a, **k):
