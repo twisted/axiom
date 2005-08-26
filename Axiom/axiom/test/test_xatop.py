@@ -2,7 +2,7 @@
 from twisted.trial import unittest
 
 from epsilon import extime
-from axiom import attributes, item, store
+from axiom import attributes, item, store, errors
 
 class StoreTests(unittest.TestCase):
     def testCreation(self):
@@ -27,6 +27,47 @@ class TestItem(item.Item):
     foo = attributes.integer(indexed=True)
     bar = attributes.text()
     baz = attributes.timestamp()
+    other = attributes.reference()
+
+    activated = attributes.inmemory()
+    checkactive = attributes.inmemory()
+    checked = attributes.inmemory()
+
+    def activate(self):
+        self.activated = True
+        if getattr(self, 'checkactive', False):
+            assert isinstance(self.other, TestItem), repr(self.other)
+            assert self.other != self, repr(self.other)
+            self.checked = True
+
+
+class FailurePathTests(unittest.TestCase):
+
+    def testNoCrossStoreRefs(self):
+        s1 = store.Store()
+        s2 = store.Store()
+
+        t1 = TestItem(store=s1)
+        self.assertRaises(errors.NoCrossStoreReferences,
+                          TestItem, store=s2, other=t1)
+
+        t2 = TestItem(store=s2)
+
+        self.assertRaises(errors.NoCrossStoreReferences,
+                          setattr, t2, 'other', t1)
+
+        self.assertRaises(errors.NoCrossStoreReferences,
+                          setattr, t2, 'other', s1)
+
+        t3 = TestItem(other=t1)
+
+        self.assertRaises(errors.NoCrossStoreReferences,
+                          setattr, t3, 'store', s2)
+
+        t3.store = s1
+
+        self.assertEquals(list(s1.query(TestItem)),
+                          [t1, t3])
 
 
 class ItemTests(unittest.TestCase):
@@ -36,6 +77,14 @@ class ItemTests(unittest.TestCase):
 
     def tearDown(self):
         self.store.close()
+
+    def testFirstActivationHappensWhenAttributesAreSet(self):
+        tio = TestItem(store=self.store)
+        ti = TestItem(store=self.store,
+                      checkactive=True,
+                      other=tio)
+
+        self.assertEquals(ti.checked, True)
 
     def testItemCreation(self):
         timeval = extime.Time.fromISO8601TimeAndDate('2004-10-05T10:12:14.1234')

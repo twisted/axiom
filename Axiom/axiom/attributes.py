@@ -8,7 +8,10 @@ from epsilon.extime import Time
 
 from axiom.slotmachine import Attribute as inmemory
 
+from axiom.errors import NoCrossStoreReferences
+
 _NEEDS_FETCH = object()         # token indicating that a value was not found
+
 
 class SQLAttribute(inmemory):
     """
@@ -352,13 +355,12 @@ class reference(integer):
             return None
         if oself is None:
             return pyval.storeID
-        if oself.store != pyval.store:
-            raise AttributeError(
-                "You can't establish references to items in other stores.")
         if oself.store is None:
-            raise AttributeError(
-                "TODO: Setting references on items outside of stores is "
-                "currently unsupported.  Set .store first.")
+            return pyval.storeID
+        if oself.store != pyval.store:
+            raise NoCrossStoreReferences(
+                "You can't establish references to items in other stores.")
+
         return integer.infilter(self, pyval.storeID, oself)
 
     def outfilter(self, dbval, oself):

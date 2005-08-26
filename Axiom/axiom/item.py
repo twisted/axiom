@@ -9,6 +9,8 @@ from axiom import slotmachine, _schema
 from axiom.attributes import SQLAttribute, ColumnComparer, inmemory, \
     reference, text, integer, AND
 
+from axiom.errors import NoCrossStoreReferences
+
 _typeNameToMostRecentClass = {}
 
 class NoInheritance(RuntimeError):
@@ -175,7 +177,18 @@ class Item(Empowered):
             if self.__store is not None:
                 raise AttributeError(
                     "Store already set - can't move between stores")
+            for name, atr in self.getSchema():
+                if isinstance(atr, reference):
+                    oitem = atr.__get__(self)
+                    if oitem is not None and oitem.store is not store:
+                        raise NoCrossStoreReferences(
+                            "Trying to insert item: %r into store: %r, "
+                            "but it has a reference to other item: .%s=%r "
+                            "in another store: %r" % (
+                                self, store, name, oitem, oitem.store
+                                ))
             self.__store = store
+            # make damn sure all of our references point to this store:
             oid = self.storeID = self.store.executeSQL(
                 _schema.CREATE_OBJECT, [self.store.getTypeID(type(self))])
             store.objectCache.cache(oid, self)
@@ -231,8 +244,6 @@ class Item(Empowered):
         self.__deletingObject = False
         self.__deleting = False
         tostore = kw.pop('store',None)
-        if tostore != None:
-            self.store = tostore
 
         if not self.__everInserted:
             for (name, attr) in self.getSchema():
@@ -241,6 +252,9 @@ class Item(Empowered):
 
         for k, v in kw.iteritems():
             setattr(self, k, v)
+
+        if tostore != None:
+            self.store = tostore
 
     def __init__(self, **kw):
         """
