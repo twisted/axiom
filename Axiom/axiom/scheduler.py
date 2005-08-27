@@ -2,6 +2,8 @@
 from twisted.internet import reactor
 
 from twisted.application.service import Service, IService
+from twisted.python import log
+
 from epsilon.extime import Time
 
 from axiom.item import Item
@@ -57,6 +59,7 @@ class Scheduler(Item, Service):
         any = 0
         self.timer = None
         self.nextEventAt = None
+        before = self.eventsRun
         for event in self.store.query(TimedEvent,
                                       TimedEvent.time < now,
                                       sort=TimedEvent.time.ascending):
@@ -74,11 +77,14 @@ class Scheduler(Item, Service):
         x = list(
             self.store.query(TimedEvent, sort=TimedEvent.time.ascending, limit=1))
         if x:
+            if self.timer is not None:
+                self.timer.cancel()
             x = x[0]
             self.timer = self.callLater(
                 x.time.asPOSIXTimestamp() - now.asPOSIXTimestamp(),
                 self.store.transact, self.tick)
             self.nextEventAt = x.time
+        log.msg("%d events run" % (self.eventsRun - before,))
 
 
     def schedule(self, runnable, when):
