@@ -9,6 +9,7 @@ from zope.interface import implements
 from twisted.python.filepath import FilePath
 from twisted.internet import defer
 from twisted.python.reflect import qual
+from twisted.python.util import unsignedID
 from twisted.application.service import IService, MultiService
 
 from axiom import _schema, attributes, upgrade, _fincache, iaxiom
@@ -157,7 +158,7 @@ class Store(Empowered):
             d = '(in memory)'
         else:
             d = repr(d)
-        return '<Store %s@%x>' % (self.dbdir, id(self))
+        return '<Store %s@0x%x>' % (self.dbdir, unsignedID(self))
 
 
     def newFilePath(self, *path):
@@ -601,8 +602,10 @@ class StorageService(MultiService):
 
     def privilegedStartService(self):
         self.store = Store(*self.a, **self.k)
-        IService(self.store).setServiceParent(self)
-        MultiService.privilegedStartService(self)
+        def reallyStart():
+            IService(self.store).setServiceParent(self)
+            MultiService.privilegedStartService(self)
+        self.store.transact(reallyStart)
 
     def close(self, ignored=None):
         # final close method, called after the service has been stopped
