@@ -24,13 +24,14 @@ class SubStore(Item):
         del self.substore._openSubStore
         del self.substore
 
-    def open(self):
+    def open(self, debug=False):
         if hasattr(self, 'substore'):
             return self.substore
         else:
             s = self.substore = Store(self.storepath.path,
                                       parent=self.store,
-                                      idInParent=self.storeID)
+                                      idInParent=self.storeID,
+                                      debug=debug)
             s._openSubStore = self # don't fall out of cache as long as the
                                    # store is alive!
             return s

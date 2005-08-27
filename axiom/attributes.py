@@ -316,12 +316,10 @@ class path(text):
 
     def infilter(self, pyval, oself):
         mypath = unicode(pyval.path)
-        storepath = oself.store.filesdir
+        storepath = os.path.normpath(oself.store.filesdir)
         if not mypath.startswith(storepath):
             raise InvalidPathError('%s not in %s' % (mypath, storepath))
-        p = mypath[len(storepath):]
-        if p.startswith('/'):
-            p = p[1:]
+        p = mypath[len(storepath)+1:]   # +1 to include \ or /
         return super(path, self).infilter(p, oself)
 
     def outfilter(self, dbval, oself):
