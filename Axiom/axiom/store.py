@@ -376,7 +376,11 @@ class Store(Empowered):
         self.connection.commit()
 
     def close(self):
+        self.cursor.close()
         self.connection.close()
+        self.cursor = None
+        self.connection = None
+
         if self.debug:
             if not self.queryTimes:
                 print 'no queries'
