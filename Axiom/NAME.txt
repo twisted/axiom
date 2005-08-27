@@ -1,0 +1,15 @@
+
+See: http://mathworld.wolfram.com/Axiom.html
+
+An axiom is a statement taken as true without proof or supporting arguments.
+
+Divmod Axiom is so named because it is a database, and a database is where you
+put assertions about the world.  In particular a database is where you put
+values which you do not wish to re-calculate; the data that your computation is
+based upon.  In this way axiom items are similar to axioms, since (for example)
+euclidean geometry can be derived from the set axioms known as "euclid's
+postulates", but those axioms need to be stored independently; they cannot be
+derived from anything.
+
+Plus it has an X in it, which sounds neat.
+
