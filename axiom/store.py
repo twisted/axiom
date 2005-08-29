@@ -28,7 +28,7 @@ class XFilePath(FilePath):
     def dirname(self):
         return os.path.dirname(self.path)
 
-def _md(dirname):
+def _mkdirIfNotExists(dirname):
     if os.path.isdir(dirname):
         return False
     os.makedirs(dirname)
@@ -51,7 +51,7 @@ class AtomicFile(file):
         now = time.time()
         try:
             file.close(self)
-            _md(self._destpath.dirname())
+            _mkdirIfNotExists(self._destpath.dirname())
             self.finalpath = self._destpath
             os.rename(self.name, self.finalpath.path)
             os.utime(self.finalpath.path, (now, now))
@@ -106,9 +106,9 @@ class Store(Empowered):
                         "The path %r is already a directory, "
                         "but not an Axiom Store" % (dbfpath,))
             else:
-                _md(dbdir)
-                _md(self.filesdir)
-                _md(os.path.join(dbdir, 'temp'))
+                _mkdirIfNotExists(dbdir)
+                _mkdirIfNotExists(self.filesdir)
+                _mkdirIfNotExists(os.path.join(dbdir, 'temp'))
         self.dbdir = dbdir
         self.connection = sqlite.connect(dbfpath)
         self.cursor = self.connection.cursor()
