@@ -115,6 +115,8 @@ class Empowered(object):
 
 
     def __conform__(self, interface):
+        if not self.store:
+            return
         pups = self.powerupsFor(interface)
         if interface in aggregateInterfaces:
             return aggregateInterfaces[interface](self, pups)
