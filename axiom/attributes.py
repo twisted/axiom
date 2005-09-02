@@ -143,7 +143,7 @@ class ColumnComparer:
         self.attribute = atr
         self.type = typ
         self.compared = False   # not yet activated
-        self.otherComp = None
+        self.otherComps = []
 
     def compare(self, other, sqlop):
         assert not self.compared # activation time
@@ -151,12 +151,12 @@ class ColumnComparer:
         # interim: maybe we want objects later?  right now strings should be fine
         a = self.preArgs = []
         if isinstance(other, ColumnComparer):
-            self.otherComp = other
+            self.otherComps.append(other)
             self.sql = ('(%s.%s %s %s.%s)' % (self.type.getTableName(),
-                                            self.attribute.columnName,
-                                            sqlop,
-                                            other.type.getTableName(),
-                                            other.attribute.columnName))
+                                              self.attribute.columnName,
+                                              sqlop,
+                                              other.type.getTableName(),
+                                              other.attribute.columnName))
         elif other is None:
             col = (self.type.getTableName(), self.attribute.columnName)
             if sqlop == '=':
@@ -169,8 +169,8 @@ class ColumnComparer:
         else:
             # convert to constant usable in the database
             self.sql = ('(%s.%s %s ?)' % (self.type.getTableName(),
-                                        self.attribute.columnName,
-                                        sqlop))
+                                          self.attribute.columnName,
+                                          sqlop))
             a.append(other)
         return self
 
@@ -187,6 +187,46 @@ class ColumnComparer:
     def __le__(self, other):
         return self.compare(other, '<=')
 
+
+    _likeOperators = ('LIKE', 'NOT LIKE')
+    def _like(self, op, *others):
+        assert not self.compared # activation time
+        self.compared = True
+        if op.upper() not in self._likeOperators:
+            raise ValueError, 'LIKE-style operators are: %s' % self._likeOperators
+        if not others:
+            raise ValueError, 'Must pass at least one expression to _like'
+
+        sqlParts = []
+        self.preArgs = []
+        
+        for other in others:
+            if isinstance(other, ColumnComparer):
+                self.otherComps.append(other)
+                sqlParts.append('%s.%s' % (other.type.getTableName(),
+                                           other.attribute.columnName))
+            elif other is None:
+                # LIKE NULL is a silly condition, but it's allowed.
+                sqlParts.append('NULL')
+            else:
+                self.preArgs.append(other)
+                sqlParts.append('?')
+
+        self.sql = '(%s.%s %s (%s))' % (self.type.getTableName(),
+                                        self.attribute.columnName,
+                                        op, ' || '.join(sqlParts))
+        return self
+
+    def like(self, *others):
+        return self._like('LIKE', *others)
+    def not_like(self, *others):
+        return self._like('NOT LIKE', *others)
+    def startswith(self, other):
+        return self._like('LIKE', other, '%')
+    def endswith(self, other):
+        return self._like('LIKE', '%', other)
+
+
     # XXX TODO: improve error reporting
     def getQuery(self):
         return self.sql
@@ -196,8 +236,7 @@ class ColumnComparer:
 
     def getTableNames(self):
         names = [self.type.getTableName()]
-        if self.otherComp is not None:
-            names.append(self.otherComp.type.getTableName())
+        names.extend([c.type.getTableName() for c in self.otherComps])
         return names
 
     def _asc(self):
@@ -239,8 +278,12 @@ class _BooleanCondition:
 
     def getTableNames(self):
         tbls = []
+        # We only want to join these tables ONCE per expression
+        # OR(A.foo=='bar', A.foo=='shoe') should not do "FROM foo, foo"
         for cond in self.conditions:
-            tbls += cond.getTableNames()
+            for tbl in cond.getTableNames():
+                if tbl not in tbls:
+                    tbls.append(tbl)
         return tbls
 
 class AND(_BooleanCondition):
