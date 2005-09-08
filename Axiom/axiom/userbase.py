@@ -53,21 +53,14 @@ class LoginAccount(Item):
         ifa = interface(self.avatars, None)
         return ifa
 
-class LoginSystem(Item):
+class SubStoreLoginMixin:
+    def makeAvatars(self, domain, username):
+        return SubStore(self.store, ('account', domain, username))
+
+class LoginBase:
     implements(IRealm, ICredentialsChecker)
 
     credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword, IPreauthCredentials)
-
-    schemaVersion = 1
-    typeName = 'login_system'
-
-    loginCount = integer()
-    failedLogins = integer()
-
-    def __init__(self, **kw):
-        super(LoginSystem, self).__init__(**kw)
-        self.failedLogins = 0
-        self.loginCount = 0
 
     def installOn(self, other):
         other.powerUp(self, IRealm)
@@ -89,8 +82,7 @@ class LoginSystem(Item):
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)
         if avatars is None:
-            avatars = SubStore(self.store,
-                               ('account', domain, username))
+            avatars = self.makeAvatars(domain, username)
         return LoginAccount(store=self.store,
                             username=username,
                             domain=dflip(domain),
@@ -136,3 +128,11 @@ class LoginSystem(Item):
         except:
             self.failedLogins += 1
             raise
+
+class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
+    schemaVersion = 1
+    typeName = 'login_system'
+
+    loginCount = integer(default=0)
+    failedLogins = integer(default=0)
+
