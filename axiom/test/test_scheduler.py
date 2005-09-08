@@ -52,7 +52,7 @@ class SchedTest(unittest.TestCase):
 
     def setUp(self):
         self.store = Store()
-        Scheduler(store=self.store).install()
+        Scheduler(store=self.store).installOn(self.store)
         IService(self.store).startService()
 
     def testScheduler(self):

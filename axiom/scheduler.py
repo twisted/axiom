@@ -42,9 +42,9 @@ class Scheduler(Item, Service):
         self.lastEventAt = None
         self.nextEventAt = None
 
-    def install(self):
-        self.store.powerUp(self, IService)
-        self.store.powerUp(self, IScheduler)
+    def installOn(self, other):
+        other.powerUp(self, IService)
+        other.powerUp(self, IScheduler)
 
     def now(self):
         # testing hook

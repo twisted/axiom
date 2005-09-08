@@ -19,17 +19,18 @@ class AxiomaticSubCommandMixin:
         codec = sys.stdin.encoding or sys.getdefaultencoding()
         return unicode(cmdline, codec)
 
-    def install(self):
+    def installOn(self, other):
+        # XXX check installation on other, not store
         for ls in self.store.query(userbase.LoginSystem):
             raise usage.UsageError("UserBase already installed")
         else:
             ls = userbase.LoginSystem(store=self.store)
-            ls.install()
+            ls.installOn(other)
             return ls
 
 class Install(usage.Options, AxiomaticSubCommandMixin):
     def postOptions(self):
-        self.install()
+        self.installOn(self.store)
 
 class Create(usage.Options, AxiomaticSubCommandMixin):
     synopsis = "<username> <domain> [password]"
@@ -43,7 +44,7 @@ class Create(usage.Options, AxiomaticSubCommandMixin):
         for ls in self.store.query(userbase.LoginSystem):
             break
         else:
-            ls = self.install()
+            ls = self.installOn(self.store)
         
         msg = 'Enter new AXIOM password: '
         while not self['password']:
