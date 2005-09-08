@@ -465,6 +465,8 @@ class Store(Empowered):
         """
         """
         assert storeID is not None
+        if storeID == -1:
+            return self
         if self.objectCache.has(storeID):
             return self.objectCache.get(storeID)
         results = self.querySQL(_schema.TYPEOF_QUERY, [storeID])

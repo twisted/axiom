@@ -33,6 +33,8 @@ class TestItem(item.Item):
     checkactive = attributes.inmemory()
     checked = attributes.inmemory()
 
+    myStore = attributes.reference()
+
     def activate(self):
         self.activated = True
         if getattr(self, 'checkactive', False):
@@ -94,6 +96,7 @@ class ItemTests(unittest.TestCase):
             bar = u'hello world',
             baz = timeval
             )
+        s.myStore = self.store
 
         s.store = self.store
         sid = s.storeID
@@ -101,6 +104,8 @@ class ItemTests(unittest.TestCase):
         self.store = store.Store(self.dbdir)
         s2 = self.store.getItemByID(sid)
         self.assertEquals(s2.foo, s.foo)
+        self.assertIdentical(s2.myStore, self.store)
+
 
     def testBasicQuery(self):
         def tt():
