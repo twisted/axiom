@@ -24,8 +24,8 @@ class GarbageProtocolHandler(Item):
 
     implements(IGarbage)
 
-    def install(self):
-        self.store.powerUp(self, IGarbage)
+    def installOn(self, other):
+        other.powerUp(self, IGarbage)
 
 SECRET = 'bananas'
 
@@ -35,7 +35,7 @@ class UserBaseTest(unittest.TestCase):
         s = Store(self.mktemp())
         def _speedup():
             l = LoginSystem(store=s)
-            l.install()
+            l.installOn(s)
             s.checkpoint()
             p = Portal(IRealm(s),
                        [ICredentialsChecker(s)])
@@ -43,7 +43,7 @@ class UserBaseTest(unittest.TestCase):
             a = l.addAccount(username, 'localhost', SECRET)
             gph = GarbageProtocolHandler(store=a.avatars.open(),
                                          garbage=0)
-            gph.install()
+            gph.installOn(gph.store)
             return p, gph
 
         p, gph = s.transact(_speedup)

@@ -69,9 +69,9 @@ class LoginSystem(Item):
         self.failedLogins = 0
         self.loginCount = 0
 
-    def install(self):
-        self.store.powerUp(self, IRealm)
-        self.store.powerUp(self, ICredentialsChecker)
+    def installOn(self, other):
+        other.powerUp(self, IRealm)
+        other.powerUp(self, ICredentialsChecker)
 
     def accountByAddress(self, username, domain):
         """
