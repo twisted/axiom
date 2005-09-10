@@ -2,7 +2,7 @@
 import random
 
 from axiom.item import Item
-from axiom.attributes import text, timestamp, reference, integer
+from axiom.attributes import text, timestamp, reference, integer, AND, OR
 from axiom.store import Store
 from epsilon import extime
 
@@ -101,6 +101,12 @@ def main(s):
     print '***'
     ll.shuffleLending()
     print '---'
+
+    print s.count(Book, AND (Book.author == u'Stephen King',
+                             Book.title == u'The Lions of al-Rassan'))
+    print s.count(Book, OR (Book.author == u'Stephen King',
+                            Book.title == u'The Lions of al-Rassan'))
+
 
 if __name__ == '__main__':
     s = Store('testdb')
