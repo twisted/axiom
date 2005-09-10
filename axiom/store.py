@@ -279,11 +279,18 @@ class Store(Empowered):
         # look up upgraders which push it forward
         # insert "AutoUpgrader" class into idToTypename somehow(?)
 
+    def query(self, *a, **k):
+        return self._select(justCount=False, *a, **k)
 
-    def query(self, tableClass,
-              comparison=None,
-              limit=None, offset=None,
-              sort=None):
+    def count(self, *a, **k):
+        resultCount = self._select(justCount=True, *a, **k).next()
+        return resultCount
+
+    def _select(self, tableClass,
+                comparison=None,
+                limit=None, offset=None,
+                sort=None,
+                justCount=False):
         if not self.autocommit:
             self.checkpoint()
         if (tableClass.typeName,
@@ -298,10 +305,12 @@ class Store(Empowered):
             where = []
             args = []
         tables.add(tableClass.getTableName())
-        query = ['SELECT',
-                 tableClass.getTableName(), '.oid,',
-                 tableClass.getTableName(), '.*', 'FROM',
-                 ', '.join(tables)]
+        query = ['SELECT']
+        if justCount:
+            query += ['COUNT(*)']
+        else:
+            query += [tableClass.getTableName(), '.oid,', tableClass.getTableName(), '.*']
+        query += ['FROM', ', '.join(tables)]
         query.extend(where)
         if sort is not None:
             query.append(sort)
@@ -317,7 +326,12 @@ class Store(Empowered):
                 query.append('OFFSET ')
                 query.append(str(offset))
         S = ' '.join(query)
-        for row in self.querySQL(S, args):
+        sqlResults = self.querySQL(S, args)
+        if justCount:
+            assert len(sqlResults) == 1
+            yield sqlResults[0][0]
+            return
+        for row in sqlResults:
             yield self._loadedItem(
                 tableClass,
                 row[0],
