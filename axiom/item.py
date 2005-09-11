@@ -22,6 +22,10 @@ class NotInStore(RuntimeError):
     """
     """
 
+class CantInstantiateItem(RuntimeError):
+    """You can't instantiate Item directly.  Make a subclass.
+    """
+
 class MetaItem(slotmachine.SchemaMetaMachine):
     """Simple metaclass for Item that adds Item (and its subclasses) to
     _typeNameToMostRecentClass mapping.
@@ -271,6 +275,8 @@ class Item(Empowered):
         attributes on the created item.  Subclasses of Item must honor this
         signature.
         """
+        if type(self) is Item:
+            raise CantInstantiateItem()
         self.__justCreated = True
         self.__subinit__(**kw)
 
@@ -454,7 +460,7 @@ class Item(Empowered):
             cls._cachedInsertSQL = ('INSERT INTO '+
              cls.getTableName()+' (' + ', '.join(
                     ['oid'] +
-                    [a[1].attrname for a in attrs]) +
+                    [a[1].columnName for a in attrs]) +
              ') VALUES (' + qs + ')')
         return cls._cachedInsertSQL
 
