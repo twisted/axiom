@@ -178,7 +178,7 @@ class Store(Empowered):
                 c = integer()
 
             def f(x):
-                print x, "-- it's new!"
+                print x, \"-- it's new!\"
             s.findOrCreate(YourItemType, f, a=1, b=u'2')
 
         Search for an item with columns in the database that match the passed
@@ -234,7 +234,8 @@ class Store(Empowered):
         actualType = _typeNameToMostRecentClass[typename]
         #
         inMemorySchema = [(storedAttribute.indexed, storedAttribute.sqltype,
-                           storedAttribute.allowNone, storedAttribute.columnName)
+                           storedAttribute.allowNone,
+                           storedAttribute.attrname)
                           for (name, storedAttribute) in actualType.getSchema()]
 
         onDiskSchema = self.querySQL(_schema.IDENTIFYING_SCHEMA, [typeID])
@@ -430,7 +431,7 @@ class Store(Empowered):
         for nam, atr in tableClass.getSchema():
             # it's a stored attribute
             sqlarg.append("\n%s %s" %
-                          (atr.attrname, atr.sqltype))
+                          (atr.columnName, atr.sqltype))
             if atr.indexed:
                 indexes.append(nam)
 
@@ -456,7 +457,7 @@ class Store(Empowered):
             self.executeSQL(
                 _schema.ADD_SCHEMA_ATTRIBUTE,
                 [typeID, n, storedAttribute.indexed, storedAttribute.sqltype,
-                 storedAttribute.allowNone, storedAttribute.columnName,
+                 storedAttribute.allowNone, storedAttribute.attrname,
                  storedAttribute.doc, storedAttribute.__class__.__name__])
             # XXX probably need something better for pythontype eventually,
             # when we figure out a good way to do user-defined attributes or we

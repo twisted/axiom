@@ -9,9 +9,7 @@ class NoAttrsItem(item.Item):
 class TestItem(unittest.TestCase):
     def test_createPlainItem(self):
         st = store.Store()
-        i = item.Item(store=st)
-
-    test_createPlainItem.todo = 'this should be legal, or at least fail with a sane error'
+        self.assertRaises(item.CantInstantiateItem, item.Item, store=st)
 
     def test_createItemWithNoAttrs(self):
         st = store.Store()

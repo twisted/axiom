@@ -68,7 +68,7 @@ class SQLAttribute(inmemory):
         self.modname = modname
         self.classname = classname
         self.attrname = attrname
-        self.columnName = attrname
+        self.columnName = '['+attrname+']'
         self.underlying = self.prefix + attrname
         self.dbunderlying = self.dbprefix + attrname
         yield self.underlying
