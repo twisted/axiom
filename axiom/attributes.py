@@ -132,7 +132,7 @@ class SQLAttribute(inmemory):
 
         st = oself.store
         dbval = self.infilter(pyval, oself)
-        oself.__dirty__[self.attrname] = dbval
+        oself.__dirty__[self.attrname] = self, dbval
         oself.touch()
         setattr(oself, self.underlying, pyval)
         if st is not None and st.autocommit:
