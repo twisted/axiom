@@ -24,6 +24,11 @@ IN_MEMORY_DATABASE = ':memory:'
 
 tempCounter = itertools.count()
 
+class NoEmptyItems(Exception):
+    """You must define some attributes on every item.
+    """
+
+
 class XFilePath(FilePath):
     def dirname(self):
         return os.path.dirname(self.path)
@@ -425,7 +430,6 @@ class Store(Empowered):
         # needs to be calculated including version
         tableName = tableClass.getTableName()
 
-
         sqlstr.append("CREATE TABLE %s (" % tableName)
 
         for nam, atr in tableClass.getSchema():
@@ -434,6 +438,9 @@ class Store(Empowered):
                           (atr.columnName, atr.sqltype))
             if atr.indexed:
                 indexes.append(nam)
+        if len(sqlarg) == 0:
+            # XXX should be raised way earlier, in the class definition or something
+            raise NoEmptyItems("%r did not define any attributes" % (tableClass,))
 
         sqlstr.append(', '.join(sqlarg))
         sqlstr.append(')')

@@ -13,6 +13,4 @@ class TestItem(unittest.TestCase):
 
     def test_createItemWithNoAttrs(self):
         st = store.Store()
-        NoAttrsItem(store=st)
-
-    test_createItemWithNoAttrs.todo = 'this should work but does not and must be fixed'
+        self.assertRaises(store.NoEmptyItems, NoAttrsItem, store=st)

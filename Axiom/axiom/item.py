@@ -387,7 +387,7 @@ class Item(Empowered):
             # XXX this isn't atomic, gross.
             self.store.executeSQL(self._baseInsertSQL(),
                 [self.storeID] +
-                [self.__dirty__.get(a[1].attrname, a[1].default) for a in attrs])
+                [self.__dirty__.get(a[1].attrname, (None, a[1].default,))[1] for a in attrs])
             self.__everInserted = True
 
         if self.store.autocommit:
@@ -486,14 +486,18 @@ class Item(Empowered):
         if not dirty:
             raise RuntimeError("Non-dirty item trying to generate SQL.")
         dirty.sort()
+        dirtyColumns = []
+        dirtyValues = []
+        for dirtyAttrName, (dirtyAttribute, dirtyValue) in dirty:
+            dirtyColumns.append(dirtyAttribute.columnName)
+            dirtyValues.append(dirtyValue)
         stmt = ' '.join([
-                'UPDATE', self.getTableName(), 'SET',
-                ( ', '.join(['%s = ?'] * len(dirty)) %
-                  tuple([d[0] for d in dirty])),
-                'WHERE oid = ?'])
-        args = [d[1] for d in dirty]
-        args.append(self.storeID)
-        return stmt, args
+            'UPDATE', self.getTableName(), 'SET',
+             ', '.join(['%s = ?'] * len(dirty)) %
+              tuple(dirtyColumns),
+              'WHERE oid = ?'])
+        dirtyValues.append(self.storeID)
+        return stmt, dirtyValues
 
 
 _legacyTypes = {}               # map (typeName, schemaVersion) to dummy class
