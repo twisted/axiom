@@ -8,7 +8,7 @@ from zope.interface import implements
 
 from twisted.python.filepath import FilePath
 from twisted.internet import defer
-from twisted.python.reflect import qual
+from twisted.python.reflect import qual, namedAny
 from twisted.python.util import unsignedID
 from twisted.application.service import IService, MultiService
 
@@ -145,8 +145,10 @@ class Store(Empowered):
 
         self.service = None
 
-        for oid, typename, version in self.querySQL(_schema.ALL_TYPES):
+        for oid, module, typename, version in self.querySQL(_schema.ALL_TYPES):
             self.typenameAndVersionToID[typename, version] = oid
+            if typename not in _typeNameToMostRecentClass:
+                namedAny(module)
             if version == _typeNameToMostRecentClass[typename].schemaVersion:
                 self.typenameToID[typename] = oid
                 self.idToTypename[oid] = typename
@@ -458,6 +460,7 @@ class Store(Empowered):
             self._reexecute()
 
         typeID = self.executeSQL(_schema.CREATE_TYPE, [tableClass.typeName,
+                                                       tableClass.__module__,
                                                        tableClass.schemaVersion])
 
         for n, (name, storedAttribute) in enumerate(tableClass.getSchema()):
@@ -495,7 +498,7 @@ class Store(Empowered):
         assert (len(results) in [1, 0]),\
             "Database panic: more than one result for TYPEOF!"
         if results:
-            typename, version = results[0]
+            typename, module, version = results[0]
             # for the moment we're going to assume no inheritance
             attrs = self.querySQL(self.getTableQuery(typename, version),
                                   [storeID])
@@ -557,7 +560,7 @@ class Store(Empowered):
             print '**', sql, '--', ', '.join(map(str, args))
         try:
             self.cursor.execute(sql, args)
-        except (sqlite.ProgrammingError, sqlite.OperationalError), oe:
+        except (sqlite.ProgrammingError, sqlite.OperationalError, sqlite.InterfaceError), oe:
             raise RuntimeError("SQL: %r(%r) caused exception: %s" %(
                     sql, args, oe))
         result = self.cursor.fetchall()

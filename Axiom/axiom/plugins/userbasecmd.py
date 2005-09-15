@@ -16,7 +16,7 @@ class AxiomaticSubCommandMixin:
     def decodeCommandLine(self, cmdline):
         """Turn a byte string from the command line into a unicode string.
         """
-        codec = sys.stdin.encoding or sys.getdefaultencoding()
+        codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
         return unicode(cmdline, codec)
 
     def installOn(self, other):

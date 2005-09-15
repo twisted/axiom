@@ -1,7 +1,7 @@
 
 DELETE_OBJECT = 'DELETE FROM axiom_objects WHERE oid = ?'
 CREATE_OBJECT = 'INSERT INTO axiom_objects (type_id) VALUES (?)'
-CREATE_TYPE = 'INSERT INTO axiom_types (typename, version) VALUES (?, ?)'
+CREATE_TYPE = 'INSERT INTO axiom_types (typename, module, version) VALUES (?, ?, ?)'
 
 
 BASE_SCHEMA = ["""
@@ -13,7 +13,8 @@ CREATE TABLE axiom_objects (
 
 """
 CREATE TABLE axiom_types (
-    typename VARCHAR(256),
+    typename VARCHAR,
+    module VARCHAR,
     version INTEGER
 )
 """,
@@ -32,7 +33,7 @@ CREATE TABLE axiom_attributes (
 """]
 
 TYPEOF_QUERY = """
-SELECT axiom_types.typename, axiom_types.version
+SELECT axiom_types.typename, axiom_types.module, axiom_types.version
     FROM axiom_types, axiom_objects
     WHERE axiom_objects.oid = ?
         AND axiom_types.oid = axiom_objects.type_id
@@ -50,7 +51,7 @@ ADD_SCHEMA_ATTRIBUTE = (
     '(type_id, row_offset, indexed, sqltype, allow_none, attribute, docstring, pythontype) '
     'VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
 
-ALL_TYPES = 'SELECT oid, typename, version FROM axiom_types'
+ALL_TYPES = 'SELECT oid, module, typename, version FROM axiom_types'
 
 GET_TYPE_OF_VERSION = ('SELECT version FROM axiom_types '
                        'WHERE typename = ? AND version > ? -- get type of version')
