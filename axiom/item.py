@@ -118,6 +118,19 @@ class Empowered(object):
         forc.priority = priority
 
 
+    def powerDown(self, powerup, interface):
+        """
+        Remove a powerup.
+        """
+        for cable in self.store.query(_PowerupConnector,
+                                      AND(_PowerupConnector.item == self,
+                                          _PowerupConnector.interface == unicode(qual(interface)),
+                                          _PowerupConnector.powerup == powerup)):
+            cable.deleteFromStore()
+            return
+        raise ValueError("Not powered up for %r with %r" % (interface, powerup))
+
+
     def __conform__(self, interface):
         if not self.store:
             return

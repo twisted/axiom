@@ -103,3 +103,18 @@ class TestItem(unittest.TestCase):
             self.fail(''.join(err.value.args[0].error))
 
         return d.addCallbacks(cbOutput, ebBlah)
+
+    def testDeleteCreatePair(self):
+        # Test coverage for a bug which was present in Axiom: deleting
+        # the newest item in a database and then creating a new item
+        # re-used the deleted item's oid causing all manner of
+        # ridiculuousness.
+        st = store.Store()
+
+        i = itemtest.PlainItem(store=st)
+
+        oldStoreID = i.storeID
+        i.deleteFromStore()
+        j = itemtest.PlainItem(store=st)
+        self.failIfEqual(oldStoreID, j.storeID)
+        print oldStoreID, j.storeID
