@@ -56,6 +56,7 @@ class FinalizingCache:
 
     def cache(self, key, value):
         fin = value.__finalizer__()
+        assert key not in self.data, "Duplicate cache key: %r %r %r" % (key, value, self.data[key])
         self.data[key] = ref(value, createCacheRemoveCallback(
                 ref(self), key, fin))
         return value
