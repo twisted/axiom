@@ -28,6 +28,8 @@ class TestItem(item.Item):
     bar = attributes.text()
     baz = attributes.timestamp()
     other = attributes.reference()
+    booleanT = attributes.boolean()
+    booleanF = attributes.boolean()
 
     activated = attributes.inmemory()
     checkactive = attributes.inmemory()
@@ -94,7 +96,9 @@ class ItemTests(unittest.TestCase):
         s = TestItem(
             foo = 42,
             bar = u'hello world',
-            baz = timeval
+            baz = timeval,
+            booleanT = True,
+            booleanF = False
             )
         s.myStore = self.store
 
@@ -104,6 +108,8 @@ class ItemTests(unittest.TestCase):
         self.store = store.Store(self.dbdir)
         s2 = self.store.getItemByID(sid)
         self.assertEquals(s2.foo, s.foo)
+        self.assertEquals(s2.booleanT, s.booleanT)
+        self.assertEquals(s2.booleanF, s.booleanF)
         self.assertIdentical(s2.myStore, self.store)
 
 
