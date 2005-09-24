@@ -305,7 +305,6 @@ class boolean(SQLAttribute):
                             (self.classname, self.attrname, type(pyval).__name__,))
 
     def outfilter(self, dbval, oself):
-        import pdb; pdb.set_trace()
         if dbval == 1:
             return True
         elif dbval == 0:
