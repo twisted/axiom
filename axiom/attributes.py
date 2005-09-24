@@ -199,7 +199,7 @@ class ColumnComparer:
 
         sqlParts = []
         self.preArgs = []
-        
+
         for other in others:
             if isinstance(other, ColumnComparer):
                 self.otherComps.append(other)
@@ -292,6 +292,27 @@ class AND(_BooleanCondition):
 class OR(_BooleanCondition):
     operator = 'OR'
 
+class boolean(SQLAttribute):
+    sqltype = 'BOOLEAN'
+
+    def infilter(self, pyval, oself):
+        if pyval is True:
+            return 1
+        elif pyval is False:
+            return 0
+        else:
+            raise TypeError("attribute [%s.%s = boolean()] must be True or False; not %r" %
+                            (self.classname, self.attrname, type(pyval).__name__,))
+
+    def outfilter(self, dbval, oself):
+        import pdb; pdb.set_trace()
+        if dbval == 1:
+            return True
+        elif dbval == 0:
+            return False
+        else:
+            raise ValueError("attribute [%s.%s = boolean()] must have a database value of 1 or 0; not %r" %
+                             (self.classname, self.attrname, dbval))
 
 TOO_BIG = (2 ** 63)-1
 
