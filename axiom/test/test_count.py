@@ -5,14 +5,28 @@ from axiom.item import Item
 from axiom.attributes import integer, AND, OR
 import random
 
-class ThingsWithIntergers(Item):
+class ThingsWithIntegers(Item):
     schemaVersion = 1
-    typeName = 'ThingsWithIntergers'
+    typeName = 'axiom_test_thing_with_integers'
 
-    a   = integer()
-    b   = integer()
+    a = integer()
+    b = integer()
+
+
+class NotARealThing(Item):
+    schemaVersion = 1
+    typeName = 'axiom_test_never_created_item'
+
+    irrelevantAttribute = integer()
+
+    def __init__(self, **kw):
+        raise NotImplementedError("You cannot create things that are not real!")
+
 
 class TestCountQuery(TestCase):
+
+    RANGE = 10
+    MIDDLE = 5
 
 
     def assertCountEqualsQuery(self, item, cond = None):
@@ -23,25 +37,34 @@ class TestCountQuery(TestCase):
     def setUp(self):
         self.store = Store()
         def populate():
-            for i in xrange(2000):
-                ThingsWithIntergers(store = self.store, a = random.randint(0,100), b = random.randint(0,100))
+            for i in xrange(self.RANGE):
+                for j in xrange(self.RANGE):
+                    ThingsWithIntegers(store = self.store, a = i, b = j)
         self.store.transact(populate)
 
     def testBasicCount(self):
-        self.assertCountEqualsQuery(ThingsWithIntergers)
+        self.assertCountEqualsQuery(ThingsWithIntegers)
 
     def testSimpleConditionCount(self):
-        self.assertCountEqualsQuery(ThingsWithIntergers,
-                                    ThingsWithIntergers.a > 50)
+        self.assertCountEqualsQuery(ThingsWithIntegers,
+                                    ThingsWithIntegers.a > self.MIDDLE)
 
     def testTwoFieldsConditionCount(self):
-        self.assertCountEqualsQuery(ThingsWithIntergers,
-                                    ThingsWithIntergers.a == ThingsWithIntergers.b)
+        self.assertCountEqualsQuery(ThingsWithIntegers,
+                                    ThingsWithIntegers.a == ThingsWithIntegers.b)
 
     def testANDConditionCount(self):
-        self.assertCountEqualsQuery(ThingsWithIntergers,
-                                    AND(ThingsWithIntergers.a > 50, ThingsWithIntergers.b < 50))
+        self.assertCountEqualsQuery(ThingsWithIntegers,
+                                    AND(ThingsWithIntegers.a > self.MIDDLE, ThingsWithIntegers.b < self.MIDDLE))
 
     def testORConditionCount(self):
-        self.assertCountEqualsQuery(ThingsWithIntergers,
-                                    OR(ThingsWithIntergers.a > 50, ThingsWithIntergers.b < 50))
+        self.assertCountEqualsQuery(ThingsWithIntegers,
+                                    OR(ThingsWithIntegers.a > self.MIDDLE, ThingsWithIntegers.b < self.MIDDLE))
+
+    def testEmptyResult(self):
+        self.assertCountEqualsQuery(ThingsWithIntegers,
+                                    ThingsWithIntegers.a == self.RANGE + 3)
+
+    def testNonExistentTable(self):
+        self.assertCountEqualsQuery(NotARealThing,
+                                    NotARealThing.irrelevantAttribute == self.RANGE + 3)

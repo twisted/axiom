@@ -291,8 +291,12 @@ class Store(Empowered):
         return self._select(justCount=False, *a, **k)
 
     def count(self, *a, **k):
-        resultCount = self._select(justCount=True, *a, **k).next()
-        return resultCount
+        try:
+            resultCount = self._select(justCount=True, *a, **k).next()
+        except StopIteration:
+            return 0
+        else:
+            return resultCount
 
     def _select(self, tableClass,
                 comparison=None,
