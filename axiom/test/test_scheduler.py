@@ -8,11 +8,12 @@ from twisted.internet.defer import Deferred
 
 from epsilon.extime import Time
 
-from axiom.scheduler import Scheduler
+from axiom.scheduler import Scheduler, SubScheduler
 from axiom.store import Store
 from axiom.item import Item
+from axiom.substore import SubStore
 
-from axiom.attributes import integer, inmemory
+from axiom.attributes import integer, text, inmemory
 from axiom.iaxiom import IScheduler
 
 
@@ -24,6 +25,8 @@ class TestEvent(Item):
     deferred = inmemory()       # these won't fall out of memory due to
                                 # caching, thanks.
     testCase = inmemory()
+
+    name = text()
 
     maxRunCount = integer()     # fail the test if we run more than this many
                                 # times
@@ -51,26 +54,34 @@ class TestEvent(Item):
 class SchedTest(unittest.TestCase):
 
     def setUp(self):
-        self.store = Store()
+        self.storePath = self.mktemp()
+        self.store = Store(self.storePath)
         Scheduler(store=self.store).installOn(self.store)
         IService(self.store).startService()
 
-    def testScheduler(self):
+    def tearDown(self):
+        IService(self.store).stopService()
+
+    def testScheduler(self, s=None):
         # create 3 timed events.  the first one fires.  the second one fires,
         # then reschedules itself.  the third one should never fire because the
         # reactor is shut down first.  assert that the first and second fire
         # only once, and that the third never fires.
+        if s is None:
+            s = self.store
 
-        s = self.store
         d = Deferred()
 
         interval = 0.1
 
         t1 = TestEvent(testCase=self,
+                       name=u't1',
                        store=s, maxRunCount=1, runAgain=None)
         t2 = TestEvent(testCase=self,
+                       name=u't2',
                        store=s, maxRunCount=2, runAgain=interval, deferred=d)
         t3 = TestEvent(testCase=self,
+                       name=u't3',
                        store=s, maxRunCount=0, runAgain=None)
 
         now = Time()
@@ -84,5 +95,10 @@ class SchedTest(unittest.TestCase):
 
         return d
 
-    def tearDown(self):
-        IService(self.store).stopService()
+    def testSubScheduler(self):
+        substoreItem = SubStore(self.store, ['scheduler_test'])
+        substore = substoreItem.open()
+        SubScheduler(store=substore).installOn(substore)
+
+        return self.testScheduler(substore)
+
