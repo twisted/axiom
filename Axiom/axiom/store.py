@@ -288,7 +288,7 @@ class Store(Empowered):
         # insert "AutoUpgrader" class into idToTypename somehow(?)
 
     def query(self, *a, **k):
-        return self._select(justCount=False, *a, **k)
+        return self._select(*a, **k)
 
     def count(self, *a, **k):
         try:
@@ -298,11 +298,19 @@ class Store(Empowered):
         else:
             return resultCount
 
+    def sum(self, summableRow, *a, **k):
+        try:
+            resultSum = self._select(summableRow.type, sumRow=summableRow, *a, **k).next()
+        except StopIteration:
+            return 0
+        return resultSum
+    
     def _select(self, tableClass,
                 comparison=None,
                 limit=None, offset=None,
                 sort=None,
-                justCount=False):
+                justCount=False,
+                sumRow=None):
         if not self.autocommit:
             self.checkpoint()
         if (tableClass.typeName,
@@ -320,6 +328,8 @@ class Store(Empowered):
         query = ['SELECT']
         if justCount:
             query += ['COUNT(*)']
+        elif sumRow is not None:
+            query += ['SUM(%s)' % (sumRow.attribute.columnName,)]
         else:
             query += [tableClass.getTableName(), '.oid,', tableClass.getTableName(), '.*']
         query += ['FROM', ', '.join(tables)]
@@ -339,7 +349,7 @@ class Store(Empowered):
                 query.append(str(offset))
         S = ' '.join(query)
         sqlResults = self.querySQL(S, args)
-        if justCount:
+        if justCount or sumRow:
             assert len(sqlResults) == 1
             yield sqlResults[0][0]
             return
@@ -456,7 +466,7 @@ class Store(Empowered):
 
         self.createSQL(''.join(sqlstr))
         for index in indexes:
-            self.createSQL('CREATE INDEX axiomidx_%s_%s ON %s(%s)'
+            self.createSQL('CREATE INDEX axiomidx_%s_%s ON %s([%s])'
                            % (tableName, index,
                               tableName, index))
 

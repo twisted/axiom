@@ -2,7 +2,7 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import reference, text, bytes, AND, OR
+from axiom.attributes import reference, text, bytes, integer, AND, OR
 
 class A(Item):
     schemaVersion = 1
@@ -31,6 +31,13 @@ class D(Item):
     one = bytes()
     two = bytes()
     three = bytes()
+
+class E(Item):
+    schemaVersion = 1
+    typeName = 'e'
+    name = text()
+    transaction = text()
+    amount = integer()
 
 
 class ThingWithCharacterAndByteStrings(Item):
@@ -165,7 +172,20 @@ class BasicQuery(TestCase):
         s.close()
 
 
-
+    def testAggregateQueries(self):
+        s = Store()
+        def entesten():
+            e1 = E(store=s, name=u'widgets', amount=37)
+            e2 = E(store=s, name=u'widgets', amount=63)
+            e3 = E(store=s, name=u'quatloos', amount=99, transaction=u'yes')
+            s.checkpoint()
+            q = s.count(E, E.name == u'widgets')
+            self.failUnlessEqual(q, 2)            
+            q = s.sum(E.amount, E.name == u'widgets')
+            self.failUnlessEqual(q, 100)
+        s.transact(entesten)
+        s.close()
+        
 class QueryingTestCase(TestCase):
     def assertQuery(self, query, sql, args=None):
         if args is None:
@@ -262,3 +282,6 @@ class WildcardQueries(QueryingTestCase):
         self.assertQuery(
             D.one.startswith(A.type),
             '(item_d_v1.one LIKE (item_a_v1.type || ?))', ['%'])
+
+
+    
