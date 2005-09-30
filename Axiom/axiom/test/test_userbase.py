@@ -7,7 +7,7 @@ from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred.credentials import UsernamePassword
 
 from axiom.store import Store
-from axiom.userbase import LoginAccount, LoginSystem
+from axiom.userbase import LoginAccount, LoginSystem, getAccountNames
 from axiom.item import Item
 from axiom.attributes import integer
 from axiom.scripts import axiomatic
@@ -65,7 +65,6 @@ class UserBaseTest(unittest.TestCase):
     def testMixedCaseLogin(self):
         self.logInAndCheck('BoB')
 
-
 class CommandTestCase(unittest.TestCase):
     def testUserBaseInstall(self):
         dbdir = self.mktemp()
@@ -92,3 +91,24 @@ class CommandTestCase(unittest.TestCase):
 
         return p.login(UsernamePassword('alice@localhost', SECRET), None, lambda orig, default: orig
                        ).addCallback(cb)
+
+class AccountTestCase(unittest.TestCase):
+    def testAccountNames(self):
+        dbdir = self.mktemp()
+        s = Store(dbdir)
+        ls = LoginSystem(store=s)
+        ls.installOn(s)
+        acc = ls.addAccount('username', 'domain', 'password')
+        ss = acc.avatars.open()
+
+        self.assertEquals(
+            list(getAccountNames(ss)),
+            [('username', 'domain')])
+
+        secAcc = ls.addAccount('nameuser', 'aindom', 'wordpass', acc.avatars)
+
+        names = list(getAccountNames(ss))
+        names.sort()
+        self.assertEquals(
+            names,
+            [('nameuser', 'aindom'), ('username', 'domain')])
