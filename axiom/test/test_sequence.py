@@ -57,5 +57,38 @@ class TestSequenceOfItems(unittest.TestCase):
         self.assertEquals(seq[1], self.i2)
         seq[1] = self.i3
         self.assertEquals(seq[1], self.i3)
+    
+    def test_delItem(self):
+        seq = List(store=self.store)
+        seq.append(self.i1)
+        seq.append(self.i2)
+        seq.append(self.i3)
+        self.assertEquals(seq.length, 3)
+        self.assertEquals(seq[0], self.i1)
+        self.assertEquals(seq[1], self.i2)
+        self.assertEquals(seq[2], self.i3)
+        del seq[1]
+        self.assertEquals(seq.length, 2)
+        self.assertEquals(seq[0], self.i1)
+        self.assertEquals(seq[1], self.i3)
+        self.assertRaises(IndexError, seq.__getitem__, 2)
 
-
+    def test_count(self):
+        seq = List(store=self.store)
+        seq.append(self.i1)
+        seq.append(self.i2)
+        seq.append(self.i2)
+        seq.append(self.i3)
+        seq.append(self.i3)
+        seq.append(self.i3)
+        self.assertEquals(seq.count(self.i1), 1)
+        self.assertEquals(seq.count(self.i2), 2)
+        self.assertEquals(seq.count(self.i3), 3)
+    
+    def test_contains(self):
+        seq = List(store=self.store)
+        seq.append(self.i1)
+        seq.append(self.i2)
+        self.failUnless(self.i1 in seq)
+        self.failUnless(self.i2 in seq)
+        self.failIf(self.i3 in seq)

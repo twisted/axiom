@@ -35,6 +35,19 @@ class List(Item):
     def __setitem__(self, index, value):
         self._getListItem(index)._value = value
 
+    def __len__(self):
+        return self.length
+
+    def __delitem__(self, index):
+        self._getListItem(index).deleteFromStore()
+        if index < self.length - 1:
+            for item in self.store.query(_ListItem, _ListItem._index > index):
+                item._index -= 1
+        self.length -= 1
+
+    def __contains__(self, value):
+        return bool(self.count(value))
+    
     def append(self, value):
         _ListItem(store=self.store,
                   _value=value,
@@ -42,3 +55,5 @@ class List(Item):
                   _index=self.length)
         self.length += 1
 
+    def count(self, value):
+        return self.store.count(_ListItem, _ListItem._value == value)
