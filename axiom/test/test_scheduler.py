@@ -8,7 +8,7 @@ from twisted.internet.defer import Deferred
 
 from epsilon.extime import Time
 
-from axiom.scheduler import Scheduler, SubScheduler
+from axiom.scheduler import Scheduler, SubScheduler, TimedEvent, _SubSchedulerParentHook
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
@@ -39,6 +39,19 @@ class TestEvent(Item):
         self.runCount = 0
 
     def run(self):
+        # When this is run from testSubScheduler, we want to make an
+        # additional assertion.  There is exactly one SubStore in this
+        # configuration, so there should be no more than one
+        # TimedEvent with a _SubSchedulerParentHook as its runnable.
+        if self.store.parent is not None:
+            count = 0
+            s = self.store.parent
+            for evt in s.query(TimedEvent):
+                if isinstance(evt.runnable, _SubSchedulerParentHook):
+                    count += 1
+            if count > 1:
+                raise unittest.FailTest("Too many TimedEvents for the SubStore", count)
+
         self.runCount += 1
         if self.runCount > self.maxRunCount:
             self.testCase.fail("%d ran too many times"% (self.storeID))
@@ -89,8 +102,10 @@ class SchedTest(unittest.TestCase):
 
         S = IScheduler(s)
 
-        S.schedule(t1, now + timedelta(seconds=interval * 1))
+        # Schedule them out of order to make sure behavior doesn't
+        # depend on tasks arriving in soonest-to-latest order.
         S.schedule(t2, now + timedelta(seconds=interval * 2))
+        S.schedule(t1, now + timedelta(seconds=interval * 1))
         S.schedule(t3, now + timedelta(seconds=interval * 20))
 
         return d
