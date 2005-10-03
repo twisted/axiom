@@ -2,7 +2,7 @@
 __metaclass__ = type
 
 from twisted.python.reflect import qual
-from twisted.application.service import IService, MultiService
+from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema
 
@@ -82,7 +82,9 @@ def serviceSpecialCase(item, pups):
     item.service = svc
     return svc
 
-aggregateInterfaces = {IService: serviceSpecialCase}
+aggregateInterfaces = {
+    IService: serviceSpecialCase,
+    IServiceCollection: serviceSpecialCase}
 
 class Empowered(object):
 
