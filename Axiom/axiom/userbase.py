@@ -33,6 +33,11 @@ class Preauthenticated(object):
     def __init__(self, username):
         self.username = username
 
+    def checkPassword(self, password):
+        # XXX should we really be implementing this here?  hmm.  sip tests
+        # require it but it seems wrong.
+        return True
+
 
 class LoginAccount(Item):
     schemaVersion = 1
