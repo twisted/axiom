@@ -376,8 +376,19 @@ class Item(Empowered):
 
         if self.__deleting:
             self.store.executeSQL(self._baseDeleteSQL(), [self.storeID])
+            # re-using OIDs plays havoc with the cache, and with other things
+            # as well.  We need to make sure that we leave a placeholder row at
+            # the end of the table.
             if self.__deletingObject:
-                self.store.executeSQL(_schema.DELETE_OBJECT, [self.storeID])
+                # Mark this object as dead.
+                self.store.executeSQL(_schema.CHANGE_TYPE, [self.storeID, -1])
+
+                # Can't do this any more:
+                # self.store.executeSQL(_schema.DELETE_OBJECT, [self.storeID])
+
+                # TODO: need to measure the performance impact of this, then do
+                # it to make sure things are in fact deleted:
+                # self.store.executeSQL(_schema.APP_VACUUM)
             else:
                 assert self.__legacy__
 
@@ -430,9 +441,10 @@ class Item(Empowered):
 
         new.touch()
 
-        # AAAAA crap; this needs to be forced to fall out of cache in the case
-        # of an in memory revert (not implemented yet)
-        self.store.objectCache.cache(self.storeID, new)
+        # XXX TODO; this needs to be forced to fall out of cache in the case of
+        # an in memory revert
+        if not new.__legacy__:
+            self.store.objectCache.cache(self.storeID, new)
 
         self.store.executeSQL(_schema.CHANGE_TYPE,
                               [newTypeID, self.storeID])
