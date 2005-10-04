@@ -199,15 +199,7 @@ class Item(Empowered):
                 raise AttributeError(
                     "Store already set - can't move between stores")
             for name, atr in self.getSchema():
-                if isinstance(atr, reference):
-                    oitem = atr.__get__(self)
-                    if oitem is not None and oitem.store is not store:
-                        raise NoCrossStoreReferences(
-                            "Trying to insert item: %r into store: %r, "
-                            "but it has a reference to other item: .%s=%r "
-                            "in another store: %r" % (
-                                self, store, name, oitem, oitem.store
-                                ))
+                atr.prepareInsert(self, store)
             self.__store = store
             # make damn sure all of our references point to this store:
             oid = self.storeID = self.store.executeSQL(

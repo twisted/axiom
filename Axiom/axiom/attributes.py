@@ -33,6 +33,12 @@ class SQLAttribute(inmemory):
         self.allowNone = allowNone
 
 
+    def prepareInsert(self, oself, store):
+        """
+        Override this method to do something to an item to prepare for its
+        insertion into a database.
+        """
+
     def coercer(self, value):
         """
         must return a value equivalent to the data being passed in for it to be
@@ -368,34 +374,73 @@ class text(SQLAttribute):
         if pyval is None:
             return None
         if not isinstance(pyval, unicode) or u'\0' in pyval:
-            raise TypeError("attribute [%s.%s = text()] must be (unicode string without NULL bytes); not %r" %
-                            (self.classname, self.attrname, type(pyval).__name__,))
+            raise TypeError(
+                "attribute [%s.%s = text()] must be "
+                "(unicode string without NULL bytes); not %r" %
+                (self.classname, self.attrname, type(pyval).__name__,))
         return pyval
 
     def outfilter(self, dbval, oself):
         return dbval
 
 class path(text):
+    """
+    Attribute representing a pathname in the filesystem.  If 'relative=True',
+    the default, the representative pathname object must be somewhere inside
+    the store, and will migrate with the store.
+    """
 
-    def infilter(self, pyval, oself):
+    def __init__(self, relative=True, **kw):
+        text.__init__(self, **kw)
+        self.relative = True
+
+    def prepareInsert(self, oself, store):
+        """
+        Prepare for insertion into the database by making the dbunderlying
+        attribute of the item a relative pathname with respect to the store
+        rather than an absolute pathname.
+        """
+        if self.relative:
+            fspath = self.__get__(oself)
+            oself.__dirty__[self.attrname] = self, self.infilter(fspath, oself, store)
+
+    def infilter(self, pyval, oself, store=None):
+        if pyval is None:
+            return None
         mypath = unicode(pyval.path)
-        storepath = os.path.normpath(oself.store.filesdir)
-        if not mypath.startswith(storepath):
-            raise InvalidPathError('%s not in %s' % (mypath, storepath))
-        p = mypath[len(storepath)+1:]   # +1 to include \ or /
+        if store is None:
+            store = oself.store
+        if store is None:
+            return None
+        if self.relative:
+            storepath = os.path.normpath(store.filesdir)
+            if not mypath.startswith(storepath):
+                raise InvalidPathError('%s not in %s' % (mypath, storepath))
+            p = mypath[len(storepath)+1:]   # +1 to include \ or /
+        else:
+            p = mypath          # we already know it's absolute, it came from a
+                                # filepath.
         return super(path, self).infilter(p, oself)
 
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
-        fp = FilePath(os.path.join(oself.store.filesdir, dbval))
+        if self.relative:
+            fp = FilePath(os.path.join(oself.store.filesdir, dbval))
+        else:
+            fp = FilePath(dbval)
         return fp
 
 
 MICRO = 1000000.
 
 class timestamp(integer):
+    """
+    An in-database representation of date and time.
 
+    To make formatting as easy as possible, this is represented in Python as an
+    instance of an epsilon.extime.Time; see its documentation for more details.
+    """
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
@@ -410,6 +455,18 @@ class reference(integer):
     def __init__(self, doc='', indexed=True, allowNone=True, reftype=None):
         integer.__init__(self, doc, indexed, None, allowNone)
         self.reftype = reftype
+
+
+    def prepareInsert(self, oself, store):
+        oitem = self.__get__(oself)
+        if oitem is not None and oitem.store is not store:
+            raise NoCrossStoreReferences(
+                "Trying to insert item: %r into store: %r, "
+                "but it has a reference to other item: .%s=%r "
+                "in another store: %r" % (
+                    oself, store,
+                    self.attrname, oitem,
+                    oitem.store))
 
     def infilter(self, pyval, oself):
         if pyval is None:
