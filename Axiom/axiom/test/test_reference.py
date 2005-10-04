@@ -52,6 +52,9 @@ class BadReferenceTestCase(TestCase):
             referee = Referee(store=store)
             referent = MyReferent(store=store, ref=referee)
             referee.deleteFromStore()
+            del referee; del referent
+
+            (referent,) = list(store.query(MyReferent))
             self.assertRaises(exc, lambda: referent.ref)
             referent.deleteFromStore()
 
