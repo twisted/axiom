@@ -535,9 +535,12 @@ class Store(Empowered):
                 T = self.getOldVersionOf(typename, version)
             x = T.existingInStore(self, storeID, attrs)
             if moreRecentAvailable and (not useMostRecent) and autoUpgrade:
+                # upgradeVersion will do caching as necessary, we don't have to
+                # cache here.  (It must, so that app code can safely call
+                # upgradeVersion and get a consistent object out of it.)
                 x = upgrade.upgradeAllTheWay(x, typename, x.schemaVersion)
-            if not x.__legacy__:
-                # X is upgraded all the way
+            elif not x.__legacy__:
+                # We loaded the most recent version of an object
                 self.objectCache.cache(storeID, x)
             return x
         if default is _noItem:

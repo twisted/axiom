@@ -1,5 +1,5 @@
 
-DELETE_OBJECT = 'DELETE FROM axiom_objects WHERE oid = ?'
+# DELETE_OBJECT = 'DELETE FROM axiom_objects WHERE oid = ?'
 CREATE_OBJECT = 'INSERT INTO axiom_objects (type_id) VALUES (?)'
 CREATE_TYPE = 'INSERT INTO axiom_types (typename, module, version) VALUES (?, ?, ?)'
 
@@ -9,6 +9,11 @@ CREATE TABLE axiom_objects (
     type_id INTEGER NOT NULL
         CONSTRAINT fk_type_id REFERENCES axiom_types(oid)
 )
+""",
+
+"""
+CREATE INDEX axiom_objects_type_idx
+    ON axiom_objects(type_id);
 """,
 
 """
@@ -61,4 +66,6 @@ SCHEMA_FOR_TYPE = ('SELECT indexed, pythontype, attribute, docstring '
                    'WHERE type_id = ?')
 
 CHANGE_TYPE = 'UPDATE axiom_objects SET type_id = ? WHERE oid = ?'
+
+APP_VACUUM = 'DELETE FROM axiom_objects WHERE (type_id == -1) AND (oid != (SELECT MAX(oid) from axiom_objects))'
 
