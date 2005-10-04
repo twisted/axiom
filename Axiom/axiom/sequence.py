@@ -41,7 +41,8 @@ class List(Item):
     def __delitem__(self, index):
         self._getListItem(index).deleteFromStore()
         if index < self.length - 1:
-            for item in self.store.query(_ListItem, _ListItem._index > index):
+            for item in self.store.query(_ListItem, AND(
+                    _ListItem._container == self, _ListItem._index > index)):
                 item._index -= 1
         self.length -= 1
 
@@ -56,4 +57,5 @@ class List(Item):
         self.length += 1
 
     def count(self, value):
-        return self.store.count(_ListItem, _ListItem._value == value)
+        return self.store.count(_ListItem, AND(
+                _ListItem._container == self, _ListItem._value == value))

@@ -92,3 +92,25 @@ class TestSequenceOfItems(unittest.TestCase):
         self.failUnless(self.i1 in seq)
         self.failUnless(self.i2 in seq)
         self.failIf(self.i3 in seq)
+
+    def test_multicontains(self):
+        seq1 = List(store=self.store)
+        seq2 = List(store=self.store)
+        seq1.append(self.i1)
+        seq2.append(self.i2)
+        self.failUnless(self.i1 in seq1)
+        self.failUnless(self.i2 in seq2)
+        self.failIf(self.i1 in seq2)
+        self.failIf(self.i2 in seq1)
+        
+        
+    def test_multidelitem(self):
+        seq1 = List(store=self.store)
+        seq2 = List(store=self.store)
+        seq1.append(self.i1)
+        seq1.append(self.i2)
+        seq2.append(self.i1)
+        seq2.append(self.i2)
+        del seq1[0]
+        self.assertIdentical(seq2[0], self.i1)
+        self.assertIdentical(seq2[1], self.i2)
