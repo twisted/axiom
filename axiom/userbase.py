@@ -1,5 +1,7 @@
 # -*- test-case-name: axiom.test.test_userbase -*-
 
+import warnings
+
 from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
@@ -14,10 +16,8 @@ from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
 from zope.interface import implements, Interface, Attribute
 
 def dflip(x):
-    l = x.split('.')
-    l.reverse()
-    return '.'.join(l)
-
+    warnings.warn("Don't use dflip no more", stacklevel=2)
+    return x
 
 class IPreauthCredentials(Interface):
     """
@@ -44,7 +44,7 @@ class LoginAccount(Item):
     typeName = 'login'
 
     username = text(indexed=True)
-    domain = text(indexed=True) # flipped using dflip, e.g. "com.divmod"
+    domain = text(indexed=True)
     password = bytes()
     avatars = reference()       # reference to a thing which can be adapted to
                                 # implementations for application-level
@@ -77,7 +77,7 @@ class LoginBase:
         @type domain: C{unicode} without NUL
         """
         for account in self.store.query(LoginAccount,
-                                     AND(LoginAccount.domain == dflip(domain),
+                                     AND(LoginAccount.domain == domain,
                                          LoginAccount.username == username)):
             return account
 
@@ -90,7 +90,7 @@ class LoginBase:
             avatars = self.makeAvatars(domain, username)
         return LoginAccount(store=self.store,
                             username=username,
-                            domain=dflip(domain),
+                            domain=domain,
                             password=password,
                             avatars=avatars,
                             disabled=0)
