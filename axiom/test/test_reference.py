@@ -52,7 +52,7 @@ class BadReferenceTestCase(TestCase):
             referee = Referee(store=store)
             referent = MyReferent(store=store, ref=referee)
             referee.deleteFromStore()
-            del referee; del referent
+            del referee
 
             (referent,) = list(store.query(MyReferent))
             self.assertRaises(exc, lambda: referent.ref)
@@ -64,7 +64,9 @@ class BadReferenceTestCase(TestCase):
         MyReferent = self._makeReferentItem(None, None)
         referent = MyReferent(store=store, ref=referee)
         referee.deleteFromStore()
-        del referee; del referent
+        del referee
 
         (referent,) = list(store.query(MyReferent))
         self.assertEqual(referent.ref, None)
+
+    testBadReferenceRaises.todo = testBadReferenceNone.todo = 'No behavior yet defined for bad references'
