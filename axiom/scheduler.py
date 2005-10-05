@@ -37,8 +37,6 @@ class SchedulerMixin:
                 event.time = newTime
             else:
                 event.deleteFromStore()
-                # XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX omfg what
-                event.checkpoint()
             any = 1
         if any:
             self.lastEventAt = now
