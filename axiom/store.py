@@ -3,6 +3,7 @@
 import time
 import os
 import itertools
+import warnings
 
 from zope.interface import implements
 
@@ -12,7 +13,7 @@ from twisted.python.reflect import qual, namedAny
 from twisted.python.util import unsignedID
 from twisted.application.service import IService, MultiService
 
-from axiom import _schema, attributes, upgrade, _fincache, iaxiom
+from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 
 from pysqlite2 import dbapi2 as sqlite
 
@@ -600,8 +601,8 @@ class Store(Empowered):
         try:
             self.cursor.execute(sql, args)
         except (sqlite.ProgrammingError, sqlite.OperationalError, sqlite.InterfaceError), oe:
-            raise RuntimeError("SQL: %r(%r) caused exception: %s" %(
-                    sql, args, oe))
+            raise errors.SQLError("SQL: %r(%r) caused exception: %s:%s" %(
+                    sql, args, oe.__class__, oe))
         result = self.cursor.fetchall()
         if self.autocommit:
             self.commit()
@@ -614,7 +615,12 @@ class Store(Empowered):
         """ For use with auto-committing statements such as CREATE TABLE or CREATE
         INDEX.
         """
-        self._execSQL(sql, args)
+        try:
+            self._execSQL(sql, args)
+        except errors.SQLError, se:
+            warnings.warn(
+                "(Probably harmless) error during table or index creation: "+str(se),
+                errors.SQLWarning)
 
     def _execSQL(self, sql, args):
         sql = self._normalizeSQL(sql)
