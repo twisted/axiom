@@ -193,7 +193,34 @@ class Store(Empowered):
         creating one with the given attributes if not.  Takes an optional
         positional argument function to call on the new item if it is new.
         """
+        existingItem = self.findFirst(userItemClass, **attrs)
+        if existingItem is None:
+            newItem = userItemClass(store=self, **attrs)
+            if __ifnew is not None:
+                __ifnew(newItem)
+            return newItem
+        else:
+            return existingItem
 
+    def findFirst(self, userItemClass, **attrs):
+        """
+        Usage:
+
+            s.findFirst(userItemClass [, x=1, y=2, ...])
+
+        Example:
+
+            class YourItemType(Item):
+                a = integer()
+                b = text()
+                c = integer()
+
+            s.findFirst(YourItemType, a=1, b=u'2')
+
+        Search for an item with columns in the database that match the
+        passed set of keyword arguments, returning the first match if
+        one is found, or None if one is not found.
+        """
         andargs = []
         for k, v in attrs.iteritems():
             col = getattr(userItemClass, k)
@@ -208,12 +235,7 @@ class Store(Empowered):
 
         for result in self.query(userItemClass, *cond):
             return result
-
-        newItem = userItemClass(store=self, **attrs)
-        if __ifnew is not None:
-            __ifnew(newItem)
-        return newItem
-
+        return None
 
     def newFile(self, *path):
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
@@ -304,7 +326,7 @@ class Store(Empowered):
         except StopIteration:
             return 0
         return resultSum
-    
+
     def _select(self, tableClass,
                 comparison=None,
                 limit=None, offset=None,
