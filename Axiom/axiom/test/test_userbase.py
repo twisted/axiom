@@ -98,17 +98,17 @@ class AccountTestCase(unittest.TestCase):
         s = Store(dbdir)
         ls = LoginSystem(store=s)
         ls.installOn(s)
-        acc = ls.addAccount('username', 'domain', 'password')
+        acc = ls.addAccount('username', 'dom.ain', 'password')
         ss = acc.avatars.open()
 
         self.assertEquals(
             list(getAccountNames(ss)),
-            [('username', 'domain')])
+            [('username', 'dom.ain')])
 
-        secAcc = ls.addAccount('nameuser', 'aindom', 'wordpass', acc.avatars)
+        secAcc = ls.addAccount('nameuser', 'ain.dom', 'wordpass', acc.avatars)
 
         names = list(getAccountNames(ss))
         names.sort()
         self.assertEquals(
             names,
-            [('nameuser', 'aindom'), ('username', 'domain')])
+            [('nameuser', 'ain.dom'), ('username', 'dom.ain')])
