@@ -9,11 +9,11 @@ distobj = setup(
     license="MIT",
     platforms=["any"],
     description="An in-process object-relational database",
-    classifiers=(
+    classifiers=[
         "Intended Audience :: Developers",
         "Programming Language :: Python",
         "Development Status :: 2 - Pre-Alpha",
-        "Topic :: Database"),
+        "Topic :: Database"],
 
     scripts=['bin/axiomatic'],
 
