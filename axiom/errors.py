@@ -24,3 +24,9 @@ class SQLWarning(Warning):
     """
     Axiom internally generated some CREATE TABLE SQL that ... probably wasn't bad
     """
+
+
+class TableCreationConcurrencyError(RuntimeError):
+    """
+    Woah, this is really bad.  If you can get this please tell us how.
+    """

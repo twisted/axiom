@@ -9,7 +9,7 @@ from zope.interface import implements
 
 from twisted.python.filepath import FilePath
 from twisted.internet import defer
-from twisted.python.reflect import qual, namedAny
+from twisted.python.reflect import namedAny
 from twisted.python.util import unsignedID
 from twisted.application.service import IService, MultiService
 
@@ -17,7 +17,7 @@ from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 
 from pysqlite2 import dbapi2 as sqlite
 
-from axiom.item import Item, \
+from axiom.item import \
     _typeNameToMostRecentClass, dummyItemSubclass,\
     _legacyTypes, TABLE_NAME, Empowered
 
@@ -311,9 +311,27 @@ class Store(Empowered):
         # insert "AutoUpgrader" class into idToTypename somehow(?)
 
     def query(self, *a, **k):
+        """
+        Return a generator of objects which match an L{IComparison} predicate.
+
+        """
         return self._select(*a, **k)
 
     def count(self, *a, **k):
+        """
+        Retrieve a count of objects which match a particular C{IComparison}
+        predicate.
+
+        Example::
+            self.store.count(MyClass,
+                             MyClass.otherValue > 10)
+
+        will return the number of instances of MyClass present in the database
+        with an otherValue attribute greater than 10.
+
+        @return: an L{int}.
+
+        """
         try:
             resultCount = self._select(justCount=True, *a, **k).next()
         except StopIteration:
@@ -321,19 +339,58 @@ class Store(Empowered):
         else:
             return resultCount
 
-    def sum(self, summableRow, *a, **k):
+    def sum(self, summableAttribute, *a, **k):
+        """
+        Retrieve a sum from the database.
+
+        Example::
+
+            self.store.sum(MyClass.numericValue,
+                           MyClass.otherValue > 10)
+
+            # returns a sum of all numericValues from MyClass instances in
+            # self.store where otherValue is greater than ten
+
+        """
         try:
-            resultSum = self._select(summableRow.type, sumRow=summableRow, *a, **k).next()
+            resultSum = self._select(summableAttribute.type,
+                                     sumAttribute=summableAttribute, *a, **k).next()
         except StopIteration:
             return 0
         return resultSum
 
-    def _select(self, tableClass,
+    def _select(self,
+                tableClass,
                 comparison=None,
                 limit=None, offset=None,
                 sort=None,
                 justCount=False,
-                sumRow=None):
+                sumAttribute=None):
+        """
+
+        Generic object-oriented interface to 'SELECT', used to implement .query,
+        .sum, and .count.
+
+        @param tableClass: a subclass of L{Item}.
+
+        @param comparison: an implementor of L{iaxiom.IComparison}
+
+        @param limit: an L{int} that limits the number of results that will be
+        queried for, or None to indicate that all results should be returned.
+
+        @param offset: an L{int} that specifies the offset within the query
+        results to begin iterating from, or None to indicate that we should
+        start at 0.
+
+        @param justCount: a L{bool} that specifies if we should 'just count'
+        rather than returning the actual query results (interface to SELECT
+        COUNT(x) WHERE ...)
+
+        @param sumAttribute: an L{axiom.attributes.ColumnComparer} that should
+        be summed and returned, rather than returning the SQL results.  (Refer
+        to these using YourItemClass.attributeName.)
+
+        """
         if not self.autocommit:
             self.checkpoint()
         if (tableClass.typeName,
@@ -342,7 +399,7 @@ class Store(Empowered):
         if comparison is not None:
             tables = set(comparison.getTableNames())
             where = ['WHERE', comparison.getQuery()]
-            args = comparison.getArgsFor(self)
+            args = comparison.getArgs()
         else:
             tables = set()
             where = []
@@ -351,8 +408,8 @@ class Store(Empowered):
         query = ['SELECT']
         if justCount:
             query += ['COUNT(*)']
-        elif sumRow is not None:
-            query += ['SUM(%s)' % (sumRow.attribute.columnName,)]
+        elif sumAttribute is not None:
+            query += ['SUM(%s)' % (sumAttribute.columnName,)]
         else:
             query += [tableClass.getTableName(), '.oid,', tableClass.getTableName(), '.*']
         query += ['FROM', ', '.join(tables)]
@@ -372,7 +429,7 @@ class Store(Empowered):
                 query.append(str(offset))
         S = ' '.join(query)
         sqlResults = self.querySQL(S, args)
-        if justCount or sumRow:
+        if justCount or sumAttribute:
             assert len(sqlResults) == 1
             yield sqlResults[0][0]
             return
@@ -647,7 +704,7 @@ class Store(Empowered):
             self._execSQL(sql, args)
             resultThisTime = self.cursor.lastrowid
             if resultLastTime != resultThisTime:
-                raise TableCreationConcurrencyError(
+                raise errors.TableCreationConcurrencyError(
                     "Expected to get %s as a result "
                     "of %r:%r, got %s" % (
                         resultLastTime,

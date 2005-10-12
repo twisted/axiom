@@ -199,18 +199,14 @@ class QueryingTestCase(TestCase):
         # leaving them in for now)
 
         # self.assertEquals(query.getQuery(), sql)
-        self.assertEquals([str(a) for a in query.getArgsFor(None)], args)
+        self.assertEquals([str(a) for a in query.getArgs()], args)
         
 
 class AndOrQueries(QueryingTestCase):
-    def testBooleanCondition(self):
-        from axiom.attributes import _BooleanCondition
-        self.assertRaises(NotImplementedError, _BooleanCondition)
-        
     def testNoConditions(self):
         self.assertRaises(ValueError, AND)
         self.assertRaises(ValueError, OR)
-        
+
     def testOneCondition(self):
         self.assertQuery(
             AND(A.type == u'Narf!'), '((item_a_v1.type = ?))', ['Narf!'])

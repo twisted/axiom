@@ -109,3 +109,10 @@ class IScheduler(Interface):
         method will be called.  See extime.Time's documentation for more
         details.
         """
+
+class IComparison(Interface):
+    """
+    An object that represents an in-database comparison.  A predicate that may
+    apply to certain items in a store.  Passed as an argument to
+    attributes.AND, .OR, and Store.query(...)
+    """
