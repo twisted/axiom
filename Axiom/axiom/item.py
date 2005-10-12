@@ -6,10 +6,8 @@ from twisted.application.service import IService, IServiceCollection, MultiServi
 
 from axiom import slotmachine, _schema
 
-from axiom.attributes import SQLAttribute, ColumnComparer, inmemory, \
+from axiom.attributes import SQLAttribute, Comparable, inmemory, \
     reference, text, integer, AND
-
-from axiom.errors import NoCrossStoreReferences
 
 _typeNameToMostRecentClass = {}
 
@@ -59,19 +57,35 @@ def TABLE_NAME(typename, version):
 def noop():
     pass
 
-class _SpecialStoreIDAttribute(slotmachine.SetOnce):
+class _StoreIDComparer(Comparable):
+    """
+    See Comparable's docstring for the explanation of the requirements of my implementation.
+    """
+    columnName = 'oid'
 
-    def __get__(self, oself, type=None):
-        if type is not None and oself is None:
-            return ColumnComparer(self, type)
-        return super(_SpecialStoreIDAttribute, self).__get__(oself, type)
+    def __init__(self, type):
+        self.type = type
 
     # attributes required by ColumnComparer
-
     def infilter(self, pyval, oself):
         return pyval
 
-    columnName = 'oid'
+
+class _SpecialStoreIDAttribute(slotmachine.SetOnce):
+    """
+    Because storeID is special (it's unique, it determine's a row's cache
+    identity, it's immutable, etc) we don't use a regular SQLAttribute to
+    represent it - but it still needs to be compared with other SQL attributes,
+    as it is in fact represented by the 'oid' database column.
+
+    I implement set-once semantics to enforce immutability, but delegate
+    comparison operations to _StoreIDComparer.
+    """
+    def __get__(self, oself, type=None):
+        if type is not None and oself is None:
+            return _StoreIDComparer(type)
+        return super(_SpecialStoreIDAttribute, self).__get__(oself, type)
+
 
 def serviceSpecialCase(item, pups):
     if item.service is not None:

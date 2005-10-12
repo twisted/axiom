@@ -2,6 +2,8 @@
 
 import os
 
+from zope.interface import implements
+
 from twisted.python.filepath import FilePath
 
 from epsilon.extime import Time
@@ -10,10 +12,135 @@ from axiom.slotmachine import Attribute as inmemory
 
 from axiom.errors import NoCrossStoreReferences
 
+from axiom.iaxiom import IComparison
+
 _NEEDS_FETCH = object()         # token indicating that a value was not found
 
+__metaclass__ = type
 
-class SQLAttribute(inmemory):
+class Comparable:
+    """ Helper for a thing that can be compared like an SQLAttribute (or is in fact
+    an SQLAttribute).  Requires that 'self' have 'type' (Item-subclass) and
+    'columnName' (str) attributes, as well as an 'infilter' method in the
+    spirit of SQLAttribute, documented below.
+    """
+
+    def compare(self, other, sqlop):
+        # interim: maybe we want objects later?  right now strings should be fine
+        a = []
+        tables = [self.type]
+        if isinstance(other, Comparable):
+            sql = ('(%s.%s %s %s.%s)' % (self.type.getTableName(),
+                                         self.columnName,
+                                         sqlop,
+                                         other.type.getTableName(),
+                                         other.columnName))
+            tables.append(other.type)
+        elif other is None:
+            col = (self.type.getTableName(), self.columnName)
+            if sqlop == '=':
+                sql = '%s.%s IS NULL' % col
+            elif sqlop == '!=':
+                sql = '%s.%s NOT NULL' % col
+            else:
+                raise TypeError(
+                    "None/NULL does not work with %s comparison" % (sqlop,))
+        else:
+            # convert to constant usable in the database
+            sql = ('(%s.%s %s ?)' % (self.type.getTableName(),
+                                     self.columnName,
+                                     sqlop))
+            a.append(other)
+        return AttributeComparison(sql, a, tables, self)
+
+    def __eq__(self, other):
+        return self.compare(other, '=')
+
+
+    def __ne__(self, other):
+        return self.compare(other, '!=')
+
+
+    def __gt__(self, other):
+        return self.compare(other, '>')
+
+
+    def __lt__(self, other):
+        return self.compare(other, '<')
+
+
+    def __ge__(self, other):
+        return self.compare(other, '>=')
+
+
+    def __le__(self, other):
+        return self.compare(other, '<=')
+
+
+    _likeOperators = ('LIKE', 'NOT LIKE')
+    def _like(self, op, *others):
+        if op.upper() not in self._likeOperators:
+            raise ValueError, 'LIKE-style operators are: %s' % self._likeOperators
+        if not others:
+            raise ValueError, 'Must pass at least one expression to _like'
+
+        sqlParts = []
+        sqlArgs = []
+
+        tables = [self.type]
+
+        for other in others:
+            if isinstance(other, Comparable):
+                sqlParts.append('%s.%s' % (other.type.getTableName(),
+                                           other.columnName))
+                tables.append(other.type)
+            elif other is None:
+                # LIKE NULL is a silly condition, but it's allowed.
+                sqlParts.append('NULL')
+            else:
+                sqlParts.append('?')
+                sqlArgs.append(other)
+
+        sql = '(%s.%s %s (%s))' % (self.type.getTableName(),
+                                   self.columnName,
+                                   op, ' || '.join(sqlParts))
+        return AttributeComparison(sql, sqlArgs, tables, self)
+
+    def like(self, *others):
+        return self._like('LIKE', *others)
+
+
+    def not_like(self, *others):
+        return self._like('NOT LIKE', *others)
+
+
+    def startswith(self, other):
+        return self._like('LIKE', other, '%')
+
+
+    def endswith(self, other):
+        return self._like('LIKE', '%', other)
+
+
+    # XXX TODO: improve error reporting
+
+    def _asc(self):
+        return 'ORDER BY %s.%s ASC' % (self.type.getTableName(),
+                                       self.columnName)
+
+    def _desc(self):
+        return 'ORDER BY %s.%s DESC' % (self.type.getTableName(),
+                                        self.columnName)
+
+    descending = property(_desc)
+    ascending = property(_asc)
+    asc = ascending
+    desc = descending
+
+
+
+
+class SQLAttribute(inmemory, Comparable):
     """
     Abstract superclass of all attributes.
 
@@ -80,14 +207,21 @@ class SQLAttribute(inmemory):
         yield self.underlying
         yield self.dbunderlying
 
+
     def fullyQualifiedName(self):
         return '.'.join([self.modname,
                          self.classname,
                          self.attrname])
 
+    type = None
+
     def __get__(self, oself, type=None):
         if type is not None and oself is None:
-            return ColumnComparer(self, type)
+            if self.type is not None:
+                assert self.type == type
+            else:
+                self.type = type
+            return self
 
         pyval = getattr(oself, self.underlying, _NEEDS_FETCH)
         st = getattr(oself, 'store')
@@ -144,122 +278,44 @@ class SQLAttribute(inmemory):
         if st is not None and st.autocommit:
             oself.checkpoint()
 
-class ColumnComparer:
-    def __init__(self, atr, typ):
-        self.attribute = atr
-        self.type = typ
-        self.compared = False   # not yet activated
-        self.otherComps = []
 
-    def compare(self, other, sqlop):
-        assert not self.compared # activation time
-        self.compared = True
-        # interim: maybe we want objects later?  right now strings should be fine
-        a = self.preArgs = []
-        if isinstance(other, ColumnComparer):
-            self.otherComps.append(other)
-            self.sql = ('(%s.%s %s %s.%s)' % (self.type.getTableName(),
-                                              self.attribute.columnName,
-                                              sqlop,
-                                              other.type.getTableName(),
-                                              other.attribute.columnName))
-        elif other is None:
-            col = (self.type.getTableName(), self.attribute.columnName)
-            if sqlop == '=':
-                self.sql = '%s.%s IS NULL' % col
-            elif sqlop == '!=':
-                self.sql = '%s.%s NOT NULL' % col
-            else:
-                raise TypeError(
-                    "None/NULL does not work with %s comparison" % (sqlop,))
-        else:
-            # convert to constant usable in the database
-            self.sql = ('(%s.%s %s ?)' % (self.type.getTableName(),
-                                          self.attribute.columnName,
-                                          sqlop))
-            a.append(other)
-        return self
+class AttributeComparison:
+    """
+    A comparison of one attribute with another in-database attribute or with a
+    Python value.
+    """
 
-    def __eq__(self, other):
-        return self.compare(other, '=')
-    def __ne__(self, other):
-        return self.compare(other, '!=')
-    def __gt__(self, other):
-        return self.compare(other, '>')
-    def __lt__(self, other):
-        return self.compare(other, '<')
-    def __ge__(self, other):
-        return self.compare(other, '>=')
-    def __le__(self, other):
-        return self.compare(other, '<=')
+    implements(IComparison)
 
+    def __init__(self,
+                 sqlString,
+                 sqlArguments,
+                 involvedTableClasses,
+                 leftAttribute):
+        self.sqlString = sqlString
+        self.sqlArguments = sqlArguments
+        self.involvedTableClasses = involvedTableClasses
+        self.leftAttribute = leftAttribute
 
-    _likeOperators = ('LIKE', 'NOT LIKE')
-    def _like(self, op, *others):
-        assert not self.compared # activation time
-        self.compared = True
-        if op.upper() not in self._likeOperators:
-            raise ValueError, 'LIKE-style operators are: %s' % self._likeOperators
-        if not others:
-            raise ValueError, 'Must pass at least one expression to _like'
-
-        sqlParts = []
-        self.preArgs = []
-
-        for other in others:
-            if isinstance(other, ColumnComparer):
-                self.otherComps.append(other)
-                sqlParts.append('%s.%s' % (other.type.getTableName(),
-                                           other.attribute.columnName))
-            elif other is None:
-                # LIKE NULL is a silly condition, but it's allowed.
-                sqlParts.append('NULL')
-            else:
-                self.preArgs.append(other)
-                sqlParts.append('?')
-
-        self.sql = '(%s.%s %s (%s))' % (self.type.getTableName(),
-                                        self.attribute.columnName,
-                                        op, ' || '.join(sqlParts))
-        return self
-
-    def like(self, *others):
-        return self._like('LIKE', *others)
-    def not_like(self, *others):
-        return self._like('NOT LIKE', *others)
-    def startswith(self, other):
-        return self._like('LIKE', other, '%')
-    def endswith(self, other):
-        return self._like('LIKE', '%', other)
-
-
-    # XXX TODO: improve error reporting
     def getQuery(self):
-        return self.sql
+        return self.sqlString
 
-    def getArgsFor(self, store):
-        return [self.attribute.infilter(arg, None) for arg in self.preArgs]
+    def getArgs(self):
+        return [self.leftAttribute.infilter(arg, None) for arg in self.sqlArguments]
 
     def getTableNames(self):
-        names = [self.type.getTableName()]
-        names.extend([c.type.getTableName() for c in self.otherComps])
+        assert self.leftAttribute.type in self.involvedTableClasses
+        names = [tc.getTableName() for tc in self.involvedTableClasses]
         return names
 
-    def _asc(self):
-        return 'ORDER BY %s.%s ASC' % (self.type.getTableName(),
-                                       self.attribute.columnName)
 
-    def _desc(self):
-        return 'ORDER BY %s.%s DESC' % (self.type.getTableName(),
-                                        self.attribute.columnName)
+class AggregateComparison:
+    """
+    Abstract base class for compound comparisons that aggregate other
+    comparisons - currently only used for AND and OR comparisons.
+    """
 
-    descending = property(_desc)
-    ascending = property(_asc)
-    asc = ascending
-    desc = descending
-
-
-class _BooleanCondition:
+    implements(IComparison)
     operator = None
 
     def __init__(self, *conditions):
@@ -276,10 +332,10 @@ class _BooleanCondition:
         return '(%s)' % oper.join(
             [condition.getQuery() for condition in self.conditions])
 
-    def getArgsFor(self, store):
+    def getArgs(self):
         args = []
         for cond in self.conditions:
-            args += cond.getArgsFor(store)
+            args += cond.getArgs()
         return args
 
     def getTableNames(self):
@@ -292,10 +348,16 @@ class _BooleanCondition:
                     tbls.append(tbl)
         return tbls
 
-class AND(_BooleanCondition):
+class AND(AggregateComparison):
+    """
+    Combine 2 L{IComparison}s such that this is true when both are true.
+    """
     operator = 'AND'
 
-class OR(_BooleanCondition):
+class OR(AggregateComparison):
+    """
+    Combine 2 L{IComparison}s such that this is true when either is true.
+    """
     operator = 'OR'
 
 class boolean(SQLAttribute):
@@ -316,8 +378,10 @@ class boolean(SQLAttribute):
         elif dbval == 0:
             return False
         else:
-            raise ValueError("attribute [%s.%s = boolean()] must have a database value of 1 or 0; not %r" %
-                             (self.classname, self.attrname, dbval))
+            raise ValueError(
+                "attribute [%s.%s = boolean()] "
+                "must have a database value of 1 or 0; not %r" %
+                (self.classname, self.attrname, dbval))
 
 TOO_BIG = (2 ** 63)-1
 
@@ -329,7 +393,8 @@ class integer(SQLAttribute):
         bigness = int(pyval)
         if bigness > TOO_BIG:
             raise OverflowError(
-                "Integers larger than %r, such as %r don't fit in the database." % (TOO_BIG, bigness))
+                "Integers larger than %r, such as %r "
+                "don't fit in the database." % (TOO_BIG, bigness))
         return bigness
 
 class bytes(SQLAttribute):

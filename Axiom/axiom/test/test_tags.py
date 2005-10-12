@@ -4,7 +4,7 @@ from twisted.trial import unittest
 from axiom.store import Store
 from axiom.tags import Catalog
 
-from axiom.store import Item
+from axiom.item import Item
 from axiom.attributes import text
 
 class Gizmo(Item):
