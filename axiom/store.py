@@ -50,10 +50,25 @@ class AtomicFile(file):
     implements(iaxiom.IAtomicFile)
 
     def __init__(self, tempname, destpath):
+        """
+        Create an AtomicFile.  (Note: AtomicFiles can only be opened in
+        write-binary mode.)
+
+        @param tempname: The filename to open for temporary storage.
+
+        @param destpath: The filename to move this file to when .close() is
+        called.
+        """
         self._destpath = destpath
         file.__init__(self, tempname, 'w+b')
 
     def close(self):
+        """
+        Close this file and commit it to its permanent location.
+
+        @return: a Deferred which fires when the file has been moved (and
+        backed up to tertiary storage, if necessary).
+        """
         now = time.time()
         try:
             file.close(self)
@@ -72,6 +87,18 @@ _noItem = object()              # tag for optional argument to getItemByID
                                 # default
 
 class Store(Empowered):
+    """
+    I am a database that Axiom Items can be stored in.
+
+    Store an item in me by setting its 'store' attribute to be me.
+
+    I can be created one of two ways:
+
+        Store()                      # Create an in-memory database
+
+        Store("/path/to/file.axiom") # create an on-disk database in the
+                                     # directory /path/to/file.axiom
+    """
 
     implements(iaxiom.IBeneficiary)
 
@@ -85,6 +112,23 @@ class Store(Empowered):
                                         # also for references to use.
 
     def __init__(self, dbdir=None, debug=False, parent=None, idInParent=None):
+        """
+        Create a store.
+
+        @param dbdir: A name of an existing Axiom directory, or the name of a
+        directory that does not exist yet which will be created as this Store
+        is instantiated.  If unspecified, this database will be kept in memory.
+
+        @param debug: set to True if this Store should print out every SQL
+        statement it sends to SQLite.
+
+        @param parent: (internal) If this is opened using an
+        L{axiom.substore.Substore}, a reference to its parent.
+
+        @param idInParent: (internal) If this is opened using an
+        L{axiom.substore.Substore}, the storeID of the item within its parent
+        which opened it.
+        """
         if parent is not None or idInParent is not None:
             assert parent is not None
             assert idInParent is not None
@@ -143,6 +187,9 @@ class Store(Empowered):
 
         self.idToTypename = {} # map database-persistent typeID (oid in types
                                # table) to typename
+
+        self._oldTypesRemaining = [] # a list of old types which have not been
+                                     # fully upgraded in this database.
 
         self.service = None
 
@@ -239,6 +286,13 @@ class Store(Empowered):
         return None
 
     def newFile(self, *path):
+        """
+        Open a new file somewhere in this Store's file area.
+
+        @param path: a sequence of path segments.
+
+        @return: an L{AtomicFile}.
+        """
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
         tmpname = os.path.join(self.dbdir, 'temp', str(tempCounter.next())+".tmp")
         return AtomicFile(tmpname, self.newFilePath(*path))
@@ -284,7 +338,25 @@ class Store(Empowered):
         # finally find old versions of the data and prepare to upgrade it.
 
     def _prepareOldVersionOf(self, typeID, typename, version):
-        dummyItemSubclass(*self._dssargs(typeID, typename, version))
+        """
+        Note that this database contains old versions of a particular type.
+        Create the appropriate dummy item subclass.
+        """
+        self._oldTypesRemaining.append(
+            dummyItemSubclass(*self._dssargs(typeID, typename, version)))
+
+
+    def _upgradeOneThing(self):
+        while self._oldTypesRemaining:
+            t0 = self._oldTypesRemaining[0]
+            onething = list(self.query(t0, limit=1))
+            if not onething:
+                self._oldTypesRemaining.pop(0)
+                continue
+            o = onething[0]
+            upgrade.upgradeAllTheWay(o, t0.typeName, t0.schemaVersion)
+            return True
+        return False
 
     def getOldVersionOf(self, typename, version):
         return _legacyTypes[typename, version]

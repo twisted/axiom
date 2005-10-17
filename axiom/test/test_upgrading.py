@@ -52,6 +52,26 @@ class SchemaUpgradeTest(unittest.TestCase):
         player, sword = self._testLoadSwordFirst(playerID, swordID)
         self._testPlayerAndSwordState(player, sword)
 
+    def testTwoObjectUpgrade_AutoOrder(self):
+        playerID, swordID = self._testTwoObjectUpgrade()
+        player, sword = self._testAutoUpgrade(playerID, swordID)
+        self._testPlayerAndSwordState(player, sword)
+
+    def _testAutoUpgrade(self, playerID, swordID):
+        choose(newapp)
+        s = store.Store(self.dbdir)
+
+        # XXX: this is certainly not the right API, but I needed a white-box
+        # test before I started messing around with starting processes or
+        # scheduling tasks automatically.
+        while s._upgradeOneThing():
+            pass
+
+        player = s.getItemByID(playerID, autoUpgrade=False)
+        sword = s.getItemByID(swordID, autoUpgrade=False)
+
+        return player, sword
+
     def _testLoadPlayerFirst(self, playerID, swordID):
         # Everything old is new again
         choose(newapp)
