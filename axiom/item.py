@@ -148,6 +148,15 @@ class Empowered(object):
 
 
     def __conform__(self, interface):
+        """
+        For 'normal' interfaces, returns the first powerup found when doing
+        self.powerupsFor(interface).
+
+        Certain interfaces are special - IService from twisted.application
+        being the main special case - and will be aggregated according to
+        special rules.  The full list of such interfaces is present in the
+        'aggregateInterfaces' module attribute.
+        """
         if not self.store:
             return
         pups = self.powerupsFor(interface)
@@ -158,7 +167,8 @@ class Empowered(object):
 
     def powerupsFor(self, interface):
         """
-        Returns powerups installed using C{powerUp}.
+        Returns powerups installed using C{powerUp}, in order of descending
+        priority.
         """
         for cable in self.store.query(
             _PowerupConnector,
