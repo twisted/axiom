@@ -197,11 +197,15 @@ class Store(Empowered):
             self.typenameAndVersionToID[typename, version] = oid
             if typename not in _typeNameToMostRecentClass:
                 namedAny(module)
-            if version == _typeNameToMostRecentClass[typename].schemaVersion:
-                self.typenameToID[typename] = oid
-                self.idToTypename[oid] = typename
-            else:
-                self._prepareOldVersionOf(oid, typename, version)
+
+            cls = _typeNameToMostRecentClass.get(typename)
+
+            if cls is not None:
+                if version == cls.schemaVersion:
+                    self.typenameToID[typename] = oid
+                    self.idToTypename[oid] = typename
+                else:
+                    self._prepareOldVersionOf(oid, typename, version)
 
         for typename in self.typenameToID:
             self.checkTypeSchemaConsistency(typename)
