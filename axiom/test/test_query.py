@@ -2,6 +2,8 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
+
+from axiom import errors
 from axiom.attributes import reference, text, bytes, integer, AND, OR
 
 class A(Item):
@@ -180,12 +182,12 @@ class BasicQuery(TestCase):
             e3 = E(store=s, name=u'quatloos', amount=99, transaction=u'yes')
             s.checkpoint()
             q = s.count(E, E.name == u'widgets')
-            self.failUnlessEqual(q, 2)            
+            self.failUnlessEqual(q, 2)
             q = s.sum(E.amount, E.name == u'widgets')
             self.failUnlessEqual(q, 100)
         s.transact(entesten)
         s.close()
-        
+
 class QueryingTestCase(TestCase):
     def assertQuery(self, query, sql, args=None):
         if args is None:
@@ -200,7 +202,7 @@ class QueryingTestCase(TestCase):
 
         # self.assertEquals(query.getQuery(), sql)
         self.assertEquals([str(a) for a in query.getArgs()], args)
-        
+
 
 class AndOrQueries(QueryingTestCase):
     def testNoConditions(self):
@@ -228,14 +230,14 @@ class AndOrQueries(QueryingTestCase):
                A.type == u'Try to take over the world'),
             '((item_a_v1.type = ?) OR (item_a_v1.type = ?) OR (item_a_v1.type = ?))',
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
-            
+
 
 
 class WildcardQueries(QueryingTestCase):
     def testNoConditions(self):
         self.assertRaises(ValueError, D.one.like)
         self.assertRaises(ValueError, D.one.not_like)
-        
+
     def testOneString(self):
         self.assertQuery(
             D.one.like('foobar%'),
@@ -243,12 +245,12 @@ class WildcardQueries(QueryingTestCase):
         self.assertQuery(
             D.one.not_like('foobar%'),
             '(item_d_v1.one NOT LIKE (?))', ['foobar%'])
-        
+
     def testOneColumn(self):
         self.assertQuery(
             D.one.like(D.two),
             '(item_d_v1.one LIKE (item_d_v1.two))')
-        
+
     def testOneColumnAndStrings(self):
         self.assertQuery(
             D.one.like('foo%', D.two, '%bar'),
@@ -260,7 +262,7 @@ class WildcardQueries(QueryingTestCase):
             D.one.like(D.two, '%', D.three),
             '(item_d_v1.one LIKE (item_d_v1.two || ? || item_d_v1.three))',
             ['%'])
-        
+
     def testStartsEndsWith(self):
         self.assertQuery(
             D.one.startswith('foo'),
@@ -280,4 +282,27 @@ class WildcardQueries(QueryingTestCase):
             '(item_d_v1.one LIKE (item_a_v1.type || ?))', ['%'])
 
 
-    
+class UniqueTest(TestCase):
+
+    def setUp(self):
+        s = self.s = Store()
+        self.c = C(store=s, name=u'unique')
+        self.dupc1 = C(store=s, name=u'non-unique')
+        self.dupc2 = C(store=s, name=u'non-unique')
+
+    def testUniqueFound(self):
+        self.assertEquals(self.s.findUnique(C, C.name == u'unique'), self.c)
+
+    def testUniqueNotFoundError(self):
+        self.assertRaises(errors.ItemNotFound, self.s.findUnique,
+                          C, C.name == u'non-existent')
+
+    def testUniqueNotFoundDefault(self):
+        bing = object()
+        self.assertEquals(bing, self.s.findUnique(
+                C, C.name == u'non-existent',
+                default=bing))
+
+    def testUniqueDuplicate(self):
+        self.assertRaises(errors.DuplicateUniqueItem,
+                          self.s.findUnique, C, C.name == u'non-unique')
