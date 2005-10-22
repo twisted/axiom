@@ -23,5 +23,3 @@ class UnavailableTypeTestCase(TestCase):
         store = reload(store)
 
         store.Store(storedir)
-
-    testUnavailable.todo = 'no fix for this yet'
