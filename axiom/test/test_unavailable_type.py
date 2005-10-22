@@ -23,3 +23,5 @@ class UnavailableTypeTestCase(TestCase):
         store = reload(store)
 
         store.Store(storedir)
+
+    testUnavailable.skip = 'This test breaks EVERY subsequent test, because reloading item and store is not allowed'
