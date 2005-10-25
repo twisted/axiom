@@ -54,7 +54,7 @@ class TestEvent(Item):
 
         self.runCount += 1
         if self.runCount > self.maxRunCount:
-            self.testCase.fail("%d ran too many times"% (self.storeID))
+            self.testCase.fail("%s ran too many times"% (self.name))
         if self.runAgain is not None:
             result = Time() + timedelta(seconds=self.runAgain)
             self.runAgain = None
@@ -106,7 +106,7 @@ class SchedTest(unittest.TestCase):
         # depend on tasks arriving in soonest-to-latest order.
         S.schedule(t2, now + timedelta(seconds=interval * 2))
         S.schedule(t1, now + timedelta(seconds=interval * 1))
-        S.schedule(t3, now + timedelta(seconds=interval * 20))
+        S.schedule(t3, now + timedelta(seconds=interval * 200))
 
         return d
 

@@ -96,7 +96,7 @@ class TestItem(unittest.TestCase):
         reactor.spawnProcess(p, sys.executable, ["python", '-Wignore', itemtestmain.__file__.rstrip('co'), storePath, str(itemID)], e)
 
         def cbOutput(output):
-            self.assertEquals(''.join(output), 'Hello, world!!!\n')
+            self.assertEquals(''.join(output).strip(), 'Hello, world!!!')
 
         def ebBlah(err):
             log.err(err)

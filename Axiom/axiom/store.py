@@ -397,7 +397,7 @@ class Store(Empowered):
                 self._oldTypesRemaining.pop(0)
                 continue
             o = onething[0]
-            upgrade.upgradeAllTheWay(o, t0.typeName, t0.schemaVersion)
+            self.transact(upgrade.upgradeAllTheWay, o, t0.typeName, t0.schemaVersion)
             return True
         self._upgradeComplete.callback(None)
         self._upgradeComplete = None
@@ -772,7 +772,7 @@ class Store(Empowered):
                 # upgradeVersion will do caching as necessary, we don't have to
                 # cache here.  (It must, so that app code can safely call
                 # upgradeVersion and get a consistent object out of it.)
-                x = upgrade.upgradeAllTheWay(x, typename, x.schemaVersion)
+                x = self.transact(upgrade.upgradeAllTheWay, x, typename, x.schemaVersion)
             elif not x.__legacy__:
                 # We loaded the most recent version of an object
                 self.objectCache.cache(storeID, x)

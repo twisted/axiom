@@ -61,7 +61,8 @@ class FinalizingCache:
                 ref(self), key, fin))
         return value
 
-    def uncache(self, key):
+    def uncache(self, key, value):
+        assert self.get(key) is value
         del self.data[key]
 
     def has(self, key):
