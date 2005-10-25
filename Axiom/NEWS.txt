@@ -1,0 +1,7 @@
+x.x.x (dd-mm-yyyy):
+  - Removed accidental Mantissa dependency
+  - Automatic upgrade service added
+  - Lots of new docstrings
+  - Query utility module added, with a function for finding overlapping
+    ranges
+  - Added formal interface for the `where' argument to Store.query()
