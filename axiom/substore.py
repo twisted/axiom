@@ -37,6 +37,6 @@ class SubStore(Item):
             return s
 
     def __conform__(self, interface):
-        ifa = interface(self.open(), None)
+        ifa = interface(self.open(debug=self.store.debug), None)
         return ifa
 

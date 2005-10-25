@@ -356,7 +356,7 @@ class Item(Empowered):
     def revert(self):
         if self.__justCreated:
             # The SQL revert has already been taken care of.
-            self.store.objectCache.uncache(self.storeID)
+            self.store.objectCache.uncache(self.storeID, self)
             return
         self.__dirty__.clear()
         dbattrs = self.store.querySQL(
@@ -383,7 +383,8 @@ class Item(Empowered):
         """
         if self.__deleting:
             self.deleted()
-            self.store.objectCache.uncache(self.storeID)
+            if not self.__legacy__:
+                self.store.objectCache.uncache(self.storeID, self)
             self.__store = None
         self.__justCreated = False
 
@@ -437,7 +438,7 @@ class Item(Empowered):
         if self.store.autocommit:
             self.committed()
 
-    def upgradeVersion(self, typename, oldversion, newversion):
+    def upgradeVersion(self, typename, oldversion, newversion, **kw):
         # right now there is only ever one acceptable series of arguments here
         # but it is useful to pass them anyway to make sure the code is
         # functioning as expected
@@ -463,7 +464,8 @@ class Item(Empowered):
         # don't set __everInserted to True because we want to run insert logic
 
         new = T(__store=self.store,
-                storeID=self.storeID)
+                storeID=self.storeID,
+                **kw)
 
         new.touch()
 
