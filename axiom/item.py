@@ -96,11 +96,12 @@ def serviceSpecialCase(item, pups):
     item.service = svc
     return svc
 
-aggregateInterfaces = {
-    IService: serviceSpecialCase,
-    IServiceCollection: serviceSpecialCase}
 
 class Empowered(object):
+
+    aggregateInterfaces = {
+        IService: serviceSpecialCase,
+        IServiceCollection: serviceSpecialCase}
 
     def powerUp(self, powerup, interface, priority=0):
         """
@@ -155,13 +156,14 @@ class Empowered(object):
         Certain interfaces are special - IService from twisted.application
         being the main special case - and will be aggregated according to
         special rules.  The full list of such interfaces is present in the
-        'aggregateInterfaces' module attribute.
+        'aggregateInterfaces' class attribute.
         """
         if not self.store:
             return
         pups = self.powerupsFor(interface)
-        if interface in aggregateInterfaces:
-            return aggregateInterfaces[interface](self, pups)
+        agg = self.aggregateInterfaces
+        if interface in agg:
+            return agg[interface](self, pups)
         for p in pups:
             return p
 

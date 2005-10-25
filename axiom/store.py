@@ -11,15 +11,17 @@ from twisted.python.filepath import FilePath
 from twisted.internet import defer
 from twisted.python.reflect import namedAny
 from twisted.python.util import unsignedID
-from twisted.application.service import IService, MultiService
+from twisted.application.service import IService, IServiceCollection, MultiService
 
-from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
+from epsilon.pending import PendingEvent
+
+from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, _upgsvc
 
 from pysqlite2 import dbapi2 as sqlite
 
 from axiom.item import \
     _typeNameToMostRecentClass, dummyItemSubclass,\
-    _legacyTypes, TABLE_NAME, Empowered
+    _legacyTypes, TABLE_NAME, Empowered, serviceSpecialCase
 
 IN_MEMORY_DATABASE = ':memory:'
 
@@ -86,6 +88,22 @@ class AtomicFile(file):
 _noItem = object()              # tag for optional argument to getItemByID
                                 # default
 
+def storeServiceSpecialCase(st, pups):
+    if st.parent is not None:
+        # If for some bizarre reason we're starting a substore's service, let's
+        # just assume that its parent is running its upgraders, rather than
+        # risk starting the upgrader run twice. (XXX: it *IS* possible to
+        # figure out whether we need to or not, I just doubt this will ever
+        # even happen in practice -- fix here if it does)
+        return serviceSpecialCase(st, pups)
+    if st.service is not None:
+        # not new, don't add twice.
+        return st.service
+    svc = serviceSpecialCase(st, pups)
+    subsvc = st._upgradeService
+    subsvc.setServiceParent(svc)
+    return svc
+
 class Store(Empowered):
     """
     I am a database that Axiom Items can be stored in.
@@ -99,6 +117,10 @@ class Store(Empowered):
         Store("/path/to/file.axiom") # create an on-disk database in the
                                      # directory /path/to/file.axiom
     """
+
+    aggregateInterfaces = {
+        IService: storeServiceSpecialCase,
+        IServiceCollection: storeServiceSpecialCase}
 
     implements(iaxiom.IBeneficiary)
 
@@ -210,6 +232,19 @@ class Store(Empowered):
         for typename in self.typenameToID:
             self.checkTypeSchemaConsistency(typename)
 
+        if self.parent is None:
+            self._upgradeService = _upgsvc.UpgradeService()
+        else:
+            # Substores should hook into their parent, since they shouldn't
+            # expect to have their own substore service started.
+            self._upgradeService = self.parent._upgradeService
+
+        if self._oldTypesRemaining:
+            # Automatically upgrade when possible.
+            self._upgradeComplete = PendingEvent()
+            self._upgradeService.addTask(self._upgradeOneThing)
+        else:
+            self._upgradeComplete = None
 
     def __repr__(self):
         d = self.dbdir
@@ -351,6 +386,10 @@ class Store(Empowered):
 
 
     def _upgradeOneThing(self):
+        """
+        Upgrade one Item; return True if there may be more work to do, False if
+        this store is definitely fully upgraded.
+        """
         while self._oldTypesRemaining:
             t0 = self._oldTypesRemaining[0]
             onething = list(self.query(t0, limit=1))
@@ -360,7 +399,18 @@ class Store(Empowered):
             o = onething[0]
             upgrade.upgradeAllTheWay(o, t0.typeName, t0.schemaVersion)
             return True
+        self._upgradeComplete.callback(None)
+        self._upgradeComplete = None
         return False
+
+    def whenFullyUpgraded(self):
+        """
+        Return a Deferred which fires when this Store has been fully upgraded.
+        """
+        if self._upgradeComplete is not None:
+            return self._upgradeComplete.deferred()
+        else:
+            return defer.succeed(None)
 
     def getOldVersionOf(self, typename, version):
         return _legacyTypes[typename, version]
