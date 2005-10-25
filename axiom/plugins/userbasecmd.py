@@ -8,8 +8,6 @@ from twisted import plugin
 
 from axiom import iaxiom, attributes, userbase
 
-from xmantissa.website import WebSite
-
 class AxiomaticSubCommandMixin:
     store = property(lambda self: self.parent.store)
 
@@ -45,7 +43,7 @@ class Create(usage.Options, AxiomaticSubCommandMixin):
             break
         else:
             ls = self.installOn(self.store)
-        
+
         msg = 'Enter new AXIOM password: '
         while not self['password']:
             password = getpass.getpass(msg)
@@ -54,7 +52,7 @@ class Create(usage.Options, AxiomaticSubCommandMixin):
                 self['password'] = password
             else:
                 msg = 'Passwords do not match.  Enter new AXIOM password: '
-        
+
         try:
             acc = ls.addAccount(self['username'],
                                 self['domain'],
@@ -94,7 +92,7 @@ class List(usage.Options, AxiomaticSubCommandMixin):
                 print
         if acc is None:
             print 'No accounts'
-        
+
 
 class UserBaseCommand(usage.Options):
     classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
