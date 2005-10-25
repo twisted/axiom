@@ -1,6 +1,7 @@
 
 from twisted.trial import unittest
 from axiom import store
+from twisted.application.service import IService
 
 tntmrc = store._typeNameToMostRecentClass
 def choose(module=None):
@@ -20,9 +21,20 @@ class SchemaUpgradeTest(unittest.TestCase):
     def setUp(self):
         self.dbdir = self.mktemp()
 
+    def openStore(self):
+        self.currentStore = store.Store(self.dbdir)
+        return self.currentStore
+
+    def closeStore(self):
+        self.currentStore.close()
+        self.currentStore = None
+
+    def startStoreService(self):
+        IService(self.currentStore).startService()
+
     def _testTwoObjectUpgrade(self):
         choose(oldapp)
-        s = store.Store(self.dbdir)
+        s = self.openStore()
 
         sword = oldapp.Sword(
             store=s,
@@ -36,7 +48,7 @@ class SchemaUpgradeTest(unittest.TestCase):
             sword=sword
             )
 
-        s.close()
+        self.closeStore()
 
         # Perform an adjustment.
 
@@ -57,9 +69,25 @@ class SchemaUpgradeTest(unittest.TestCase):
         player, sword = self._testAutoUpgrade(playerID, swordID)
         self._testPlayerAndSwordState(player, sword)
 
+    def testTwoObjectUpgrade_UseService(self):
+        playerID, swordID = self._testTwoObjectUpgrade()
+        choose(newapp)
+        s = self.openStore()
+        self.startStoreService()
+
+        # XXX *this* test really needs 10 or so objects to play with in order
+        # to be really valid...
+
+        def afterUpgrade(result):
+            player = s.getItemByID(playerID, autoUpgrade=False)
+            sword = s.getItemByID(swordID, autoUpgrade=False)
+            self._testPlayerAndSwordState(player, sword)
+
+        return s.whenFullyUpgraded().addCallback(afterUpgrade)
+
     def _testAutoUpgrade(self, playerID, swordID):
         choose(newapp)
-        s = store.Store(self.dbdir)
+        s = self.openStore()
 
         # XXX: this is certainly not the right API, but I needed a white-box
         # test before I started messing around with starting processes or
@@ -76,7 +104,7 @@ class SchemaUpgradeTest(unittest.TestCase):
         # Everything old is new again
         choose(newapp)
 
-        s = store.Store(self.dbdir)
+        s = self.openStore()
         player = s.getItemByID(playerID)
         sword = s.getItemByID(swordID)
         return player, sword
@@ -84,7 +112,7 @@ class SchemaUpgradeTest(unittest.TestCase):
     def _testLoadSwordFirst(self, playerID, swordID):
         choose(newapp)
 
-        s = store.Store(self.dbdir)
+        s = self.openStore()
         sword = s.getItemByID(swordID)
         player = s.getItemByID(playerID)
         return player, sword
@@ -98,3 +126,30 @@ class SchemaUpgradeTest(unittest.TestCase):
         self.assertEquals(sword.owner.storeID, player.storeID)
         self.assertEquals(type(sword.owner), type(player))
         self.assertEquals(sword.owner, player)
+
+from axiom.substore import SubStore
+
+class SubStoreCompat(SchemaUpgradeTest):
+    def setUp(self):
+        self.topdbdir = self.mktemp()
+        self.subStoreID = None
+
+    def openStore(self):
+        self.currentTopStore = store.Store(self.topdbdir)
+        if self.subStoreID is not None:
+            self.currentSubStore = self.currentTopStore.getItemByID(self.subStoreID).open()
+        else:
+            ss = SubStore(self.currentTopStore,
+                          ['sub'])
+            self.subStoreID = ss.storeID
+            self.currentSubStore = ss.open()
+        return self.currentSubStore
+
+    def closeStore(self):
+        self.currentSubStore.close()
+        self.currentTopStore.close()
+        self.currentSubStore = None
+        self.currentTopStore = None
+
+    def startStoreService(self):
+        IService(self.currentTopStore).startService()
