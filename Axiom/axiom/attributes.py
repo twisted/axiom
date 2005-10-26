@@ -53,6 +53,23 @@ class Comparable:
             a.append(other)
         return AttributeComparison(sql, a, tables, self)
 
+    def oneOf(self, seq):
+        """
+        Choose items whose attributes are in a fixed set.
+
+        X.oneOf([1, 2, 3])
+
+        Implemented with the SQL 'in' statement.
+        """
+        nseq = list(seq)
+        return AttributeComparison(('%s.%s IN (%s)' % (
+                    self.type.getTableName(),
+                    self.columnName,
+                    ', '.join(['?'] * len(nseq)))),
+                                   nseq,
+                                   [self.type],
+                                   self)
+
     def __eq__(self, other):
         return self.compare(other, '=')
 
