@@ -2,6 +2,6 @@ Python 2.4
 SQLite 3.2.1
 Twisted 2.1.1
 PySQLite 2.0
-NTPL 2.3.5 or later (LinuxThreads not supported: see
+NPTL 2.3.5 or later (LinuxThreads not supported: see
                      <http://twistedmatrix.com/bugs/issue1251>)
 Epsilon 0.1
