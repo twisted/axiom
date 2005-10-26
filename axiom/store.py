@@ -14,8 +14,9 @@ from twisted.python.util import unsignedID
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from epsilon.pending import PendingEvent
+from epsilon.cooperator import SchedulingService
 
-from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, _upgsvc
+from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 
 from pysqlite2 import dbapi2 as sqlite
 
@@ -233,7 +234,7 @@ class Store(Empowered):
             self.checkTypeSchemaConsistency(typename)
 
         if self.parent is None:
-            self._upgradeService = _upgsvc.UpgradeService()
+            self._upgradeService = SchedulingService()
         else:
             # Substores should hook into their parent, since they shouldn't
             # expect to have their own substore service started.
@@ -242,7 +243,7 @@ class Store(Empowered):
         if self._oldTypesRemaining:
             # Automatically upgrade when possible.
             self._upgradeComplete = PendingEvent()
-            self._upgradeService.addTask(self._upgradeOneThing)
+            self._upgradeService.addIterator(self._upgradeEverything())
         else:
             self._upgradeComplete = None
 
@@ -402,6 +403,10 @@ class Store(Empowered):
         self._upgradeComplete.callback(None)
         self._upgradeComplete = None
         return False
+
+    def _upgradeEverything(self):
+        while self._upgradeOneThing():
+            yield None
 
     def whenFullyUpgraded(self):
         """
@@ -829,9 +834,10 @@ class Store(Empowered):
         try:
             self._execSQL(sql, args)
         except errors.SQLError, se:
-            warnings.warn(
-                "(Probably harmless) error during table or index creation: "+str(se),
-                errors.SQLWarning)
+            if not str(se).endswith('already exists'):
+                warnings.warn(
+                    "(Probably harmless) error during table or index creation: "+str(se),
+                    errors.SQLWarning)
 
     def _execSQL(self, sql, args):
         sql = self._normalizeSQL(sql)
