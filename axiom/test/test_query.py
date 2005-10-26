@@ -232,6 +232,28 @@ class AndOrQueries(QueryingTestCase):
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
 
 
+class SetMembershipQuery(QueryingTestCase):
+
+    def testOneOfWithList(self):
+        s = Store()
+
+        cx = C(store=s, name=u'x')
+        cy = C(store=s, name=u'y')
+        cz = C(store=s, name=u'z')
+
+        self.assertEquals(list(s.query(C, C.name.oneOf([u'x', u'z', u'a']), sort=C.name.ascending)),
+                          [cx, cz])
+
+    def testOneOfWithSet(self):
+        s = Store()
+
+        cx = C(store=s, name=u'x')
+        cy = C(store=s, name=u'y')
+        cz = C(store=s, name=u'z')
+
+        self.assertEquals(list(s.query(C, C.name.oneOf(set([u'x', u'z', u'a'])), sort=C.name.ascending)),
+                          [cx, cz])
+
 
 class WildcardQueries(QueryingTestCase):
     def testNoConditions(self):
