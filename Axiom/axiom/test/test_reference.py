@@ -2,7 +2,7 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, reference
+from axiom.attributes import integer, reference, AND
 
 class Referee(Item):
     schemaVersion = 1
@@ -70,3 +70,11 @@ class BadReferenceTestCase(TestCase):
         self.assertEqual(referent.ref, None)
 
     testBadReferenceRaises.todo = testBadReferenceNone.todo = 'No behavior yet defined for bad references'
+
+    def testReferenceQuery(self):
+        from axiom.test import oldapp
+        store = Store()
+        oldapp.Sword(store=store)
+        list(store.query(oldapp.Sword, oldapp.Player.sword == oldapp.Sword.storeID))
+
+    testReferenceQuery.todo = 'No behaviour yet defined for querying unfulfilled references'
