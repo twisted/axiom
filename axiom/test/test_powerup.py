@@ -3,7 +3,7 @@ from twisted.trial import unittest
 
 from axiom.item import Item
 from axiom.store import Store
-from axiom.attributes import integer
+from axiom.attributes import integer, inmemory
 
 from zope.interface import Interface, Attribute
 
@@ -82,3 +82,50 @@ class PowerUpTest(unittest.TestCase):
         self.assertEquals(mm.doSum(), 6)
 
         s.close()
+
+
+from twisted.application.service import IService, Service
+
+class SillyService(Item, Service):
+    typeName = 'test_silly_service'
+    schemaVersion = 1
+
+    started = integer(default=0)
+    stopped = integer(default=0)
+    running = integer(default=0)
+
+    parent = inmemory()
+
+    def startService(self):
+        self.started += 1
+        self.running = 1
+
+    def stopService(self):
+        assert self.running
+        self.running = 0
+        self.stopped += 1
+
+class SpecialCaseTest(unittest.TestCase):
+
+    def testStoreServicePowerup(self):
+        s = Store()
+        ss = SillyService(store=s)
+        s.powerUp(ss, IService)
+        IService(s).startService()
+        IService(s).stopService()
+        self.assertEquals(ss.started, 1)
+        self.assertEquals(ss.stopped, 1)
+        self.assertEquals(ss.running, 0)
+
+    def testItemServicePowerup(self):
+        s = Store()
+        sm = Summer(store=s)
+        ss = SillyService(store=s)
+        sm.powerUp(ss, IService)
+        IService(sm).startService()
+        IService(sm).stopService()
+        self.assertEquals(ss.started, 1)
+        self.assertEquals(ss.stopped, 1)
+        self.assertEquals(ss.running, 0)
+
+
