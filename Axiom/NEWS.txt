@@ -1,7 +1,8 @@
-x.x.x (dd-mm-yyyy):
+0.2.0 (2005-10-27):
   - Removed accidental Mantissa dependency
   - Automatic upgrade service added
   - Lots of new docstrings
   - Query utility module added, with a function for finding overlapping
     ranges
   - Added formal interface for the `where' argument to Store.query()
+  - Added 'oneOf' attribute
