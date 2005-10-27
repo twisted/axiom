@@ -275,6 +275,7 @@ class Item(Empowered):
         Initializer called regardless of whether this object was created by
         instantiation or loading from the database.
         """
+        self.service = None
         self.__dirty__ = {}
         to__store = kw.pop('__store', None)
         to__everInserted = kw.pop('__everInserted', False)
