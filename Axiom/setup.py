@@ -1,11 +1,13 @@
 from distutils.core import setup
 
+import axiom
+
 distobj = setup(
     name="Axiom",
-    version="0.1",
+    version=axiom.version.short(),
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
-    url="http://divmod.org/trac/wiki/AxiomProject",
+    url="http://divmod.org/trac/wiki/DivmodAxiom",
     license="MIT",
     platforms=["any"],
     description="An in-process object-relational database",
