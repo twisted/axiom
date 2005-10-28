@@ -1,5 +1,5 @@
 
-from axiom import store, item, attributes
+from axiom import item, attributes
 
 class PlainItem(item.Item):
     typeName = 'axiom_test_plain_item'

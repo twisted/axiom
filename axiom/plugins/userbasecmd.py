@@ -1,5 +1,5 @@
 
-import sys, getpass
+import getpass
 
 from zope.interface import classProvides
 
@@ -7,16 +7,9 @@ from twisted.python import usage
 from twisted import plugin
 
 from axiom import iaxiom, attributes, userbase
+from axiom.scripts import axiomatic
 
-class AxiomaticSubCommandMixin:
-    store = property(lambda self: self.parent.store)
-
-    def decodeCommandLine(self, cmdline):
-        """Turn a byte string from the command line into a unicode string.
-        """
-        codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
-        return unicode(cmdline, codec)
-
+class UserbaseMixin:
     def installOn(self, other):
         # XXX check installation on other, not store
         for ls in self.store.query(userbase.LoginSystem):
@@ -26,11 +19,11 @@ class AxiomaticSubCommandMixin:
             ls.installOn(other)
             return ls
 
-class Install(usage.Options, AxiomaticSubCommandMixin):
+class Install(usage.Options, axiomatic.AxiomaticSubCommandMixin, UserbaseMixin):
     def postOptions(self):
         self.installOn(self.store)
 
-class Create(usage.Options, AxiomaticSubCommandMixin):
+class Create(usage.Options, axiomatic.AxiomaticSubCommandMixin, UserbaseMixin):
     synopsis = "<username> <domain> [password]"
 
     def parseArgs(self, username, domain, password=None):
@@ -61,7 +54,7 @@ class Create(usage.Options, AxiomaticSubCommandMixin):
             raise usage.UsageError("An account by that name already exists.")
 
 
-class Disable(usage.Options, AxiomaticSubCommandMixin):
+class Disable(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     synopsis = "<username> <domain>"
 
     def parseArgs(self, username, domain):
@@ -81,7 +74,7 @@ class Disable(usage.Options, AxiomaticSubCommandMixin):
             raise usage.UsageError("No account by that name exists.")
 
 
-class List(usage.Options, AxiomaticSubCommandMixin):
+class List(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     def postOptions(self):
         acc = None
         for acc in self.store.query(userbase.LoginAccount):
@@ -107,4 +100,6 @@ class UserBaseCommand(usage.Options):
         ('list', None, List, "List users in an Axiom database"),
         ]
 
-    store = property(lambda self: self.parent.getStore())
+    def getStore(self):
+        return self.parent.getStore()
+

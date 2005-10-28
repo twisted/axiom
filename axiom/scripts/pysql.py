@@ -1,6 +1,6 @@
 
 import sys
-import readline
+import readline # Imported for its side-effects
 import traceback
 
 from pysqlite2.dbapi2 import connect

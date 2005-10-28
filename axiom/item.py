@@ -97,6 +97,22 @@ def serviceSpecialCase(item, pups):
     return svc
 
 
+class InstallableMixin(object):
+    """
+    Mixin for Items which can be installed as powerups on other Items
+    and which must keep track of which item they are installed on.
+
+    If a classes mixing this in defines named C{installedOn}, it will
+    be bound to the object which is the target of the install.
+    """
+    def installOn(self, other):
+        if hasattr(self, 'installedOn'):
+            assert self.installedOn is None or self.installedOn is other, (
+                "Cannot install %r on more than one thing (was installed on "
+                "%r, tried to install on %r)" % (self.__class__, self.installedOn, other))
+            self.installedOn = other
+
+
 class Empowered(object):
 
     aggregateInterfaces = {

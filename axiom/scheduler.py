@@ -1,4 +1,5 @@
 # -*- test-case-name: axiom.test.test_scheduler -*-
+
 from twisted.internet import reactor
 
 from twisted.application.service import Service, IService
@@ -7,8 +8,7 @@ from twisted.python import log
 from epsilon.extime import Time
 
 from axiom.item import Item
-from axiom.attributes import AND, timestamp, reference, text, integer, inmemory
-from axiom.slotmachine import Attribute
+from axiom.attributes import AND, timestamp, reference, integer, inmemory
 from axiom.iaxiom import IScheduler
 
 class TimedEvent(Item):
