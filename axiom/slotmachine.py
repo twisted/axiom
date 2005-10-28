@@ -49,6 +49,14 @@ def borrow(C, slotgather=lambda _slots: None):
 
 _NOSLOT = object()
 
+_super = super
+
+def hyper(unborrowed, boundSelf=None):
+    borrowed = _borrowed.get(unborrowed)
+    if borrowed is None or not isinstance(boundSelf, borrowed):
+        return _super(unborrowed, boundSelf)
+    return _super(borrowed, boundSelf)
+
 class SlotMetaMachine(type):
     def __new__(meta, name, bases, dictionary):
         dictionary['__name__'] = name
