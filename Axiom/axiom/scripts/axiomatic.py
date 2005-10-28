@@ -1,6 +1,5 @@
 
 import sys
-import warnings
 
 from twisted import plugin
 from twisted.python import usage
@@ -10,15 +9,24 @@ from axiom import plugins
 from axiom import iaxiom
 from axiom.store import Store
 
+class AxiomaticSubCommandMixin:
+    store = property(lambda self: self.parent.getStore())
+
+    def decodeCommandLine(self, cmdline):
+        """Turn a byte string from the command line into a unicode string.
+        """
+        codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
+        return unicode(cmdline, codec)
+
 class Options(usage.Options):
     optParameters = [
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
         ]
 
-    subCommands = [
+    subCommands = property(lambda self: [
         (plg.name, None, plg, plg.description)
         for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins)
-        ]
+        ])
 
     store = None
 

@@ -2,7 +2,7 @@
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, path, inmemory
+from axiom.attributes import path, inmemory
 
 class SubStore(Item):
 

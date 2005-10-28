@@ -5,8 +5,6 @@ import warnings
 from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
-from twisted.cred.error import UnauthorizedLogin
-from twisted.python import log
 
 from axiom.substore import SubStore
 from axiom.item import Item

@@ -7,7 +7,7 @@ from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred.credentials import UsernamePassword
 
 from axiom.store import Store
-from axiom.userbase import LoginAccount, LoginSystem, getAccountNames
+from axiom.userbase import LoginSystem, getAccountNames
 from axiom.item import Item
 from axiom.attributes import integer
 from axiom.scripts import axiomatic

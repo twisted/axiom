@@ -2,7 +2,7 @@
 import itertools
 import time
 
-from testbase import con, cur
+from testbase import cur
 
 for num in itertools.count():
     cur.execute("select * from foo")

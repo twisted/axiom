@@ -3,8 +3,6 @@ import os
 
 from twisted.trial import unittest
 
-from twisted.python.filepath import FilePath
-
 from axiom.store import Store
 
 from axiom.item import Item

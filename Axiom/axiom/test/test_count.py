@@ -3,7 +3,6 @@ from twisted.trial.unittest import TestCase
 from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer, AND, OR
-import random
 
 class ThingsWithIntegers(Item):
     schemaVersion = 1
