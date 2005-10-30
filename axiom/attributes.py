@@ -425,6 +425,11 @@ class bytes(SQLAttribute):
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
+        if isinstance(pyval, unicode):
+            raise TypeError(
+                "attribute [%s.%s = bytes()] must be "
+                "(str or other byte buffer); not %r" %
+                (self.classname, self.attrname, type(pyval).__name__,))
         return buffer(pyval)
 
     def outfilter(self, dbval, oself):
