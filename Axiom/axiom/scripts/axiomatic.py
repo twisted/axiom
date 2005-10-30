@@ -2,7 +2,9 @@
 import sys
 
 from twisted import plugin
-from twisted.python import usage
+from twisted.python import usage, log
+from twisted.scripts import twistd
+from twisted.application import app, service
 
 from axiom import plugins
 
@@ -18,6 +20,36 @@ class AxiomaticSubCommandMixin:
         codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
         return unicode(cmdline, codec)
 
+class Start(twistd.ServerOptions):
+    def runApp(self):
+        twistd.checkPID(self['pidfile'])
+        app.installReactor(self['reactor'])
+        self['nodaemon'] = self['nodaemon'] or self['debug']
+        oldstdout = sys.stdout
+        oldstderr = sys.stderr
+        twistd.startLogging(
+            self['logfile'],
+            self['syslog'],
+            self['prefix'],
+            self['nodaemon'])
+        app.initialLog()
+
+        application = service.Application("Axiom Service")
+        service.IService(self.parent.getStore()).setServiceParent(application)
+
+        twistd.startApplication(self, application)
+        app.runReactorWithLogging(self, oldstdout, oldstderr)
+        twistd.removePID(self['pidfile'])
+        app.reportProfile(
+            self['report-profile'],
+            service.IProcess(application).processName)
+        log.msg("Server Shut Down.")
+
+    def postOptions(self):
+        self['no_save'] = True
+        twistd.ServerOptions.postOptions(self)
+        self.runApp()
+
 class Options(usage.Options):
     optParameters = [
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
@@ -26,7 +58,8 @@ class Options(usage.Options):
     subCommands = property(lambda self: [
         (plg.name, None, plg, plg.description)
         for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins)
-        ])
+        ] + [
+        ('start', None, Start, 'Launch the given Axiomatic database')])
 
     store = None
 
