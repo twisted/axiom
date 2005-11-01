@@ -105,6 +105,188 @@ def storeServiceSpecialCase(st, pups):
     subsvc.setServiceParent(svc)
     return svc
 
+
+class BaseQuery:
+
+    def __init__(self, store, tableClass,
+                 comparison=None, limit=None,
+                 offset=None, sort=None):
+        """
+        Create a generic object-oriented interface to SQL, used to implement
+        Store.query.
+
+        @param store: the store that this query is within.
+
+        @param tableClass: a subclass of L{Item}.
+
+        @param comparison: an implementor of L{iaxiom.IComparison}
+
+        @param limit: an L{int} that limits the number of results that will be
+        queried for, or None to indicate that all results should be returned.
+
+        @param offset: an L{int} that specifies the offset within the query
+        results to begin iterating from, or None to indicate that we should
+        start at 0.
+
+        @param sort: A sort order object.  Obtained by doing
+        C{YourItemClass.yourAttribute.ascending} or C{.descending}.
+        """
+
+        self.store = store
+        self.tableClass = tableClass
+        self.comparison = comparison
+        self.limit = limit
+        self.offset = offset
+        self.sort = sort
+
+    def _sqlAndArgs(self, verb, subject):
+        # SQL and arguments
+        if self.comparison is not None:
+            where = 'WHERE '+self.comparison.getQuery()
+            tables = set(self.comparison.getTableNames())
+            args = self.comparison.getArgs()
+        else:
+            where = ''
+            tables = set()
+            args = []
+        tables.add(self.tableClass.getTableName())
+        fromClause = ', '.join(tables)
+        limitClause = []
+        if self.limit is not None:
+            # XXX LIMIT and OFFSET used to be using ?, but they started
+            # generating syntax errors in places where generating the whole SQL
+            # statement does not.  this smells like a bug in sqlite's parser to
+            # me, but I don't know my SQL syntax standards well enough to be
+            # sure -glyph
+            limitClause.append('LIMIT')
+            limitClause.append(str(self.limit))
+            if self.offset is not None:
+                limitClause.append('OFFSET')
+                limitClause.append(str(self.offset))
+        else:
+            assert self.offset is None, 'Offset specified without limit'
+        if self.sort is None:
+            sort = ''
+        else:
+            sort = self.sort
+        sqlstr = ' '.join([verb, subject,
+                           'FROM',
+                           ', '.join(tables),
+                           where, sort,
+                           ' '.join(limitClause)])
+        return (sqlstr, args)
+
+    def _runQuery(self, verb, subject):
+        # XXX ideally this should be creating an SQL cursor and iterating
+        # through that so we don't have to load the whole query into memory,
+        # but right now Store's interface to SQL is all through one cursor.
+        # I'm not sure how to do this and preserve the chokepoint so that we
+        # can do, e.g. transaction fallbacks.
+        if not self.store.autocommit:
+            self.store.checkpoint()
+        tnsv = (self.tableClass.typeName,
+                self.tableClass.schemaVersion)
+        if tnsv not in self.store.typenameAndVersionToID:
+            return []
+        sqlstr, sqlargs = self._sqlAndArgs(verb, subject)
+        sqlResults = self.store.querySQL(sqlstr, sqlargs)
+        return sqlResults
+
+    def __iter__(self):
+        """
+        Iterate the results of a query object.
+        """
+        sqlResults = self._runQuery('SELECT', self._queryTarget)
+        for row in sqlResults:
+            yield self._massageData(row)
+
+    _selfiter = None
+    def next(self):
+        if self._selfiter is None:
+            warnings.warn(
+                "Calling 'next' directly on a query is deprecated. "
+                "Perhaps you want to use iter(query).next(), or something "
+                "more expressive like store.findFirst or store.findOrCreate?",
+                DeprecationWarning, stacklevel=2)
+            self._selfiter = self.__iter__()
+        return self._selfiter.next()
+
+class _FakeItemForFilter:
+    __legacy__ = False
+    def __init__(self, store):
+        self.store = store
+
+class ItemQuery(BaseQuery):
+    def __init__(self, *a, **k):
+        BaseQuery.__init__(self, *a, **k)
+        self._queryTarget = (self.tableClass.getTableName()+'.oid, ' +
+                             self.tableClass.getTableName()+'.*')
+
+    def _massageData(self, row):
+        return self.store._loadedItem(self.tableClass, row[0], row[1:])
+
+    def getColumn(self, attributeName):
+        attr = getattr(self.tableClass, attributeName)
+        return AttributeQuery(self.store,
+                              self.tableClass,
+                              self.comparison,
+                              self.limit,
+                              self.offset,
+                              self.sort,
+                              attr)
+    def count(self):
+        rslt = self._runQuery('SELECT',
+                              'COUNT(' + self.tableClass.getTableName() + '.oid'
+                              + ')')
+        if rslt:
+            assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+            return rslt[0][0]
+        else:
+            return 0
+
+
+class AttributeQuery(BaseQuery):
+    def __init__(self,
+                 store,
+                 tableClass,
+                 comparison=None, limit=None,
+                 offset=None, sort=None,
+                 attribute=None):
+        assert attribute.type is tableClass
+        assert attribute is not None
+        BaseQuery.__init__(self, store, tableClass,
+                           comparison, limit,
+                           offset, sort)
+        self.attribute = attribute
+        self._queryTarget = tableClass.getTableName()+'.'+attribute.columnName
+
+    # XXX: Each implementation of 'outfilter' needs to be changed to deal
+    # with self being 'None' in these cases.  most of the ones we're likely
+    # to use (e.g. integer) are likely to have this already.
+    def _massageData(self, row):
+        return self.attribute.outfilter(row[0], _FakeItemForFilter(self.store))
+
+    def _selectOne(self, target):
+        sqlResults = self._runQuery('SELECT',
+                                    target)
+        assert len(sqlResults) == 1, ('expected one result for %r got %r' % (target, sqlResults))
+        return self.attribute.outfilter(sqlResults[0][0], _FakeItemForFilter(self.store))
+
+    def sum(self):
+        return self._selectOne('SUM(' + self.tableClass.getTableName() + '.' +
+                               self.attribute.columnName + ')')
+
+    def count(self):
+        rslt = self._runQuery(
+            'SELECT',
+            'COUNT(' + self.tableClass.getTableName() + '.' +
+            self.attribute.columnName + ')')
+        if rslt:
+            assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+            return rslt[0][0]
+        else:
+            return 0
+
 class Store(Empowered):
     """
     I am a database that Axiom Items can be stored in.
@@ -472,131 +654,16 @@ class Store(Empowered):
     def query(self, *a, **k):
         """
         Return a generator of objects which match an L{IComparison} predicate.
-
         """
-        return self._select(*a, **k)
-
-    def count(self, *a, **k):
-        """
-        Retrieve a count of objects which match a particular C{IComparison}
-        predicate.
-
-        Example::
-            self.store.count(MyClass,
-                             MyClass.otherValue > 10)
-
-        will return the number of instances of MyClass present in the database
-        with an otherValue attribute greater than 10.
-
-        @return: an L{int}.
-
-        """
-        try:
-            resultCount = self._select(justCount=True, *a, **k).next()
-        except StopIteration:
-            return 0
-        else:
-            return resultCount
+        return ItemQuery(self, *a, **k)
 
     def sum(self, summableAttribute, *a, **k):
-        """
-        Retrieve a sum from the database.
+        args = (self, summableAttribute.type) + a
+        return AttributeQuery(attribute=summableAttribute,
+                              *args, **k).sum()
 
-        Example::
-
-            self.store.sum(MyClass.numericValue,
-                           MyClass.otherValue > 10)
-
-            # returns a sum of all numericValues from MyClass instances in
-            # self.store where otherValue is greater than ten
-
-        """
-        try:
-            resultSum = self._select(summableAttribute.type,
-                                     sumAttribute=summableAttribute, *a, **k).next()
-        except StopIteration:
-            return 0
-        return resultSum
-
-    def _select(self,
-                tableClass,
-                comparison=None,
-                limit=None, offset=None,
-                sort=None,
-                justCount=False,
-                sumAttribute=None):
-        """
-
-        Generic object-oriented interface to 'SELECT', used to implement .query,
-        .sum, and .count.
-
-        @param tableClass: a subclass of L{Item}.
-
-        @param comparison: an implementor of L{iaxiom.IComparison}
-
-        @param limit: an L{int} that limits the number of results that will be
-        queried for, or None to indicate that all results should be returned.
-
-        @param offset: an L{int} that specifies the offset within the query
-        results to begin iterating from, or None to indicate that we should
-        start at 0.
-
-        @param justCount: a L{bool} that specifies if we should 'just count'
-        rather than returning the actual query results (interface to SELECT
-        COUNT(x) WHERE ...)
-
-        @param sumAttribute: an L{axiom.attributes.ColumnComparer} that should
-        be summed and returned, rather than returning the SQL results.  (Refer
-        to these using YourItemClass.attributeName.)
-
-        """
-        if not self.autocommit:
-            self.checkpoint()
-        if (tableClass.typeName,
-            tableClass.schemaVersion) not in self.typenameAndVersionToID:
-            return
-        if comparison is not None:
-            tables = set(comparison.getTableNames())
-            where = ['WHERE', comparison.getQuery()]
-            args = comparison.getArgs()
-        else:
-            tables = set()
-            where = []
-            args = []
-        tables.add(tableClass.getTableName())
-        query = ['SELECT']
-        if justCount:
-            query += ['COUNT(*)']
-        elif sumAttribute is not None:
-            query += ['SUM(%s)' % (sumAttribute.columnName,)]
-        else:
-            query += [tableClass.getTableName(), '.oid,', tableClass.getTableName(), '.*']
-        query += ['FROM', ', '.join(tables)]
-        query.extend(where)
-        if sort is not None:
-            query.append(sort)
-        if limit is not None:
-            # XXX LIMIT and OFFSET used to be using ?, but they started
-            # generating syntax errors in places where generating the whole SQL
-            # statement does not.  this smells like a bug in sqlite's parser to
-            # me, but I don't know my SQL syntax standards well enough to be
-            # sure -glyph
-            query.append('LIMIT ')
-            query.append(str(limit))
-            if offset is not None:
-                query.append('OFFSET ')
-                query.append(str(offset))
-        S = ' '.join(query)
-        sqlResults = self.querySQL(S, args)
-        if justCount or sumAttribute:
-            assert len(sqlResults) == 1
-            yield sqlResults[0][0]
-            return
-        for row in sqlResults:
-            yield self._loadedItem(
-                tableClass,
-                row[0],
-                row[1:])
+    def count(self, *a, **k):
+        return self.query(*a, **k).count()
 
     def _loadedItem(self, itemClass, storeID, attrs):
         if self.objectCache.has(storeID):

@@ -188,6 +188,18 @@ class BasicQuery(TestCase):
         s.transact(entesten)
         s.close()
 
+    def testAttributeQueries(self):
+        s = Store()
+        def entesten():
+            E(store=s, name=u'b', amount=456)
+            E(store=s, name=u'a', amount=123)
+            E(store=s, name=u'c', amount=789)
+            self.assertEquals(list(s.query(E, sort=E.name.ascending).getColumn("amount")),
+                              [123, 456, 789])
+
+        s.transact(entesten)
+        s.close()
+
 class QueryingTestCase(TestCase):
     def assertQuery(self, query, sql, args=None):
         if args is None:
