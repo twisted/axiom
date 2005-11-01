@@ -73,7 +73,7 @@ class _StoreIDComparer(Comparable):
 
 class _SpecialStoreIDAttribute(slotmachine.SetOnce):
     """
-    Because storeID is special (it's unique, it determine's a row's cache
+    Because storeID is special (it's unique, it determines a row's cache
     identity, it's immutable, etc) we don't use a regular SQLAttribute to
     represent it - but it still needs to be compared with other SQL attributes,
     as it is in fact represented by the 'oid' database column.
