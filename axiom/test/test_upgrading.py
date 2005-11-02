@@ -126,6 +126,9 @@ class SchemaUpgradeTest(unittest.TestCase):
         self.assertEquals(sword.owner.storeID, player.storeID)
         self.assertEquals(type(sword.owner), type(player))
         self.assertEquals(sword.owner, player)
+        self.assertEquals(sword.activated, 1)
+        self.assertEquals(player.activated, 1)
+
 
 from axiom.substore import SubStore
 
