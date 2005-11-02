@@ -485,6 +485,7 @@ class Item(Empowered):
                 **kw)
 
         new.touch()
+        new.activate()
 
         # XXX TODO; this needs to be forced to fall out of cache in the case of
         # an in memory revert

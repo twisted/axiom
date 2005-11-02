@@ -2,24 +2,31 @@
 
 
 from axiom.item import Item
-from axiom.attributes import text, integer, reference
+from axiom.attributes import text, integer, reference, inmemory
 
 from axiom.upgrade import registerUpgrader
 
-class Adventurer(Item):
+class ActivateHelper:
+    activated = 0
+    def activate(self):
+        self.activated += 1
+
+class Adventurer(ActivateHelper, Item):
     typeName = 'test_app_player'
     schemaVersion = 2
 
     name = text()
+    activated = inmemory()
 
 
-class Sword(Item):
+class Sword(ActivateHelper, Item):
     typeName = 'test_app_sword'
     schemaVersion = 2
 
     name = text()
     damagePerHit = integer()
     owner = reference()
+    activated = inmemory()
 
 
 def upgradePlayerAndSword(oldplayer):
