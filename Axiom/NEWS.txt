@@ -1,6 +1,14 @@
-x.x.x (yyyy-mm-dd):
+0.3.0 (2005-11-02):
   - Removed Axiom/axiom/examples/axiom.tac
   - Added 'axiomatic start'
+  - added 'hyper', a 'super' capable of working with Item mixins
+  - added check to make sure Unicode strings won't be misleadingly persisted as
+    bytes(), like so:
+        >>> str(buffer(u'hello'))
+        'h\x00\x00\x00e\x00\x00\x00l\x00\x00\x00l\x00\x00\x00o\x00\x00\x00'
+  - formalized and improved query result to be an object with its own interface
+    rather than a generator
+  - correctly call activate() on items after they have been upgraded
 
 0.2.0 (2005-10-27):
   - Removed accidental Mantissa dependency
