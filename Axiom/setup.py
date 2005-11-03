@@ -1,8 +1,8 @@
-from distutils.core import setup
+from epsilon.setuphelper import autosetup
 
 import axiom
 
-distobj = setup(
+distobj = autosetup(
     name="Axiom",
     version=axiom.version.short(),
     maintainer="Divmod, Inc.",
@@ -17,15 +17,5 @@ distobj = setup(
         "Development Status :: 2 - Pre-Alpha",
         "Topic :: Database"],
 
-    scripts=['bin/axiomatic'],
-
-    packages=['axiom',
-              'axiom.scripts',
-              'axiom.plugins',
-              'axiom.test'],
-
-    package_data={'axiom': ['examples/*']})
-
-from epsilon.setuphelper import regeneratePluginCache
-regeneratePluginCache(distobj)
+    scripts=['bin/axiomatic'])
 
