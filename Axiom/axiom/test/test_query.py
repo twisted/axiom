@@ -177,6 +177,9 @@ class BasicQuery(TestCase):
     def testAggregateQueries(self):
         s = Store()
         def entesten():
+            self.assertEquals(s.query(E).count(), 0)
+            self.assertEquals(s.query(E).getColumn("amount").sum(), 0)
+
             e1 = E(store=s, name=u'widgets', amount=37)
             e2 = E(store=s, name=u'widgets', amount=63)
             e3 = E(store=s, name=u'quatloos', amount=99, transaction=u'yes')
