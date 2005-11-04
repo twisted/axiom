@@ -258,7 +258,7 @@ class AttributeQuery(BaseQuery):
                            comparison, limit,
                            offset, sort)
         self.attribute = attribute
-        self._queryTarget = tableClass.getTableName()+'.'+attribute.columnName
+        self._queryTarget = tableClass.getTableName() + '.' + attribute.columnName
 
     # XXX: Each implementation of 'outfilter' needs to be changed to deal
     # with self being 'None' in these cases.  most of the ones we're likely
@@ -266,21 +266,17 @@ class AttributeQuery(BaseQuery):
     def _massageData(self, row):
         return self.attribute.outfilter(row[0], _FakeItemForFilter(self.store))
 
-    def _selectOne(self, target):
-        sqlResults = self._runQuery('SELECT',
-                                    target)
-        assert len(sqlResults) == 1, ('expected one result for %r got %r' % (target, sqlResults))
-        return self.attribute.outfilter(sqlResults[0][0], _FakeItemForFilter(self.store))
-
     def sum(self):
-        return self._selectOne('SUM(' + self.tableClass.getTableName() + '.' +
-                               self.attribute.columnName + ')')
+        res = self._runQuery('SELECT', 'SUM(%s)' % (self._queryTarget,))
+        if res:
+            assert len(res) == 1, "more than one result: %r" % (res,)
+            dbval = res[0][0]
+        else:
+            dbval = 0
+        return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
 
     def count(self):
-        rslt = self._runQuery(
-            'SELECT',
-            'COUNT(' + self.tableClass.getTableName() + '.' +
-            self.attribute.columnName + ')')
+        rslt = self._runQuery('SELECT', 'COUNT(%s)' % (self._queryTarget,))
         if rslt:
             assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
             return rslt[0][0]
