@@ -199,6 +199,28 @@ class AttributeTests(unittest.TestCase):
             self.assertEquals(z.withoutDefault, 30)
         s.transact(testGetAttribute)
 
+    def testIntegerAttribute_SQLiteBug(self):
+        # SQLite 3.2.1 has a bug which causes various integers to be stored
+        # incorrect.  For example, 2 ** 48 - 1 is stored as -1.  This is
+        # fixed in 3.2.7.
+
+        for power in 8, 16, 24, 32, 48, 63:
+            s = store.Store()
+            input = 2 ** power - 1
+            s.transact(
+                AttributefulItem,
+                store=s,
+                withoutDefault=input)
+            output = s.findFirst(AttributefulItem).withoutDefault
+            print input, output
+            self.assertEquals(input, output)
+            s.close()
+
+    testIntegerAttribute_SQLiteBug.todo = (
+        "If this test fails on your system, you should really upgrade SQLite "
+        "to at least 3.2.7.  Not doing so will lead to corruption of your "
+        "data.")
+
     def testQueries(self):
         s = store.Store()
         def testQueries():
