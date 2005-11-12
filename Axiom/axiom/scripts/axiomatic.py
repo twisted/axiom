@@ -55,11 +55,16 @@ class Options(usage.Options):
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
         ]
 
-    subCommands = property(lambda self: [
-        (plg.name, None, plg, plg.description)
-        for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins)
-        ] + [
-        ('start', None, Start, 'Launch the given Axiomatic database')])
+    def subCommands():
+        def get(self):
+            for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins):
+                try:
+                    yield (plg.name, None, plg, plg.description)
+                except AttributeError:
+                    raise RuntimeError("Maldefined plugin: %r" % (plg,))
+            yield ('start', None, Start, 'Launch the given Axiomatic database')
+        return get,
+    subCommands = property(*subCommands())
 
     store = None
 
