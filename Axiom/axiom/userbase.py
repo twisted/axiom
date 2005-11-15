@@ -8,7 +8,7 @@ from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
 
 from axiom.substore import SubStore
 from axiom.item import Item
-from axiom.attributes import text, bytes, integer, reference, AND
+from axiom.attributes import text, integer, reference, boolean, AND
 from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
 
 from zope.interface import implements, Interface, Attribute
@@ -37,12 +37,35 @@ class Preauthenticated(object):
         return True
 
 
+class LoginMethod(Item):
+    typeName = 'login_method'
+    schemaVersion = 1
+
+    localpart = text(doc="""
+    A local-part of my user's identifier.
+    """, indexed=True, allowNone=False)
+
+    domain = text(doc="""
+    The domain part of my user's identifier. [XXX See TODO below]
+    """, indexed=True, allowNone=False)
+
+    internal = boolean(doc="""
+    Flag indicating whether this is a method maintained by this server, or if
+    it represents an external contact mechanism (such as a third-party email
+    provider)
+    """, allowNone=False)
+
+    protocol = text(indexed=True, allowNone=False)
+    account = reference(doc="""
+    A reference to the LoginAccount for which this is a login method.
+    """, allowNone=False)
+
+    verified = boolean(indexed=True, allowNone=False)
+
+
 class LoginAccount(Item):
     """
     I am an entry in a LoginBase.
-
-    @ivar username: A local-part of my user's identifier.
-    @ivar domain: The domain part of my user's identifier. [XXX See TODO below]
 
     @ivar avatars: An Item which is adaptable to various cred client
     interfaces.  Plural because it represents a collection of potentially
@@ -53,12 +76,10 @@ class LoginAccount(Item):
     database-resident but the user should not be allowed to log in.
 
     """
-    schemaVersion = 1
     typeName = 'login'
+    schemaVersion = 2
 
-    username = text(indexed=True)
-    domain = text(indexed=True)
-    password = bytes()
+    password = text()
     avatars = reference()       # reference to a thing which can be adapted to
                                 # implementations for application-level
                                 # protocols.  In general this is a reference to
@@ -73,6 +94,37 @@ class LoginAccount(Item):
         """
         ifa = interface(self.avatars, None)
         return ifa
+
+def upgradeLoginAccount1To2(oldAccount):
+    newAccount = oldAccount.upgradeVersion(
+        'login', 1, 2,
+        password=oldAccount.password.decode('ascii'),
+        avatars=oldAccount.avatars,
+        disabled=oldAccount.disabled)
+
+    def make(s, acc):
+        LoginMethod(
+            store=s,
+            localpart=oldAccount.username,
+            domain=oldAccount.domain,
+            internal=False,
+            protocol=u'email',
+            account=acc,
+            verified=True)
+
+    make(newAccount.store, newAccount)
+    ss = newAccount.avatars.open()
+    # create account in substore to represent the user's own record of their
+    # password; moves with them during migrations, etc.
+    subacc = LoginAccount(store=ss,
+                          password=newAccount.password,
+                          avatars=ss,
+                          disabled=newAccount.disabled)
+    make(ss, subacc)
+
+from axiom import upgrade
+upgrade.registerUpgrader(upgradeLoginAccount1To2, 'login', 1, 2)
+
 
 class SubStoreLoginMixin:
     def makeAvatars(self, domain, username):
@@ -97,11 +149,15 @@ class LoginBase:
         @type domain: C{unicode} without NUL
         """
         for account in self.store.query(LoginAccount,
-                                     AND(LoginAccount.domain == domain,
-                                         LoginAccount.username == username)):
+                                     AND(LoginMethod.domain == domain,
+                                         LoginMethod.localpart == username,
+                                         LoginAccount.disabled == 0,
+                                         LoginMethod.account == LoginAccount.storeID)):
             return account
 
-    def addAccount(self, username, domain, password, avatars=None):
+    def addAccount(self, username, domain, password, avatars=None,
+                   protocol=u'email', disabled=0, internal=False,
+                   verified=True):
         """
         Create a user account, add it to this LoginBase, and return it.
 
@@ -126,16 +182,25 @@ class LoginBase:
         """
         username = unicode(username)
         domain = unicode(domain)
+        password = unicode(password)
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)
         if avatars is None:
             avatars = self.makeAvatars(domain, username)
-        return LoginAccount(store=self.store,
-                            username=username,
-                            domain=domain,
-                            password=password,
-                            avatars=avatars,
-                            disabled=0)
+        la = LoginAccount(store=self.store,
+                          password=password,
+                          avatars=avatars,
+                          disabled=disabled)
+
+        lm = LoginMethod(store=self.store,
+                         localpart=username,
+                         domain=domain,
+                         protocol=protocol,
+                         internal=internal,
+                         verified=verified,
+                         account=la)
+
+        return la
 
     def logoutFactory(self, obj):
         return getattr(obj, 'logout', lambda: None)
@@ -198,5 +263,7 @@ def getAccountNames(store):
     if store.parent is None:
         raise ValueError("Orphan store has no account names")
     subStore = store.parent.getItemByID(store.idInParent)
-    for acc in store.parent.query(LoginAccount, LoginAccount.avatars == subStore):
-        yield (acc.username, acc.domain)
+    for meth in store.parent.query(LoginMethod,
+                                   AND(LoginAccount.avatars == subStore,
+                                       LoginMethod.account == LoginAccount.storeID)):
+        yield (meth.localpart, meth.domain)
