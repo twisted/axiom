@@ -512,6 +512,7 @@ class Store(Empowered):
         @return: an L{AtomicFile}.
         """
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
+        assert len(path) > 0, "newFile requires a nonzero number of segments"
         tmpname = os.path.join(self.dbdir, 'temp', str(tempCounter.next())+".tmp")
         return AtomicFile(tmpname, self.newFilePath(*path))
 
