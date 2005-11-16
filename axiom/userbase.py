@@ -96,9 +96,16 @@ class LoginAccount(Item):
         return ifa
 
 def upgradeLoginAccount1To2(oldAccount):
+    password = oldAccount.password
+    if password is not None:
+        try:
+            password = password.decode('ascii')
+        except UnicodeDecodeError:
+            password = None
+
     newAccount = oldAccount.upgradeVersion(
         'login', 1, 2,
-        password=oldAccount.password.decode('ascii'),
+        password=password,
         avatars=oldAccount.avatars,
         disabled=oldAccount.disabled)
 
