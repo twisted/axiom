@@ -7,6 +7,8 @@ import warnings
 
 from zope.interface import implements
 
+from twisted.python import log
+from twisted.python.failure import Failure
 from twisted.python.filepath import FilePath
 from twisted.internet import defer
 from twisted.python.reflect import namedAny
@@ -697,7 +699,12 @@ class Store(Empowered):
                 result = f(*a, **k)
                 self.checkpoint()
             except:
-                self.revert()
+                exc = Failure()
+                try:
+                    self.revert()
+                except:
+                    log.err(exc)
+                    raise
                 raise
             else:
                 self.commit()
@@ -806,7 +813,9 @@ class Store(Empowered):
     def getItemByID(self, storeID, default=_noItem, autoUpgrade=True):
         """
         """
-        assert storeID is not None
+        if not isinstance(storeID, (int, long)):
+            raise TypeError("storeID *must* be an int or long, not %r" % (
+                    type(storeID).__name__,))
         if storeID == -1:
             return self
         if self.objectCache.has(storeID):

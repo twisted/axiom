@@ -56,7 +56,7 @@ class TestEvent(Item):
         if self.runCount > self.maxRunCount:
             self.testCase.fail("%s ran too many times"% (self.name))
         if self.runAgain is not None:
-            result = Time() + timedelta(seconds=self.runAgain)
+            result = Time() + timedelta(milliseconds=self.runAgain)
             self.runAgain = None
         else:
             if self.deferred is not None:
@@ -85,7 +85,7 @@ class SchedTest(unittest.TestCase):
 
         d = Deferred()
 
-        interval = 0.1
+        interval = 10
 
         t1 = TestEvent(testCase=self,
                        name=u't1',
@@ -104,9 +104,9 @@ class SchedTest(unittest.TestCase):
 
         # Schedule them out of order to make sure behavior doesn't
         # depend on tasks arriving in soonest-to-latest order.
-        S.schedule(t2, now + timedelta(seconds=interval * 2))
-        S.schedule(t1, now + timedelta(seconds=interval * 1))
-        S.schedule(t3, now + timedelta(seconds=interval * 200))
+        S.schedule(t2, now + timedelta(milliseconds=interval * 2))
+        S.schedule(t1, now + timedelta(milliseconds=interval * 1))
+        S.schedule(t3, now + timedelta(milliseconds=interval * 100))
 
         return d
 
