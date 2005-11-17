@@ -402,17 +402,46 @@ class boolean(SQLAttribute):
 
 TOO_BIG = (2 ** 63)-1
 
+class ConstraintError(TypeError):
+    """A type constraint was violated.
+    """
+
+    def __init__(self,
+                 attributeObj,
+                 requiredTypes,
+                 providedValue):
+        self.attributeObj = attributeObj
+        self.requiredTypes = requiredTypes
+        self.providedValue = providedValue
+        TypeError.__init__(self,
+                           "attribute [%s.%s = %s()] must be "
+                           "(%s); not %r" %
+                           (attributeObj.classname,
+                            attributeObj.attrname,
+                            attributeObj.__class__.__name__,
+                            requiredTypes,
+                            type(providedValue).__name__))
+
+def requireType(attributeObj, value, typerepr, *types):
+    if not isinstance(value, types):
+        raise ConstraintError(attributeObj,
+                              typerepr,
+                              value)
+
+inttyperepr = "integer less than %r" % (TOO_BIG,)
+
+import warnings
+
 class integer(SQLAttribute):
     sqltype = 'INTEGER'
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
-        bigness = int(pyval)
-        if bigness > TOO_BIG:
-            raise OverflowError(
-                "Integers larger than %r, such as %r "
-                "don't fit in the database." % (TOO_BIG, bigness))
-        return bigness
+        requireType(self, pyval, inttyperepr, int, long)
+        if pyval > TOO_BIG:
+            raise ConstraintError(
+                self, inttyperepr, pyval)
+        return pyval
 
 class bytes(SQLAttribute):
     """
@@ -426,10 +455,7 @@ class bytes(SQLAttribute):
         if pyval is None:
             return None
         if isinstance(pyval, unicode):
-            raise TypeError(
-                "attribute [%s.%s = bytes()] must be "
-                "(str or other byte buffer); not %r" %
-                (self.classname, self.attrname, type(pyval).__name__,))
+            raise ConstraintError(self, "str or other byte buffer", pyval)
         return buffer(pyval)
 
     def outfilter(self, dbval, oself):
@@ -461,10 +487,8 @@ class text(SQLAttribute):
         if pyval is None:
             return None
         if not isinstance(pyval, unicode) or u'\0' in pyval:
-            raise TypeError(
-                "attribute [%s.%s = text()] must be "
-                "(unicode string without NULL bytes); not %r" %
-                (self.classname, self.attrname, type(pyval).__name__,))
+            raise ConstraintError(
+                self, "unicode string without NULL bytes", pyval)
         return pyval
 
     def outfilter(self, dbval, oself):
@@ -475,6 +499,9 @@ class path(text):
     Attribute representing a pathname in the filesystem.  If 'relative=True',
     the default, the representative pathname object must be somewhere inside
     the store, and will migrate with the store.
+
+    I expect L{twisted.python.filepath.FilePath} or compatible objects as my
+    values.
     """
 
     def __init__(self, relative=True, **kw):
@@ -526,12 +553,13 @@ class timestamp(integer):
     An in-database representation of date and time.
 
     To make formatting as easy as possible, this is represented in Python as an
-    instance of an epsilon.extime.Time; see its documentation for more details.
+    instance of L{epsilon.extime.Time}; see its documentation for more details.
     """
     def infilter(self, pyval, oself):
         if pyval is None:
             return None
-        return integer.infilter(self, pyval.asPOSIXTimestamp() * MICRO, oself)
+        return integer.infilter(self,
+                                int(pyval.asPOSIXTimestamp() * MICRO), oself)
 
     def outfilter(self, dbval, oself):
         if dbval is None:
@@ -572,3 +600,40 @@ class reference(integer):
         if dbval is None:
             return None
         return oself.store.getItemByID(dbval, autoUpgrade=not oself.__legacy__)
+
+class ieee754_double(SQLAttribute):
+    """
+    From the SQLite documentation:
+
+        'Each value stored in an SQLite database (or manipulated by the
+        database engine) has one of the following storage classes: (...)
+        REAL. The value is a floating point value, stored as an 8-byte IEEE
+        floating point number.'
+
+    This attribute type implements IEEE754 double-precision binary
+    floating-point storage.  Some people call this 'float', and think it is
+    somehow related to numbers.  This assumption can be misleading when working
+    with certain types of data.
+
+    This attribute name has an unweildy name on purpose.  You should be aware
+    of the caveats related to binary floating point math before using this
+    type.  It is particularly ill-advised to use it to store values
+    representing large amounts of currency as rounding errors may be
+    significant enough to introduce accounting discrepancies.
+
+    Certain edge-cases are not handled properly.  For example, INF and NAN are
+    considered by SQLite to be equal to everything, rather than the Python
+    interpretation where INF is equal only to itself and greater than
+    everything, and NAN is equal to nothing, not even itself.
+    """
+
+    sqltype = 'REAL'
+
+    def infilter(self, pyval, oself):
+        if pyval is None:
+            return None
+        requireType(self, pyval, 'float', float)
+        return pyval
+
+    def outfilter(self, dbval, oself):
+        return dbval
