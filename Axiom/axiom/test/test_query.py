@@ -204,6 +204,27 @@ class BasicQuery(TestCase):
         s.transact(entesten)
         s.close()
 
+    def testAttributeQueryCount(self):
+        s = Store()
+        def entesten():
+            E(store=s, name=u'a', amount=123)
+            E(store=s, name=u'b', amount=456)
+            E(store=s, name=u'c')  # no amount given
+            self.assertEquals(s.query(E).getColumn("amount").count(), 2)
+        s.transact(entesten)
+        s.close()
+
+    def testAttributeQueryDistinct(self):
+        s = Store()
+        def entesten():
+            E(store=s, name=u'a', amount=123)
+            E(store=s, name=u'b', amount=789)
+            E(store=s, name=u'a', amount=456)
+            self.assertEquals(list(s.query(E, sort=E.name.ascending).getColumn("name").distinct()),
+                              [u"a", u"b"])
+        s.transact(entesten)
+        s.close()
+
 class QueryingTestCase(TestCase):
     def setUp(self):
         s = self.store = Store()
