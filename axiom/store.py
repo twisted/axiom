@@ -285,6 +285,14 @@ class AttributeQuery(BaseQuery):
         else:
             return 0
 
+    def distinct(self):
+        """
+        Iterate through the distinct values for this column.
+        """
+        sqlResults = self._runQuery('SELECT DISTINCT', self._queryTarget)
+        for row in sqlResults:
+            yield self._massageData(row)
+
 class Store(Empowered):
     """
     I am a database that Axiom Items can be stored in.
