@@ -30,6 +30,7 @@ class C(Item):
 class D(Item):
     schemaVersion = 1
     typeName = 'd'
+    id = bytes()
     one = bytes()
     two = bytes()
     three = bytes()
@@ -204,6 +205,20 @@ class BasicQuery(TestCase):
         s.close()
 
 class QueryingTestCase(TestCase):
+    def setUp(self):
+        s = self.store = Store()
+        def _createStuff():
+            self.d1 = D(store=s, one='d1.one', two='d1.two', three='d1.three', id='1')
+            self.d2 = D(store=s, one='d2.one', two='d2.two', three='d2.three', id='2')
+            self.d3 = D(store=s, one='d3.one', two='d3.two', three='d3.three', id='3')
+        s.transact(_createStuff)
+
+    def tearDown(self):
+        self.store.close()
+
+    def query(self, *a, **kw):
+        return list(self.store.query(*a, **kw))
+
     def assertQuery(self, query, sql, args=None):
         if args is None:
             args = []
@@ -229,6 +244,8 @@ class AndOrQueries(QueryingTestCase):
             AND(A.type == u'Narf!'), '((item_a_v1.type = ?))', ['Narf!'])
         self.assertQuery(
             OR(A.type == u'Narf!'), '((item_a_v1.type = ?))', ['Narf!'])
+        self.assertEquals(self.query(D, AND(D.one == 'd1.one')), [self.d1])
+        self.assertEquals(self.query(D,  OR(D.one == 'd1.one')), [self.d1])
 
     def testMultipleAndConditions(self):
         self.assertQuery(
@@ -237,6 +254,11 @@ class AndOrQueries(QueryingTestCase):
                 A.type == u'Try to take over the world'),
             '((item_a_v1.type = ?) AND (item_a_v1.type = ?) AND (item_a_v1.type = ?))',
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
+        self.assertEquals(
+            self.query(D, AND(D.one == 'd1.one',
+                              D.two == 'd1.two',
+                              D.three == 'd1.three')),
+            [self.d1])
 
     def testMultipleOrConditions(self):
         self.assertQuery(
@@ -245,6 +267,11 @@ class AndOrQueries(QueryingTestCase):
                A.type == u'Try to take over the world'),
             '((item_a_v1.type = ?) OR (item_a_v1.type = ?) OR (item_a_v1.type = ?))',
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
+        q = self.query(D, OR(D.one == 'd1.one',
+                             D.one == 'd2.one',
+                             D.one == 'd3.one'))
+        e = [self.d1, self.d2, self.d3]
+        self.assertEquals(sorted(q), sorted(e))
 
 
 class SetMembershipQuery(QueryingTestCase):
@@ -282,23 +309,31 @@ class WildcardQueries(QueryingTestCase):
         self.assertQuery(
             D.one.not_like('foobar%'),
             '(item_d_v1.one NOT LIKE (?))', ['foobar%'])
+        self.assertEquals(self.query(D, D.one.like('d1.one')), [self.d1])
+        self.assertEquals(self.query(D, D.one.not_like('d%.one')), [])
 
     def testOneColumn(self):
         self.assertQuery(
             D.one.like(D.two),
             '(item_d_v1.one LIKE (item_d_v1.two))')
-
+        self.assertEquals(self.query(D, D.one.like(D.two)), [])
+        
     def testOneColumnAndStrings(self):
         self.assertQuery(
-            D.one.like('foo%', D.two, '%bar'),
-            '(item_d_v1.one LIKE (? || item_d_v1.two || ?))',
-            ['foo%', '%bar'])
+            D.one.like('%', D.id, '%one'),
+            '(item_d_v1.one LIKE (? || item_d_v1.id || ?))',
+            ['%', '%one'])
+        q = self.query(D, D.one.like('%', D.id, '%one'))
+        e = [self.d1, self.d2, self.d3]
+        self.assertEquals(sorted(q), sorted(e))
 
     def testMultipleColumns(self):
         self.assertQuery(
             D.one.like(D.two, '%', D.three),
             '(item_d_v1.one LIKE (item_d_v1.two || ? || item_d_v1.three))',
             ['%'])
+        self.assertEquals(
+            self.query(D, D.one.like(D.two, '%', D.three)), [])
 
     def testStartsEndsWith(self):
         self.assertQuery(
@@ -307,16 +342,29 @@ class WildcardQueries(QueryingTestCase):
         self.assertQuery(
             D.one.endswith('foo'),
             '(item_d_v1.one LIKE (? || ?))', ['%', 'foo'])
+        self.assertEquals(
+            self.query(D, D.one.startswith('d1')), [self.d1])
+        self.assertEquals(
+            self.query(D, D.one.endswith('3.one')), [self.d3])
 
     def testStartsEndsWithColumn(self):
         self.assertQuery(
             D.one.startswith(D.two),
             '(item_d_v1.one LIKE (item_d_v1.two || ?))', ['%'])
+        self.assertEquals(
+            self.query(D, D.one.startswith(D.two)), [])
 
     def testOtherTable(self):
         self.assertQuery(
             D.one.startswith(A.type),
             '(item_d_v1.one LIKE (item_a_v1.type || ?))', ['%'])
+
+        C(store=self.store, name=u'd1.')
+        C(store=self.store, name=u'2.one')
+        self.assertEquals(
+            self.query(D, D.one.startswith(C.name)), [self.d1])
+        self.assertEquals(
+            self.query(D, D.one.endswith(C.name)), [self.d2])
 
 
 class UniqueTest(TestCase):
@@ -343,3 +391,4 @@ class UniqueTest(TestCase):
     def testUniqueDuplicate(self):
         self.assertRaises(errors.DuplicateUniqueItem,
                           self.s.findUnique, C, C.name == u'non-unique')
+
