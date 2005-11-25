@@ -1,107 +1,53 @@
 # -*- test-case-name: axiom.test.test_slotmachine -*-
 
-_borrowed = {}
-
-def borrow(C, slotgather=lambda _slots: None):
-    """
-    Use implementation, but not identity or inheritance, from a class.  This is
-    useful when you want to avoid mucking with class metadata - in particular,
-    if you want to have a class which has no slots (and the semantics
-    associated with that, i.e. no unintended attributes) which inherits from
-    old-style and/or potentially __dict__-ful mixins.
-    """
-    if C is object:
-        return C
-
-    if C in _borrowed:
-        C = _borrowed[C]
-
-    if C.__name__.endswith("(Borrowed)"):
-        slotgather(C.__all_slots__)
-        return C
-
-    D = dict(C.__dict__)
-    allslots = list(D.get('__slots__', ()))
-    oldslots = allslots[:]
-
-    slotgather(oldslots)
-
-    for oldslot in oldslots:
-        # member_descriptor let's hope
-        del D[oldslot]
-
-    D['__slots__'] = ()
-
-    def gatherforme(stuff):
-        slotgather(stuff)
-        allslots.extend(stuff)
-
-    basetuple = []
-
-    for base in C.__bases__:
-        basetuple.append(borrow(base, gatherforme))
-
-    allslots = dict.fromkeys(allslots).keys()
-    D['__all_slots__'] = allslots
-    new = type(C.__name__+"(Borrowed)", tuple(basetuple), D)
-    _borrowed[C] = new
-    return new
+hyper = super
 
 _NOSLOT = object()
 
-_super = super
+class Allowed(object):
+    """
+    An attribute that's allowed to be set.
+    """
+    def __init__(self, name, default=_NOSLOT):
+        self.name = name
+        self.default = default
 
-def hyper(unborrowed, boundSelf=None):
-    borrowed = _borrowed.get(unborrowed)
-    if borrowed is None or not isinstance(boundSelf, borrowed):
-        return _super(unborrowed, boundSelf)
-    return _super(borrowed, boundSelf)
+    def __get__(self, oself, otype=None):
+        if otype is not None and oself is None:
+            return self
+        if self.name in oself.__dict__:
+            return oself.__dict__[self.name]
+        if self.default is not _NOSLOT:
+            return self.default
+        raise AttributeError("%r object did not have attribute %r" %(oself.__class__.__name__, self.name))
 
-class SlotMetaMachine(type):
+    def __delete__(self, oself):
+        if self.name not in oself.__dict__:
+            # Returning rather than raising here because that's what
+            # member_descriptor does, and Axiom relies upon that behavior.
+            ## raise AttributeError('%r object has no attribute %r' %
+            ##                      (oself.__class__.__name__, self.name))
+            return
+        del oself.__dict__[self.name]
+
+    def __set__(self, oself, value):
+        oself.__dict__[self.name] = value
+
+class _SlotMetaMachine(type):
     def __new__(meta, name, bases, dictionary):
         dictionary['__name__'] = name
-        slots = ['__weakref__'] + list(
-            meta.determineSchema(dictionary))
-        if bases:
-            borrowedBases = tuple([borrow(x, slots.extend) for x in bases])
-        else:
-            borrowedBases = ()
-        slots = dict.fromkeys(slots).keys() # uniquify
-        fin = []
+        slots = list(meta.determineSchema(dictionary))
         for slot in slots:
-            for base in borrowedBases:
-                baseslot = getattr(base, slot, _NOSLOT)
-                if baseslot is not _NOSLOT:
-                    if hasattr(baseslot, '__get__') or hasattr(baseslot, '__set__'):
-                        # It's a descriptor; if we get in the way, we'll break
-                        # it - if we don't get in the way, it leads to
-                        # surprising behavior. perhaps further consideration is
-                        # in order.
-                        if slot == '__weakref__':
-                            # ALL new-style classes have a useless 'weakref'
-                            # descriptor.  Don't avoid clobbering it, because
-                            # it is pretty much designed to be clobbered.
-                            fin.append(slot)
-                        break
-                    underlay = '_conflict_'+slot
-                    dictionary[slot] = DescriptorWithDefault(baseslot, underlay)
-                    fin.append(underlay)
+            default = _NOSLOT
+            for base in bases:
+                defval = getattr(base, slot, _NOSLOT)
+                if defval is not _NOSLOT:
                     break
-            else:
-                fin.append(slot)
-        slots = fin
-        assert '__weakref__' in slots, "__weakref__ not in %r for %r" % (slots, name)
-        dictionary['__slots__'] = slots
-        nt = type.__new__(meta, name, borrowedBases, dictionary)
-        if nt.__dictoffset__:
-            raise AssertionError(
-                "SlotMachine with __dict__ (this should be impossible)")
+            dictionary[slot] = Allowed(slot, defval)
+        nt = type.__new__(meta, name, bases, dictionary)
         return nt
 
     def determineSchema(meta, dictionary):
-        if '__slots__' in dictionary:
-            raise AssertionError(
-                "When using SlotMachine, specify 'slots' not '__slots__'")
         return dictionary.get("slots", [])
 
     determineSchema = classmethod(determineSchema)
@@ -160,22 +106,14 @@ class SetOnce(Attribute):
             return self
         return getattr(iself, self.trueattr, *self.default)
 
-class SchemaMetaMachine(SlotMetaMachine):
+class SchemaMetaMachine(_SlotMetaMachine):
 
     def determineSchema(meta, dictionary):
         attrs = dictionary['__attributes__'] = []
         name = dictionary['__name__']
         moduleName = dictionary['__module__']
         dictitems = dictionary.items()
-        dictitems.sort()        # deterministic ordering is important because
-                                # we generate SQL schemas from these attribute
-                                # lists
-
-        # this does NOT traverse the class hierarchy.  The SlotMetaMachine base
-        # class does all the hierarchy-traversing work in its __new__.  Do not
-        # add any hierarchy traversal here; it will almost certainly be broken
-        # in surprising ways (as if borrow() weren't surprising enough) -glyph
-
+        dictitems.sort()
         for k, v in dictitems:
             if isinstance(v, Attribute):
                 attrs.append((k, v))
@@ -186,11 +124,24 @@ class SchemaMetaMachine(SlotMetaMachine):
 
     determineSchema = classmethod(determineSchema)
 
-class SchemaMachine:
+class _Strict(object):
+    """
+    I disallow all attributes from being set that do not have an explicit
+    descriptor.
+    """
+    def __setattr__(self, name, value):
+        descr = getattr(self.__class__, name, _NOSLOT)
+        if descr is _NOSLOT:
+            raise AttributeError("%r can't set attribute %r" % (self.__class__.__name__,
+                                                                name))
+        else:
+            descr.__set__(self, value)
+
+class SchemaMachine(_Strict):
     __metaclass__ = SchemaMetaMachine
 
-class SlotMachine:
-    __metaclass__ = SlotMetaMachine
+class SlotMachine(_Strict):
+    __metaclass__ = _SlotMetaMachine
 
 
 class _structlike(list):
