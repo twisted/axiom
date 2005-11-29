@@ -469,34 +469,6 @@ class Store(Empowered):
         creating one with the given attributes if not.  Takes an optional
         positional argument function to call on the new item if it is new.
         """
-        existingItem = self.findFirst(userItemClass, **attrs)
-        if existingItem is None:
-            newItem = userItemClass(store=self, **attrs)
-            if __ifnew is not None:
-                __ifnew(newItem)
-            return newItem
-        else:
-            return existingItem
-
-    def findFirst(self, userItemClass, **attrs):
-        """
-        Usage:
-
-            s.findFirst(userItemClass [, x=1, y=2, ...])
-
-        Example:
-
-            class YourItemType(Item):
-                a = integer()
-                b = text()
-                c = integer()
-
-            s.findFirst(YourItemType, a=1, b=u'2')
-
-        Search for an item with columns in the database that match the
-        passed set of keyword arguments, returning the first match if
-        one is found, or None if one is not found.
-        """
         andargs = []
         for k, v in attrs.iteritems():
             col = getattr(userItemClass, k)
@@ -511,7 +483,10 @@ class Store(Empowered):
 
         for result in self.query(userItemClass, *cond):
             return result
-        return None
+        newItem = userItemClass(store=self, **attrs)
+        if __ifnew is not None:
+            __ifnew(newItem)
+        return newItem
 
     def newFile(self, *path):
         """
@@ -658,11 +633,67 @@ class Store(Empowered):
                                  comparison, results)
 
 
-    def query(self, *a, **k):
+    def findFirst(self, tableClass, comparison=None,
+                  offset=None, sort=None, default=None):
         """
-        Return a generator of objects which match an L{IComparison} predicate.
+        Usage:
+
+            s.findFirst(tableClass [, query arguments except 'limit'])
+
+        Example:
+
+            class YourItemType(Item):
+                a = integer()
+                b = text()
+                c = integer()
+            ...
+            it = s.findFirst(YourItemType,
+                             AND(YourItemType.a == 1,
+                                 YourItemType.b == u'2'),
+                                 sort=YourItemType.c.descending)
+
+        Search for an item with columns in the database that match the passed
+        comparison, offset and sort, returning the first match if one is found,
+        or the passed default (None if none is passed) if one is not found.
         """
-        return ItemQuery(self, *a, **k)
+
+        limit = 1
+        for item in self.query(tableClass, comparison, limit, offset, sort):
+            return item
+        return default
+
+    def query(self, tableClass, comparison=None,
+              limit=None, offset=None, sort=None):
+        """
+        Return a generator of instances of C{tableClass}.
+
+        Example::
+
+            fastCars = s.query(Vehicle,
+                axiom.attributes.AND(
+                    Vehicle.wheels == 4,
+                    Vehicle.maxKPH > 200),
+                limit=100,
+                sort=Vehicle.maxKPH.descending)
+
+
+        @param tableClass: a subclass of Item to look for instances of.
+
+        @param comparison: a provider of L{IComparison}, or None, to match all
+        items available in the store.
+
+        @param limit: an int to limit the total length of the results, or None
+        for all available results.
+
+        @param offset: an int to specify a starting point within the available
+        results, or None to start at 0.
+
+        @param sort: an L{ISort}, something that comes from an SQLAttribute's
+        'ascending' or 'descending' attribute.
+
+        @return: an L{ItemQuery} object, which is an interable of items.
+        """
+        return ItemQuery(self, tableClass, comparison, limit, offset, sort)
 
     def sum(self, summableAttribute, *a, **k):
         args = (self, summableAttribute.type) + a

@@ -302,13 +302,13 @@ class TestFindOrCreate(unittest.TestCase):
     def testFindFirst(self):
         s = store.Store()
         a0 = ai = AttributefulItem(store=s)
-        ai2 = s.findFirst(AttributefulItem, withDefault=42)
-        shouldBeNone = s.findFirst(AttributefulItem, withDefault=99)
+        ai2 = s.findFirst(AttributefulItem, AttributefulItem.withDefault == 42)
+        shouldBeNone = s.findFirst(AttributefulItem, AttributefulItem.withDefault == 99)
         self.assertEquals(ai, ai2)
         self.assertEquals(shouldBeNone, None)
 
         ai = AttributefulItem(store=s, withDefault=24)
-        ai2 = s.findFirst(AttributefulItem, withDefault=24)
+        ai2 = s.findFirst(AttributefulItem, AttributefulItem.withDefault == 24)
         self.assertEquals(ai, ai2)
 
         ai = AttributefulItem(store=s, withDefault=55)
