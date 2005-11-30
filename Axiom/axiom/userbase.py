@@ -47,7 +47,8 @@ class LoginMethod(Item):
 
     domain = text(doc="""
     The domain part of my user's identifier. [XXX See TODO below]
-    """, indexed=True, allowNone=False)
+    May be None (generally for "system" users).
+    """, indexed=True)
 
     internal = boolean(doc="""
     Flag indicating whether this is a method maintained by this server, or if
@@ -188,7 +189,7 @@ class LoginBase:
         as they are passed in, stored in my store.
         """
         username = unicode(username)
-        domain = unicode(domain)
+        domain = domain and unicode(domain)
         password = unicode(password)
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)

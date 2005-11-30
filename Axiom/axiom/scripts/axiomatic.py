@@ -1,5 +1,6 @@
 
 import sys
+import glob
 
 from twisted import plugin
 from twisted.python import usage, log
@@ -24,6 +25,7 @@ class Start(twistd.ServerOptions):
     def runApp(self):
         twistd.checkPID(self['pidfile'])
         app.installReactor(self['reactor'])
+        S = self.parent.getStore()
         self['nodaemon'] = self['nodaemon'] or self['debug']
         oldstdout = sys.stdout
         oldstderr = sys.stderr
@@ -35,7 +37,7 @@ class Start(twistd.ServerOptions):
         app.initialLog()
 
         application = service.Application("Axiom Service")
-        service.IService(self.parent.getStore()).setServiceParent(application)
+        service.IService(S).setServiceParent(application)
 
         twistd.startApplication(self, application)
         app.runReactorWithLogging(self, oldstdout, oldstderr)
@@ -68,12 +70,24 @@ class Options(usage.Options):
 
     store = None
 
+    def usedb(self, potentialdb):
+        yn = raw_input("Use database %r? (Y/n) " % (potentialdb,))
+        if yn.lower() in ('y', 'yes', ''):
+            self['dbdir'] = potentialdb
+        else:
+            raise usage.UsageError('Select another database with the -d option, then.')
+
     def getStore(self):
         if self.store is None:
             if self['dbdir'] is None:
-                sys.stderr.write(
-                    "You are using an in-memory store: this command will likely "
-                    "have no effect\n")
+                possibilities = glob.glob('*.axiom')
+                if len(possibilities) > 1:
+                    raise usage.UsageError("Multiple databases found here, please select one with the -d option: %s" %
+                                           (' '.join(possibilities),))
+                elif len(possibilities) == 1:
+                    self.usedb(possibilities[0])
+                else:
+                    self.usedb(self.subCommand + '.axiom')
             self.store = Store(self['dbdir'])
         return self.store
 
