@@ -1,10 +1,13 @@
 # -*- test-case-name: axiom.test -*-
 
+from epsilon import hotfix
+hotfix.require('twisted', 'filepath_copyTo')
+
 import os
 
 from zope.interface import implements
 
-from twisted.python.filepath import FilePath
+from twisted.python import filepath
 
 from epsilon.extime import Time
 
@@ -193,7 +196,7 @@ class SQLAttribute(inmemory, Comparable):
         raise NotImplementedError()
 
 
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         """
         used to convert a Python value to something that lives in the database;
         so called because it is called when objects go in to the database.  It
@@ -288,7 +291,7 @@ class SQLAttribute(inmemory, Comparable):
                     self.classname, self.attrname, self.__class__.__name__))
 
         st = oself.store
-        dbval = self.infilter(pyval, oself)
+        dbval = self.infilter(pyval, oself, st)
         oself.__dirty__[self.attrname] = self, dbval
         oself.touch()
         setattr(oself, self.underlying, pyval)
@@ -317,8 +320,8 @@ class AttributeComparison:
     def getQuery(self):
         return self.sqlString
 
-    def getArgs(self):
-        return [self.leftAttribute.infilter(arg, None) for arg in self.sqlArguments]
+    def getArgs(self, store):
+        return [self.leftAttribute.infilter(arg, None, store) for arg in self.sqlArguments]
 
     def getTableNames(self):
         assert self.leftAttribute.type in self.involvedTableClasses
@@ -349,10 +352,10 @@ class AggregateComparison:
         return '(%s)' % oper.join(
             [condition.getQuery() for condition in self.conditions])
 
-    def getArgs(self):
+    def getArgs(self, store):
         args = []
         for cond in self.conditions:
-            args += cond.getArgs()
+            args += cond.getArgs(store)
         return args
 
     def getTableNames(self):
@@ -380,7 +383,7 @@ class OR(AggregateComparison):
 class boolean(SQLAttribute):
     sqltype = 'BOOLEAN'
 
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         if pyval is True:
             return 1
         elif pyval is False:
@@ -434,7 +437,7 @@ import warnings
 
 class integer(SQLAttribute):
     sqltype = 'INTEGER'
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
         requireType(self, pyval, inttyperepr, int, long)
@@ -451,7 +454,7 @@ class bytes(SQLAttribute):
 
     sqltype = 'BLOB'
 
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
         if isinstance(pyval, unicode):
@@ -483,7 +486,7 @@ class text(SQLAttribute):
             self.sqltype = 'TEXT COLLATE NOCASE'
         self.caseSensitive = caseSensitive
 
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
         if not isinstance(pyval, unicode) or u'\0' in pyval:
@@ -518,7 +521,7 @@ class path(text):
             fspath = self.__get__(oself)
             oself.__dirty__[self.attrname] = self, self.infilter(fspath, oself, store)
 
-    def infilter(self, pyval, oself, store=None):
+    def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
         mypath = unicode(pyval.path)
@@ -527,22 +530,34 @@ class path(text):
         if store is None:
             return None
         if self.relative:
-            storepath = os.path.normpath(store.filesdir)
-            if not mypath.startswith(storepath):
+            # XXX add some more filepath APIs to make this kind of checking easier.
+            storepath = os.path.normpath(store.filesdir.path)
+            mysegs = mypath.split(os.sep)
+            storesegs = storepath.split(os.sep)
+            if len(mysegs) <= len(storesegs) or mysegs[:len(storesegs)] != storesegs:
                 raise InvalidPathError('%s not in %s' % (mypath, storepath))
-            p = mypath[len(storepath)+1:]   # +1 to include \ or /
+            # In the database we use '/' to separate paths for portability.
+            # This databaes could have relative paths created on Windows, then
+            # be moved to Linux for deployment, and what *was* the native
+            # os.sep (backslash) will not be friendly to Linux's filesystem.
+            # However, this is only for relative paths, since absolute or UNC
+            # pathnames on a Windows system are inherently unportable and it's
+            # not reasonable to calculate relative paths outside the store.
+            p = '/'.join(mysegs[len(storesegs):])
         else:
             p = mypath          # we already know it's absolute, it came from a
                                 # filepath.
-        return super(path, self).infilter(p, oself)
+        return super(path, self).infilter(p, oself, store)
 
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
         if self.relative:
-            fp = FilePath(os.path.join(oself.store.filesdir, dbval))
+            fp = oself.store.filesdir
+            for segment in dbval.split('/'):
+                fp = fp.child(segment)
         else:
-            fp = FilePath(dbval)
+            fp = filepath.FilePath(dbval)
         return fp
 
 
@@ -555,11 +570,12 @@ class timestamp(integer):
     To make formatting as easy as possible, this is represented in Python as an
     instance of L{epsilon.extime.Time}; see its documentation for more details.
     """
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
         return integer.infilter(self,
-                                int(pyval.asPOSIXTimestamp() * MICRO), oself)
+                                int(pyval.asPOSIXTimestamp() * MICRO), oself,
+                                store)
 
     def outfilter(self, dbval, oself):
         if dbval is None:
@@ -583,7 +599,7 @@ class reference(integer):
                     self.attrname, oitem,
                     oitem.store))
 
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
         if oself is None:
@@ -594,7 +610,7 @@ class reference(integer):
             raise NoCrossStoreReferences(
                 "You can't establish references to items in other stores.")
 
-        return integer.infilter(self, pyval.storeID, oself)
+        return integer.infilter(self, pyval.storeID, oself, store)
 
     def outfilter(self, dbval, oself):
         if dbval is None:
@@ -629,7 +645,7 @@ class ieee754_double(SQLAttribute):
 
     sqltype = 'REAL'
 
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
         requireType(self, pyval, 'float', float)

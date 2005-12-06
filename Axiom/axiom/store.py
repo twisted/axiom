@@ -1,5 +1,8 @@
 # -*- test-case-name: axiom.test -*-
 
+from epsilon import hotfix
+hotfix.require('twisted', 'filepath_copyTo')
+
 import time
 import os
 import itertools
@@ -9,7 +12,7 @@ from zope.interface import implements
 
 from twisted.python import log
 from twisted.python.failure import Failure
-from twisted.python.filepath import FilePath
+from twisted.python import filepath
 from twisted.internet import defer
 from twisted.python.reflect import namedAny
 from twisted.python.util import unsignedID
@@ -33,11 +36,6 @@ tempCounter = itertools.count()
 class NoEmptyItems(Exception):
     """You must define some attributes on every item.
     """
-
-
-class XFilePath(FilePath):
-    def dirname(self):
-        return os.path.dirname(self.path)
 
 def _mkdirIfNotExists(dirname):
     if os.path.isdir(dirname):
@@ -146,7 +144,7 @@ class BaseQuery:
         if self.comparison is not None:
             where = 'WHERE '+self.comparison.getQuery()
             tables = set(self.comparison.getTableNames())
-            args = self.comparison.getArgs()
+            args = self.comparison.getArgs(self.store)
         else:
             where = ''
             tables = set()
@@ -247,6 +245,18 @@ class ItemQuery(BaseQuery):
             return 0
 
 
+    def deleteFromStore(self):
+        """
+        Delete all the Items which are found by this query.
+        """
+        # XXX Improve this by using DELETE FROM instead of SELECT+DELETE loop;
+        # also, make sure to do some magical introspection to take the slow
+        # path if the user has overridden the 'deleted' notification on Item,
+        # but don't bother to call it if it's Item's (no-op) implementation.
+        for item in self:
+            item.deleteFromStore()
+
+
 class AttributeQuery(BaseQuery):
     def __init__(self,
                  store,
@@ -318,6 +328,11 @@ class Store(Empowered):
     storeID = -1                # I have a StoreID so that things can reference
                                 # me
 
+    dbdir = None # FilePath to the Axiom database directory, or None for
+                 # in-memory Stores.
+    filesdir = None # FilePath to the filesystem-storage subdirectory of the
+                    # database directory, or None for in-memory Stores.
+
     store = property(lambda self: self) # I have a 'store' attribute because I
                                         # am 'stored' within myself; this is
                                         # also for references to use.
@@ -352,39 +367,10 @@ class Store(Empowered):
         self.statementCache = {} # non-normalized => normalized qmark SQL
                                  # statements
 
-        self.objectCache = _fincache.FinalizingCache()
-
-
-        if dbdir is None:
-            dbfpath = IN_MEMORY_DATABASE
-        else:
-            dbdir = os.path.abspath(dbdir)
-            dbfpath = os.path.join(dbdir, 'db.sqlite')
-            self.filesdir = os.path.join(dbdir, 'files')
-            if os.path.isdir(dbdir):
-                if not os.path.exists(dbfpath):
-                    raise OSError(
-                        "The path %r is already a directory, "
-                        "but not an Axiom Store" % (dbfpath,))
-            else:
-                _mkdirIfNotExists(dbdir)
-                _mkdirIfNotExists(self.filesdir)
-                _mkdirIfNotExists(os.path.join(dbdir, 'temp'))
-        self.dbdir = dbdir
-        self.connection = sqlite.connect(dbfpath)
-        self.cursor = self.connection.cursor()
         self.activeTables = {}  # tables which have had items added/removed
                                 # this run
 
-        # install powerups if we've never powered on before;
-        create = not self.querySQL(_schema.HAS_SCHEMA_FEATURE,
-                                   ['table', 'axiom_types'])[0][0]
-        if create:
-            for stmt in _schema.BASE_SCHEMA:
-                self.executeSQL(stmt)
-
-        # activate services if we have(?)
-        # scheduler needs startup hook
+        self.objectCache = _fincache.FinalizingCache()
 
         self.tableQueries = {}  # map typename: query string w/ storeID
                                 # parameter.  a typename is a persistent
@@ -404,6 +390,79 @@ class Store(Empowered):
 
         self.service = None
 
+
+        if self.parent is None:
+            self._upgradeService = SchedulingService()
+        else:
+            # Substores should hook into their parent, since they shouldn't
+            # expect to have their own substore service started.
+            self._upgradeService = self.parent._upgradeService
+
+
+        # OK!  Everything that can be set up without touching the filesystem
+        # has been done.  Let's get ready to open the actual database...
+
+        _initialOpenFailure = None
+        if dbdir is None:
+            self._initdb(IN_MEMORY_DATABASE)
+            self._initSchema()
+        else:
+            if not isinstance(dbdir, filepath.FilePath):
+                dbdir = filepath.FilePath(dbdir)
+                # required subdirs: files, temp, run
+                # datafile: db.sqlite
+            self.dbdir = dbdir
+            self.filesdir = self.dbdir.child('files')
+
+            if not dbdir.isdir():
+                tempdbdir = dbdir.temporarySibling()
+                tempdbdir.makedirs() # maaaaaaaybe this is a bad idea, we
+                                     # probably shouldn't be doing this
+                                     # automatically.
+                for child in ('files', 'temp', 'run'):
+                    tempdbdir.child(child).createDirectory()
+                self._initdb(tempdbdir.child('db.sqlite').path)
+                self._initSchema()
+                self.close(_report=False)
+                try:
+                    tempdbdir.moveTo(dbdir)
+                except:
+                    _initialOpenFailure = Failure()
+
+            try:
+                self._initdb(dbdir.child('db.sqlite').path)
+            except:
+                if _initialOpenFailure is not None:
+                    log.msg("Failed to initialize axiom database."
+                            "  Possible cause of error: ")
+                    log.err(_initialOpenFailure)
+                raise
+
+        self.transact(self._startup)
+
+        # _startup may have found some things which we must now upgrade.
+        if self._oldTypesRemaining:
+            # Automatically upgrade when possible.
+            self._upgradeComplete = PendingEvent()
+            self._upgradeService.addIterator(self._upgradeEverything())
+        else:
+            self._upgradeComplete = None
+
+
+    def _initSchema(self):
+        # No point in even attempting to transactionalize this:
+        # every single statement is a CREATE TABLE or a CREATE
+        # INDEX and those commit transactions silently anyway.
+        for stmt in _schema.BASE_SCHEMA:
+            self.executeSQL(stmt)
+
+
+    def _startup(self):
+        """
+        Called during __init__.  Check consistency of schema in database with
+        classes in memory.  Load all Python modules for stored items, and load
+        version information for upgrader service to run later.
+        """
         for oid, module, typename, version in self.querySQL(_schema.ALL_TYPES):
             self.typenameAndVersionToID[typename, version] = oid
             if typename not in _typeNameToMostRecentClass:
@@ -421,19 +480,11 @@ class Store(Empowered):
         for typename in self.typenameToID:
             self.checkTypeSchemaConsistency(typename)
 
-        if self.parent is None:
-            self._upgradeService = SchedulingService()
-        else:
-            # Substores should hook into their parent, since they shouldn't
-            # expect to have their own substore service started.
-            self._upgradeService = self.parent._upgradeService
 
-        if self._oldTypesRemaining:
-            # Automatically upgrade when possible.
-            self._upgradeComplete = PendingEvent()
-            self._upgradeService.addIterator(self._upgradeEverything())
-        else:
-            self._upgradeComplete = None
+    def _initdb(self, dbfname):
+        self.connection = sqlite.connect(dbfname)
+        self.cursor = self.connection.cursor()
+
 
     def __repr__(self):
         d = self.dbdir
@@ -442,10 +493,6 @@ class Store(Empowered):
         else:
             d = repr(d)
         return '<Store %s@0x%x>' % (d, unsignedID(self))
-
-
-    def newFilePath(self, *path):
-        return XFilePath(os.path.join(self.dbdir, 'files', *path))
 
     def findOrCreate(self, userItemClass, __ifnew=None, **attrs):
         """
@@ -488,6 +535,12 @@ class Store(Empowered):
             __ifnew(newItem)
         return newItem
 
+    def newFilePath(self, *path):
+        p = self.filesdir
+        for subdir in path:
+            p = p.child(subdir)
+        return p
+
     def newFile(self, *path):
         """
         Open a new file somewhere in this Store's file area.
@@ -498,12 +551,15 @@ class Store(Empowered):
         """
         assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
         assert len(path) > 0, "newFile requires a nonzero number of segments"
-        tmpname = os.path.join(self.dbdir, 'temp', str(tempCounter.next())+".tmp")
-        return AtomicFile(tmpname, self.newFilePath(*path))
+        tmpname = self.dbdir.child('temp').child(str(tempCounter.next()) + ".tmp")
+        return AtomicFile(tmpname.path, self.newFilePath(*path))
 
     def newDirectory(self, *path):
         assert self.dbdir is not None, "Cannot create directories in in-memory Stores (yet)"
-        return FilePath(os.path.join(self.dbdir, 'files', *path))
+        p = self.filesdir
+        for subdir in path:
+            p = p.child(subdir)
+        return p
 
     def checkTypeSchemaConsistency(self, typename):
         """
@@ -760,13 +816,13 @@ class Store(Empowered):
             print '*'*10, 'COMMIT', '*'*10
         self.connection.commit()
 
-    def close(self):
+    def close(self, _report=True):
         self.cursor.close()
         self.connection.close()
         self.cursor = None
         self.connection = None
 
-        if self.debug:
+        if self.debug and _report:
             if not self.queryTimes:
                 print 'no queries'
             else:

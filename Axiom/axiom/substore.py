@@ -12,12 +12,17 @@ class SubStore(Item):
     storepath = path()
     substore = inmemory()
 
-    def __init__(self, store, path, *a, **kw):
-        super(SubStore, self).__init__(store=store, *a, **kw)
-        self.storepath = store.newDirectory(*path)
-        # Force a database to exist if it didn't
+    def createNew(cls, store, pathSegments):
+        """
+        Create a new SubStore, allocating a new file space for it.
+        """
+        storepath = store.newDirectory(*pathSegments)
+        self = cls(store=store, storepath=storepath)
         self.open()
         self.close()
+        return self
+
+    createNew = classmethod(createNew)
 
     def close(self):
         self.substore.close()

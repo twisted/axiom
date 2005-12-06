@@ -1,10 +1,14 @@
 
+from epsilon.hotfix import require
+require('twisted', 'filepath_copyTo')
+
 import getpass
 
 from zope.interface import classProvides
 
 from twisted.python import usage
 from twisted import plugin
+from twisted.python import filepath
 
 from axiom import iaxiom, attributes, userbase
 from axiom.scripts import axiomatic
@@ -77,9 +81,9 @@ class Disable(usage.Options, axiomatic.AxiomaticSubCommandMixin):
 class List(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     def postOptions(self):
         acc = None
-        for acc in self.store.query(userbase.LoginAccount):
-            print acc.username + '@' + acc.domain,
-            if acc.disabled:
+        for acc in self.store.query(userbase.LoginMethod):
+            print acc.localpart + '@' + acc.domain,
+            if acc.account.disabled:
                 print '[DISABLED]'
             else:
                 print
@@ -91,7 +95,7 @@ class UserBaseCommand(usage.Options):
     classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
 
     name = 'userbase'
-    description = 'Users.  Yay.'
+    description = 'LoginSystem introspection and manipulation.'
 
     subCommands = [
         ('install', None, Install, "Install UserBase on an Axiom database"),
@@ -103,3 +107,37 @@ class UserBaseCommand(usage.Options):
     def getStore(self):
         return self.parent.getStore()
 
+
+class Extract(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
+    name = 'extract-user'
+    description = 'Remove an account from the login system, moving its associated database to the filesystem.'
+    optParameters = [
+        ('address', 'a', None, 'localpart@domain-format identifier of the user store to extract.'),
+        ('destination', 'd', None, 'Directory into which to extract the user store.')]
+
+    def extractSubStore(self, localpart, domain, destinationPath):
+        siteStore = self.parent.getStore()
+        la = siteStore.findFirst(
+            userbase.LoginMethod,
+            attributes.AND(userbase.LoginMethod.localpart == localpart,
+                           userbase.LoginMethod.domain == domain)).account
+        userbase.extractUserStore(la, destinationPath)
+
+    def postOptions(self):
+        localpart, domain = self.decodeCommandLine(self['address']).split('@', 1)
+        destinationPath = filepath.FilePath(
+            self.decodeCommandLine(self['destination'])).child(localpart + '@' + domain + '.axiom')
+        self.extractSubStore(localpart, domain, destinationPath)
+
+class Insert(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
+    name = 'insert-user'
+    description = 'Insert a user store, such as one extracted with "extract-user", into a site store and login system.'
+    optParameters = [
+        ('userstore', 'u', None, 'Path to user store to be inserted.')
+        ]
+
+    def postOptions(self):
+        userbase.insertUserStore(self.parent.getStore(),
+                                 filepath.FilePath(self.decodeCommandLine(self['userstore'])))

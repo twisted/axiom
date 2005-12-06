@@ -109,6 +109,7 @@ class Status(usage.Options, PIDMixin):
         serverpid = self.signalServer(0)
         print 'A server is running from the Axiom database %r, PID %d.' % (dbdir, serverpid)
 
+
 class Options(usage.Options):
     optParameters = [
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
