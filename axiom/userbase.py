@@ -6,8 +6,9 @@ from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
 
-from axiom.substore import SubStore
+from axiom.store import Store
 from axiom.item import Item
+from axiom.substore import SubStore
 from axiom.attributes import text, integer, reference, boolean, AND
 from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
 
@@ -16,6 +17,24 @@ from zope.interface import implements, Interface, Attribute
 def dflip(x):
     warnings.warn("Don't use dflip no more", stacklevel=2)
     return x
+
+class AllNamesConflict(Exception):
+    """
+    When inserting a SubStore into a site store, no names were found which were
+    not already associated with an account.
+
+    This prevents the SubStore from being inserted at all.  No files are moved
+    and the site database is not modified.
+    """
+
+class DatabaseDirectoryConflict(Exception):
+    """
+    When inserting a SubStore into a site store, the selected ultimate location
+    for the SubStore's Axiom database directory already existed.
+
+    This prevents the SubStore from being inserted at all.  No files are moved
+    and the site database is not modified.
+    """
 
 class IPreauthCredentials(Interface):
     """
@@ -96,6 +115,156 @@ class LoginAccount(Item):
         ifa = interface(self.avatars, None)
         return ifa
 
+    def migrateDown(self):
+        """
+        Assuming that self.avatars is a SubStore which should contain *only*
+        the LoginAccount for the user I represent, remove all LoginAccounts and
+        LoginMethods from that store and copy all methods from the site store
+        down into it.
+        """
+        ss = self.avatars.open()
+        def _():
+            oldAccounts = ss.query(LoginAccount)
+            oldMethods = ss.query(LoginMethod)
+            for x in list(oldAccounts) + list(oldMethods):
+                x.deleteFromStore()
+            self.cloneInto(ss, ss)
+        ss.transact(_)
+
+    def migrateUp(self):
+        """
+        Copy this LoginAccount and all associated LoginMethods from my store
+        (which is assumed to be a SubStore, most likely a user store) into the
+        site store which contains it.
+        """
+        siteStore = self.store.parent
+        def _():
+            # No convenience method for the following because needing to do it is
+            # *rare*.  It *should* be ugly; 99% of the time if you need to do this
+            # you're making a mistake. -glyph
+            siteStoreSubRef = siteStore.getItemByID(self.store.idInParent)
+            self.cloneInto(siteStore, siteStoreSubRef)
+        siteStore.transact(_)
+
+    def cloneInto(self, newStore, avatars):
+        """
+        Create a copy of this LoginAccount and all associated LoginMethods in a different Store.
+
+        Return the copied LoginAccount.
+        """
+        la = LoginAccount(store=newStore,
+                          password=self.password,
+                          avatars=avatars,
+                          disabled=self.disabled)
+        for siteMethod in self.store.query(LoginMethod,
+                                           LoginMethod.account == self):
+            lm = LoginMethod(store=newStore,
+                             localpart=siteMethod.localpart,
+                             domain=siteMethod.domain,
+                             internal=siteMethod.internal,
+                             protocol=siteMethod.protocol,
+                             verified=siteMethod.verified,
+                             account=la)
+        return la
+
+    def deleteLoginMethods(self):
+        self.store.query(LoginMethod, LoginMethod.account == self).deleteFromStore()
+
+
+def insertUserStore(siteStore, userStorePath):
+    """
+    Move the SubStore at the indicated location into the given site store's
+    directory and then hook it up to the site store's authentication database.
+
+    @type siteStore: C{Store}
+    @type userStorePath: C{FilePath}
+    """
+    # The following may, but does not need to be in a transaction, because it
+    # is merely an attempt to guess a reasonable filesystem name to use for
+    # this avatar.  The user store being operated on is expected to be used
+    # exclusively by this process.
+    ls = siteStore.findUnique(LoginSystem)
+    unattachedSubStore = Store(userStorePath)
+    for lm in unattachedSubStore.query(LoginMethod,
+                                       LoginMethod.account == unattachedSubStore.findUnique(LoginAccount),
+                                       sort=LoginMethod.internal.descending):
+        if ls.accountByAddress(lm.localpart, lm.domain) is None:
+            localpart, domain = lm.localpart, lm.domain
+            break
+    else:
+        raise AllNamesConflict()
+
+    unattachedSubStore.close()
+
+    insertLocation = siteStore.newFilePath('account', domain, localpart + '.axiom')
+    insertParentLoc = insertLocation.parent()
+    if not insertParentLoc.exists():
+        insertParentLoc.makedirs()
+    if insertLocation.exists():
+        raise DatabaseDirectoryConflict()
+    userStorePath.moveTo(insertLocation)
+    ss = SubStore(store=siteStore, storepath=insertLocation)
+    attachedStore = ss.open()
+    # migrateUp() manages its own transactions because it interacts with two
+    # different stores.
+    attachedStore.findUnique(LoginAccount).migrateUp()
+
+
+def extractUserStore(userAccount, extractionDestination, legacySiteAuthoritative=True):
+    """
+    Move the SubStore for the given user account out of the given site store
+    completely.  Place the user store's database directory into the given
+    destination directory.
+
+    @type userAccount: C{LoginAccount}
+    @type extractionDestination: C{FilePath}
+
+    @type legacySiteAuthoritative: C{bool}
+
+    @param legacySiteAuthoritative: before moving the user store, clear its
+    authentication information, copy that which is associated with it in the
+    site store rather than trusting its own.  Currently this flag is necessary
+    (and defaults to true) because things like the ClickChronicle
+    password-changer gizmo still operate on the site store.
+
+    """
+    if legacySiteAuthoritative:
+        # migrateDown() manages its own transactions, since it is copying items
+        # between two different stores.
+        userAccount.migrateDown()
+    av = userAccount.avatars
+    av.open().close()
+    def _():
+        # We're separately deleting several Items from the site store, then
+        # we're moving some files.  If we cannot move the files, we don't want
+        # to delete the items.
+
+        # There is one unaccounted failure mode here: if the destination of the
+        # move is on a different mount point, the moveTo operation will fall
+        # back to a non-atomic copy; if all of the copying succeeds, but then
+        # part of the deletion of the source files fails, we will be left
+        # without a complete store in this site store's files directory, but
+        # the account Items will remain.  This will cause odd errors on login
+        # and at other unpredictable times.  The database is only one file, so
+        # we will either remove it all or none of it.  Resolving this requires
+        # manual intervention currently: delete the substore's database
+        # directory and the account items (LoginAccount and LoginMethods)
+        # manually.
+
+        # However, this failure is extremely unlikely, as it would almost
+        # certainly indicate a misconfiguration of the permissions on the site
+        # store's files area.  As described above, a failure of the call to
+        # os.rename(), if the platform's rename is atomic (which it generally
+        # is assumed to be) will not move any files and will cause a revert of
+        # the transaction which would have deleted the accompanying items.
+
+        av.deleteFromStore()
+        userAccount.deleteLoginMethods()
+        userAccount.deleteFromStore()
+        userAccount.avatars.storepath.moveTo(extractionDestination)
+    userAccount.store.transact(_)
+
+
 def upgradeLoginAccount1To2(oldAccount):
     password = oldAccount.password
     if password is not None:
@@ -136,7 +305,7 @@ upgrade.registerUpgrader(upgradeLoginAccount1To2, 'login', 1, 2)
 
 class SubStoreLoginMixin:
     def makeAvatars(self, domain, username):
-        return SubStore(self.store, ('account', domain, username))
+        return SubStore.createNew(self.store, ('account', domain, username + '.axiom'))
 
 class LoginBase:
     """

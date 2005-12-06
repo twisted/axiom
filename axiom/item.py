@@ -67,7 +67,7 @@ class _StoreIDComparer(Comparable):
         self.type = type
 
     # attributes required by ColumnComparer
-    def infilter(self, pyval, oself):
+    def infilter(self, pyval, oself, store):
         return pyval
 
 

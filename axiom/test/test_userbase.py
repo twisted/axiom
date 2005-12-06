@@ -5,9 +5,11 @@ from twisted.trial import unittest
 from twisted.cred.portal import Portal, IRealm
 from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred.credentials import UsernamePassword
+from twisted.python.filepath import FilePath
 
 from axiom.store import Store
-from axiom.userbase import LoginSystem, getAccountNames
+from axiom.substore import SubStore
+from axiom.userbase import LoginSystem, getAccountNames, extractUserStore, insertUserStore
 from axiom.item import Item
 from axiom.attributes import integer
 from axiom.scripts import axiomatic
@@ -112,3 +114,52 @@ class AccountTestCase(unittest.TestCase):
         self.assertEquals(
             names,
             [('nameuser', 'ain.dom'), ('username', 'dom.ain')])
+
+class ThingThatMovesAround(Item):
+    typeName = 'test_thing_that_moves_around'
+    schemaVersion = 1
+
+    superValue = integer()
+
+class SubStoreMigrationTestCase(unittest.TestCase):
+
+    IMPORTANT_VALUE = 159
+
+    def setUp(self):
+        self.dbdir = self.mktemp()
+        self.store = Store(self.dbdir)
+        self.ls = LoginSystem(store=self.store)
+
+        self.account = self.ls.addAccount(u'testuser', u'localhost', u'PASSWORD')
+
+        accountStore = self.account.avatars.open()
+
+        ThingThatMovesAround(store=accountStore, superValue=self.IMPORTANT_VALUE)
+
+        self.origdir = accountStore.dbdir
+        self.destdir = FilePath(self.mktemp())
+
+    def testExtraction(self):
+        extractUserStore(self.account, self.destdir)
+        self.assertEquals(
+            self.ls.accountByAddress(u'testuser', u'localhost'),
+            None)
+
+        self.failIf(list(self.store.query(SubStore, SubStore.storepath == self.origdir)))
+        self.origdir.restat(False)
+        self.failIf(self.origdir.exists())
+
+    def testInsertion(self, _deleteDomainDirectory=False):
+        self.testExtraction()
+
+        if _deleteDomainDirectory:
+            self.store.filesdir.child('account').child('localhost').remove()
+
+        insertUserStore(self.store, self.destdir)
+        insertedStore = self.ls.accountByAddress(u'testuser', u'localhost').avatars.open()
+        self.assertEquals(
+            insertedStore.findUnique(ThingThatMovesAround).superValue,
+            self.IMPORTANT_VALUE)
+
+    def testInsertionWithNoDomainDirectory(self):
+        self.testInsertion(True)

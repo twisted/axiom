@@ -142,8 +142,8 @@ class SubStoreCompat(SchemaUpgradeTest):
         if self.subStoreID is not None:
             self.currentSubStore = self.currentTopStore.getItemByID(self.subStoreID).open()
         else:
-            ss = SubStore(self.currentTopStore,
-                          ['sub'])
+            ss = SubStore.createNew(self.currentTopStore,
+                                    ['sub'])
             self.subStoreID = ss.storeID
             self.currentSubStore = ss.open()
         return self.currentSubStore

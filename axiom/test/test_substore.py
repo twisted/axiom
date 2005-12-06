@@ -21,7 +21,7 @@ class SubStoreTest(unittest.TestCase):
     def testOneThing(self):
         topdb = self.mktemp()
         s = Store(topdb)
-        ss = SubStore(s, ['account', 'bob@divmod.com'])
+        ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
         ssd = SubStored(store=s2, a=u'hello world', b='what, its text')

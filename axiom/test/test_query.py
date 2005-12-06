@@ -252,7 +252,7 @@ class QueryingTestCase(TestCase):
         # leaving them in for now)
 
         # self.assertEquals(query.getQuery(), sql)
-        self.assertEquals([str(a) for a in query.getArgs()], args)
+        self.assertEquals([str(a) for a in query.getArgs(self.store)], args)
 
 
 class AndOrQueries(QueryingTestCase):

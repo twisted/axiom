@@ -111,7 +111,7 @@ class SchedTest(unittest.TestCase):
         return d
 
     def testSubScheduler(self):
-        substoreItem = SubStore(self.store, ['scheduler_test'])
+        substoreItem = SubStore.createNew(self.store, ['scheduler_test'])
         substore = substoreItem.open()
         SubScheduler(store=substore).installOn(substore)
 
