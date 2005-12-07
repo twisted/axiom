@@ -437,13 +437,16 @@ class Item(Empowered):
                 assert self.__legacy__
 
         if self.__everInserted:
+            # case 1: we've been inserted before, either previously in this
+            # transaction or we were loaded from the db
             if not self.__dirty__:
                 # we might have been checkpointed twice within the same
                 # transaction; just don't do anything.
                 return
             self.store.executeSQL(*self._updateSQL())
         else:
-            # we are in the middle of creating the object.
+            # case 2: we are in the middle of creating the object, we've never
+            # been inserted into the db before
             attrs = self.getSchema()
 
             # XXX this isn't atomic, gross.
@@ -451,7 +454,12 @@ class Item(Empowered):
                 [self.storeID] +
                 [self.__dirty__.get(a[1].attrname, (None, a[1].default,))[1] for a in attrs])
             self.__everInserted = True
-
+        # In case 1, we're dirty but we did an update, synchronizing the
+        # database, in case 2, we haven't been created but we issue an insert.
+        # In either case, the code in attributes.py sets the attribute *as well
+        # as* populating __dirty__, so we clear out dirty and we keep the same
+        # value, knowing it's the same as what's in the db.
+        self.__dirty__.clear()
         if self.store.autocommit:
             self.committed()
 

@@ -137,7 +137,7 @@ class BaseQuery:
         self.comparison = comparison
         self.limit = limit
         self.offset = offset
-        self.sort = sort
+        self.sort = iaxiom.IOrdering(sort)
 
     def _sqlAndArgs(self, verb, subject):
         # SQL and arguments
@@ -165,14 +165,10 @@ class BaseQuery:
                 limitClause.append(str(self.offset))
         else:
             assert self.offset is None, 'Offset specified without limit'
-        if self.sort is None:
-            sort = ''
-        else:
-            sort = self.sort
         sqlstr = ' '.join([verb, subject,
                            'FROM',
                            ', '.join(tables),
-                           where, sort,
+                           where, self.sort.orderSQL(),
                            ' '.join(limitClause)])
         return (sqlstr, args)
 

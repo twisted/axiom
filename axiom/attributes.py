@@ -8,6 +8,7 @@ import os
 from zope.interface import implements
 
 from twisted.python import filepath
+from twisted.python.components import registerAdapter
 
 from epsilon.extime import Time
 
@@ -15,7 +16,7 @@ from axiom.slotmachine import Attribute as inmemory
 
 from axiom.errors import NoCrossStoreReferences
 
-from axiom.iaxiom import IComparison
+from axiom.iaxiom import IComparison, IOrdering
 
 _NEEDS_FETCH = object()         # token indicating that a value was not found
 
@@ -145,20 +146,128 @@ class Comparable:
     # XXX TODO: improve error reporting
 
     def _asc(self):
-        return 'ORDER BY %s.%s ASC' % (self.type.getTableName(),
-                                       self.columnName)
+        return SimpleOrdering(self, ASC)
 
     def _desc(self):
-        return 'ORDER BY %s.%s DESC' % (self.type.getTableName(),
-                                        self.columnName)
+        return SimpleOrdering(self, DESC)
 
     descending = property(_desc)
     ascending = property(_asc)
     asc = ascending
     desc = descending
 
+ASC = 'ASC'
+DESC = 'DESC'
+
+class SimpleOrdering:
+    """
+    Currently this class is mostly internal.  More documentation will follow as
+    its interface is finalized.
+    """
+    implements(IOrdering)
+
+    # maybe this will be a useful public API, for the query something
+    # something.
+
+    isDescending = property(lambda self: self.direction == DESC)
+    isAscending = property(lambda self: self.direction == ASC)
+
+    def __init__(self, attribute, direction=''):
+        self.attribute = attribute
+        self.direction = direction
+
+    def columnAndDirection(self):
+        """
+        'Internal' API.  Called by CompoundOrdering.
+        """
+        return '%s.%s %s' % (self.attribute.type.getTableName(),
+                             self.attribute.columnName,
+                             self.direction)
+
+    def orderSQL(self):
+        """
+        'External' API.  Called by Query objects in store.py.
+        """
+        return 'ORDER BY ' + self.columnAndDirection()
+
+    def __add__(self, other):
+        if isinstance(other, SimpleOrdering):
+            return CompoundOrdering([self, other])
+        elif isinstance(other, (list, tuple)):
+            return CompoundOrdering([self] + list(other))
+        else:
+            return NotImplemented
+
+    def __radd__(self, other):
+        if isinstance(other, SimpleOrdering):
+            return CompoundOrdering([other, self])
+        elif isinstance(other, (list, tuple)):
+            return CompoundOrdering(list(other) + [self])
+        else:
+            return NotImplemented
 
 
+class CompoundOrdering:
+    """
+    List of SimpleOrdering instances.
+    """
+    implements(IOrdering)
+
+    def __init__(self, seq):
+        self.simpleOrderings = list(seq)
+
+    def __add__(self, other):
+        """
+        Just thinking about what might be useful from the perspective of
+        introspecting on query objects... don't document this *too* thoroughly
+        yet.
+        """
+        if isinstance(other, CompoundOrdering):
+            return CompoundOrdering(self.simpleOrderings + other.simpleOrderings)
+        elif isinstance(other, SimpleOrdering):
+            return CompoundOrdering(self.simpleOrderings + [other])
+        elif isinstance(other, (list, tuple)):
+            return CompoundOrdering(self.simpleOrderings + list(other))
+        else:
+            return NotImplemented
+
+    def __radd__(self, other):
+        """
+        Just thinking about what might be useful from the perspective of
+        introspecting on query objects... don't document this *too* thoroughly
+        yet.
+        """
+        if isinstance(other, CompoundOrdering):
+            return CompoundOrdering(other.simpleOrderings + self.simpleOrderings)
+        elif isinstance(other, SimpleOrdering):
+            return CompoundOrdering([other] + self.simpleOrderings)
+        elif isinstance(other, (list, tuple)):
+            return CompoundOrdering(list(other) + self.simpleOrderings)
+        else:
+            return NotImplemented
+
+    def orderSQL(self):
+        return 'ORDER BY ' + (', '.join([o.columnAndDirection() for o in self.simpleOrderings]))
+
+class UnspecifiedOrdering:
+    implements(IOrdering)
+
+    def __init__(self, null):
+        pass
+
+    def __add__(self, other):
+        return IOrdering(other, NotImplemented)
+
+    __radd__ = __add__
+
+    def orderSQL(self):
+        return ''
+
+
+registerAdapter(CompoundOrdering, list, IOrdering)
+registerAdapter(CompoundOrdering, tuple, IOrdering)
+registerAdapter(UnspecifiedOrdering, type(None), IOrdering)
+registerAdapter(SimpleOrdering, Comparable, IOrdering)
 
 class SQLAttribute(inmemory, Comparable):
     """
@@ -339,13 +448,13 @@ class AggregateComparison:
     operator = None
 
     def __init__(self, *conditions):
+        self.conditions = conditions
         if self.operator is None:
             raise NotImplementedError, ('%s cannot be used; you want AND or OR.'
                                         % self.__class__.__name__)
         if not conditions:
             raise ValueError, ('%s condition requires at least one argument'
                                % self.operator)
-        self.conditions = conditions
 
     def getQuery(self):
         oper = ' %s ' % self.operator
@@ -367,6 +476,10 @@ class AggregateComparison:
                 if tbl not in tbls:
                     tbls.append(tbl)
         return tbls
+
+    def __repr__(self):
+        return '%s(%s)' % (self.__class__.__name__,
+                           ', '.join(map(repr, self.conditions)))
 
 class AND(AggregateComparison):
     """

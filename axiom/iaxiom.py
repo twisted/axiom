@@ -116,3 +116,9 @@ class IComparison(Interface):
     apply to certain items in a store.  Passed as an argument to
     attributes.AND, .OR, and Store.query(...)
     """
+
+class IOrdering(Interface):
+    """
+    An object suitable for passing to the 'sort' argument of a query method.
+    """
+ 

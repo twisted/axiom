@@ -3,7 +3,9 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import ieee754_double, ConstraintError
+from axiom.attributes import integer, ieee754_double, ConstraintError
+
+import random
 
 class Number(Item):
     typeName = 'test_number'
@@ -28,4 +30,47 @@ class SpecialStoreIDAttributeTest(TestCase):
         self.assertRaises(TypeError, s.getItemByID, str(sid))
         self.assertRaises(TypeError, s.getItemByID, float(sid))
         self.assertRaises(TypeError, s.getItemByID, unicode(sid))
+
+class SortedItem(Item):
+    typeName = 'test_sorted_thing'
+    schemaVersion = 1
+
+    goingUp = integer()
+    goingDown = integer()
+    theSame = integer()
+
+class SortingTest(TestCase):
+
+    def testCompoundSort(self):
+        s = Store()
+        L = []
+        r10 = range(10)
+        random.shuffle(r10)
+        L.append(SortedItem(store=s,
+                            goingUp=0,
+                            goingDown=1000,
+                            theSame=8))
+        for x in r10:
+            L.append(SortedItem(store=s,
+                                goingUp=10+x,
+                                goingDown=10-x,
+                                theSame=7))
+
+        for colnms in [['goingUp'],
+                       ['goingUp', 'storeID'],
+                       ['goingUp', 'theSame'],
+                       ['theSame', 'goingUp'],
+                       ['theSame', 'storeID']]:
+            LN = L[:]
+            LN.sort(key=lambda si: tuple([getattr(si, colnm) for colnm in colnms]))
+
+            ascsort = [getattr(SortedItem, colnm).ascending for colnm in colnms]
+            descsort = [getattr(SortedItem, colnm).descending for colnm in colnms]
+
+            self.assertEquals(LN, list(s.query(SortedItem,
+                                               sort=ascsort)))
+            LN.reverse()
+            self.assertEquals(LN, list(s.query(SortedItem,
+                                               sort=descsort)))
+
 
