@@ -432,10 +432,8 @@ class AttributeComparison:
     def getArgs(self, store):
         return [self.leftAttribute.infilter(arg, None, store) for arg in self.sqlArguments]
 
-    def getTableNames(self):
-        assert self.leftAttribute.type in self.involvedTableClasses
-        names = [tc.getTableName() for tc in self.involvedTableClasses]
-        return names
+    def getInvolvedTables(self):
+        return set(self.involvedTableClasses)
 
 
 class AggregateComparison:
@@ -467,14 +465,12 @@ class AggregateComparison:
             args += cond.getArgs(store)
         return args
 
-    def getTableNames(self):
-        tbls = []
+    def getInvolvedTables(self):
+        tbls = set()
         # We only want to join these tables ONCE per expression
         # OR(A.foo=='bar', A.foo=='shoe') should not do "FROM foo, foo"
         for cond in self.conditions:
-            for tbl in cond.getTableNames():
-                if tbl not in tbls:
-                    tbls.append(tbl)
+            tbls.update(cond.getInvolvedTables())
         return tbls
 
     def __repr__(self):
