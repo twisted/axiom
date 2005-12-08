@@ -143,14 +143,24 @@ class BaseQuery:
         # SQL and arguments
         if self.comparison is not None:
             where = 'WHERE '+self.comparison.getQuery()
-            tables = set(self.comparison.getTableNames())
+            tables = self.comparison.getInvolvedTables()
             args = self.comparison.getArgs(self.store)
         else:
             where = ''
             tables = set()
             args = []
-        tables.add(self.tableClass.getTableName())
-        fromClause = ', '.join(tables)
+        tables.add(self.tableClass)
+        # If any of these tables don't exist we can't early out as we do below
+        # in _runQuery, because the table in question might be present in some
+        # deeply nested negative clause which would work just fine and return
+        # results even if there were no items in the table that the condition
+        # referred to; instead, we must make sure that all tables involved
+        # before we actually run the query exist.
+        for t in tables:
+            self.store.getTypeID(t) # getTypeID is what currently does table
+                                    # creation / testing, but we don't actually
+                                    # care about the result.
+        fromClause = ', '.join([table.getTableName() for table in tables])
         limitClause = []
         if self.limit is not None:
             # XXX LIMIT and OFFSET used to be using ?, but they started
@@ -166,8 +176,7 @@ class BaseQuery:
         else:
             assert self.offset is None, 'Offset specified without limit'
         sqlstr = ' '.join([verb, subject,
-                           'FROM',
-                           ', '.join(tables),
+                           'FROM', fromClause,
                            where, self.sort.orderSQL(),
                            ' '.join(limitClause)])
         return (sqlstr, args)
@@ -183,6 +192,9 @@ class BaseQuery:
         tnsv = (self.tableClass.typeName,
                 self.tableClass.schemaVersion)
         if tnsv not in self.store.typenameAndVersionToID:
+            # Early out in the case where the specific table we are asking for
+            # results from is not present in the database; we can safely do
+            # this because we can only ask for one type of result at a time.
             return []
         sqlstr, sqlargs = self._sqlAndArgs(verb, subject)
         sqlResults = self.store.querySQL(sqlstr, sqlargs)
