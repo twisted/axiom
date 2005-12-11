@@ -7,13 +7,10 @@ import signal
 
 from twisted import plugin
 from twisted.python import usage, log
-from twisted.scripts import twistd
+from twisted.python.runtime import platform
 from twisted.application import app, service
 
-from axiom import plugins
-
 from axiom import iaxiom
-from axiom.store import Store
 
 class AxiomaticSubCommandMixin:
     store = property(lambda self: self.parent.getStore())
@@ -24,7 +21,75 @@ class AxiomaticSubCommandMixin:
         codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
         return unicode(cmdline, codec)
 
+# The following should REALLY be taken care of by Twisted itself.
+if platform.isWinNT():
+    from twisted.scripts import _twistw as twistd
+else:
+    from twisted.scripts import twistd
+
 class Start(twistd.ServerOptions):
+
+    def _fixConfig(self):
+        self['no_save'] = True
+        self['nodaemon'] = self['nodaemon'] or self['debug']
+
+        dbdir = self.parent.getStoreDirectory()
+
+        rundir = os.path.join(dbdir, 'run')
+        if not os.path.exists(rundir):
+            os.mkdir(rundir)
+
+        if self['logfile'] is None and not self['nodaemon']:
+            logdir = os.path.join(rundir, 'logs')
+            if not os.path.exists(logdir):
+                os.mkdir(logdir)
+            self['logfile'] = os.path.join(logdir, 'axiomatic.log')
+
+        if platform.isWinNT():
+            # We're done; no pidfile support.
+            return
+        if self['pidfile'] == 'twistd.pid':
+            self['pidfile'] = os.path.join(rundir, 'axiomatic.pid')
+        elif self['pidfile']:
+            self['pidfile'] = os.path.abspath(self['pidfile'])
+
+    def _constructApplication(self):
+        application = service.Application("Axiom Service")
+        service.IService(self.parent.getStore()).setServiceParent(application)
+        return application
+
+
+    def postOptions(self):
+        if platform.isWinNT():
+            self._win32PostOptions()
+        else:
+            self._unixPostOptions()
+
+    def _checkPID(self):
+        # There *IS* a Windows way to do this, but it doesn't use PIDs.
+        if not platform.isWinNT():
+            twistd.checkPID(self['pidfile'])
+
+    def _removePID(self):
+        if not platform.isWinNT():
+            twistd.removePID(self['pidfile'])
+
+    def _startApplication(self):
+        if not platform.isWinNT():
+            twistd.startApplication(self, self.application)
+        else:
+            service.IService(self.application).privilegedStartService()
+            app.startApplication(self.application, False)
+
+    def _startLogging(self):
+        if not platform.isWinNT():
+            twistd.startLogging(
+                self['logfile'],
+                self['syslog'],
+                self['prefix'],
+                self['nodaemon'])
+        else:
+            twistd.startLogging('-') # self['logfile']
 
     def postOptions(self):
 
@@ -35,46 +100,22 @@ class Start(twistd.ServerOptions):
 
         app.installReactor(self['reactor'])
 
-        dbdir = self.parent.getStoreDirectory()
-        rundir = os.path.join(dbdir, 'run')
+        self._fixConfig()
+        self._checkPID()
 
-        self['no_save'] = True
-        self['nodaemon'] = self['nodaemon'] or self['debug']
-
-        if not os.path.exists(rundir):
-            os.mkdir(rundir)
-
-        if self['logfile'] is None and not self['nodaemon']:
-            logdir = os.path.join(rundir, 'logs')
-            if not os.path.exists(logdir):
-                os.mkdir(logdir)
-            self['logfile'] = os.path.join(logdir, 'axiomatic.log')
-
-        if self['pidfile'] == 'twistd.pid':
-            self['pidfile'] = os.path.join(rundir, 'axiomatic.pid')
-        elif self['pidfile']:
-            self['pidfile'] = os.path.abspath(self['pidfile'])
-
-        twistd.checkPID(self['pidfile'])
-
-        S = self.parent.getStore()
+        S = self.parent.getStore()  # make sure we open it here
 
         oldstdout = sys.stdout
         oldstderr = sys.stderr
 
-        twistd.startLogging(
-            self['logfile'],
-            self['syslog'],
-            self['prefix'],
-            self['nodaemon'])
+        self._startLogging()
         app.initialLog()
 
-        application = service.Application("Axiom Service")
-        service.IService(S).setServiceParent(application)
-
-        twistd.startApplication(self, application)
+        self.application = application = self._constructApplication()
+        self._startApplication()
         app.runReactorWithLogging(self, oldstdout, oldstderr)
-        twistd.removePID(self['pidfile'])
+        S.close()               # make sure it's closed here.
+        self._removePID()
         app.reportProfile(
             self['report-profile'],
             service.IProcess(application).processName)
@@ -84,6 +125,8 @@ class Start(twistd.ServerOptions):
 class PIDMixin:
 
     def _sendSignal(self, signal):
+        if platform.isWinNT():
+            raise usage.UsageError("You can't send signals on Windows (XXX TODO)")
         dbdir = self.parent.getStoreDirectory()
         serverpid = int(file(os.path.join(dbdir, 'run', 'axiomatic.pid')).read())
         os.kill(serverpid, signal)
@@ -117,14 +160,17 @@ class Options(usage.Options):
 
     def subCommands():
         def get(self):
+            from axiom import plugins
+
             for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins):
                 try:
                     yield (plg.name, None, plg, plg.description)
                 except AttributeError:
                     raise RuntimeError("Maldefined plugin: %r" % (plg,))
             yield ('start', None, Start, 'Launch the given Axiom database')
-            yield ('stop', None, Stop, 'Stop the server running from the given Axiom database')
-            yield ('status', None, Status, 'Report whether a server is running from the given Axiom database')
+            if not platform.isWinNT():
+                yield ('stop', None, Stop, 'Stop the server running from the given Axiom database')
+                yield ('status', None, Status, 'Report whether a server is running from the given Axiom database')
         return get,
     subCommands = property(*subCommands())
 
@@ -151,6 +197,7 @@ class Options(usage.Options):
         return self['dbdir']
 
     def getStore(self):
+        from axiom.store import Store
         if self.store is None:
             self.store = Store(self.getStoreDirectory())
         return self.store
