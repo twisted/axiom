@@ -114,7 +114,6 @@ class Start(twistd.ServerOptions):
         self.application = application = self._constructApplication()
         self._startApplication()
         app.runReactorWithLogging(self, oldstdout, oldstderr)
-        S.close()               # make sure it's closed here.
         self._removePID()
         app.reportProfile(
             self['report-profile'],
@@ -160,17 +159,17 @@ class Options(usage.Options):
 
     def subCommands():
         def get(self):
-            from axiom import plugins
+            yield ('start', None, Start, 'Launch the given Axiom database')
+            if not platform.isWinNT():
+                yield ('stop', None, Stop, 'Stop the server running from the given Axiom database')
+                yield ('status', None, Status, 'Report whether a server is running from the given Axiom database')
 
+            from axiom import plugins
             for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins):
                 try:
                     yield (plg.name, None, plg, plg.description)
                 except AttributeError:
                     raise RuntimeError("Maldefined plugin: %r" % (plg,))
-            yield ('start', None, Start, 'Launch the given Axiom database')
-            if not platform.isWinNT():
-                yield ('stop', None, Stop, 'Stop the server running from the given Axiom database')
-                yield ('status', None, Status, 'Report whether a server is running from the given Axiom database')
         return get,
     subCommands = property(*subCommands())
 
