@@ -633,8 +633,14 @@ class Store(Empowered):
         return False
 
     def _upgradeEverything(self):
+        didAny = False
         while self._upgradeOneThing():
+            if not didAny:
+                didAny = True
+                log.msg("Beginning upgrade...")
             yield None
+        if didAny:
+            log.msg("Upgrade complete.")
 
     def whenFullyUpgraded(self):
         """
