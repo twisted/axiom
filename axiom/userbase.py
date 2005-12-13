@@ -357,9 +357,15 @@ class LoginBase:
         @return: an instance of a LoginAccount, with all attributes filled out
         as they are passed in, stored in my store.
         """
-        username = unicode(username)
-        domain = domain and unicode(domain)
-        password = unicode(password)
+
+        # unicode(None) == u'None', kids.
+        if username is not None:
+            username = unicode(username)
+        if domain is not None:
+            domain = unicode(domain)
+        if password is not None:
+            password = unicode(password)
+
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)
         if avatars is None:
