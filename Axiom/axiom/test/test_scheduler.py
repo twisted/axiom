@@ -50,11 +50,17 @@ class TestEvent(Item):
                 if isinstance(evt.runnable, _SubSchedulerParentHook):
                     count += 1
             if count > 1:
-                raise unittest.FailTest("Too many TimedEvents for the SubStore", count)
+            defer.errback(
+                self.testCase.failureException(
+                    "Too many TimedEvents for the SubStore", count))
+            return
 
         self.runCount += 1
         if self.runCount > self.maxRunCount:
-            self.testCase.fail("%s ran too many times"% (self.name))
+            defer.errback(
+                self.testCase.failureException(
+                    "%s ran too many times"% (self.name)))
+            return
         if self.runAgain is not None:
             result = Time() + timedelta(milliseconds=self.runAgain)
             self.runAgain = None
