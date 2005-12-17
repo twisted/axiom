@@ -31,7 +31,9 @@ class TestEvent(Item):
     maxRunCount = integer()     # fail the test if we run more than this many
                                 # times
     runCount = integer()
-    runAgain = integer()        # seconds to add, then run again
+    runAgain = integer()        # milliseconds to add, then run again
+    winner = integer(default=0) # is this the event that is supposed to
+                                # complete the test successfully?
 
     def __init__(self, **kw):
         self.deferred = None
@@ -50,19 +52,23 @@ class TestEvent(Item):
                 if isinstance(evt.runnable, _SubSchedulerParentHook):
                     count += 1
             if count > 1:
-                raise unittest.FailTest("Too many TimedEvents for the SubStore", count)
+                return self.fail("Too many TimedEvents for the SubStore", count)
 
         self.runCount += 1
         if self.runCount > self.maxRunCount:
-            self.testCase.fail("%s ran too many times"% (self.name))
+            return self.fail("%s ran too many times"% (self.name))
         if self.runAgain is not None:
             result = Time() + timedelta(milliseconds=self.runAgain)
             self.runAgain = None
         else:
-            if self.deferred is not None:
+            if self.winner and self.deferred is not None:
                 self.deferred.callback('done')
             result = None
         return result
+
+    def fail(self, *msg):
+        self.deferred.errback(self.testCase.failureException(*msg))
+
 
 class SchedTest(unittest.TestCase):
 
@@ -89,13 +95,13 @@ class SchedTest(unittest.TestCase):
 
         t1 = TestEvent(testCase=self,
                        name=u't1',
-                       store=s, maxRunCount=1, runAgain=None)
+                       store=s, maxRunCount=1, runAgain=None, deferred=d)
         t2 = TestEvent(testCase=self,
                        name=u't2',
-                       store=s, maxRunCount=2, runAgain=interval, deferred=d)
+                       store=s, maxRunCount=2, runAgain=interval, deferred=d, winner=True)
         t3 = TestEvent(testCase=self,
                        name=u't3',
-                       store=s, maxRunCount=0, runAgain=None)
+                       store=s, maxRunCount=0, runAgain=None, deferred=d)
 
         now = Time()
         self.ts = [t1, t2, t3]
