@@ -50,9 +50,9 @@ class TestEvent(Item):
                 if isinstance(evt.runnable, _SubSchedulerParentHook):
                     count += 1
             if count > 1:
-            defer.errback(
-                self.testCase.failureException(
-                    "Too many TimedEvents for the SubStore", count))
+                defer.errback(
+                    self.testCase.failureException(
+                        "Too many TimedEvents for the SubStore", count))
             return
 
         self.runCount += 1
