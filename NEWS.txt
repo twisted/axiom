@@ -1,4 +1,22 @@
 x.x.x (yyyy-mm-dd):
+  - Fixed sum() in the case of a table with no rows.
+  - LoginAccount no longer contains authentication information, but may be
+    referred to by one or more LoginMethods, which do.
+  - Added an attribute type for floats: ieee754_double.
+  - Enhanced functionality in axiom.sequence.List.
+  - Added support for SQL DISTINCT queries.
+  - On the command line, axiomatic will attempt to automatically discover
+    the correct database to use, if one is not specified.
+  - PID and logfiles are now kept in a subdirectory of the database
+    directory.
+  - The "start" axiomatic subcommand now works on Windows.
+  - Two new axiomatic subcommands have been added related to running servers
+    from Axiom database: "stop" and "status".
+  - Two new axiomatic subcommands have been added related to user
+    management: "extract-user" and "insert-user" for removing users from and
+    adding users to an existing credentials database, along with all of
+    their data.
+  - Axiom queries can now be sorted by a tuple of columns.
 
 0.3.0 (2005-11-02):
   - Removed Axiom/axiom/examples/axiom.tac
