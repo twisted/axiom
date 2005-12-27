@@ -11,6 +11,13 @@ from axiom.attributes import SQLAttribute, Comparable, inmemory, \
 
 _typeNameToMostRecentClass = {}
 
+def normalize(qualName):
+    """
+    Turn a fully-qualified Python name into a string usable as part of a
+    table name.
+    """
+    return qualName.lower().replace('.', '_')
+
 class NoInheritance(RuntimeError):
     """
     Inheritance is as-yet unsupported by XAtop.
@@ -38,11 +45,9 @@ class MetaItem(slotmachine.SchemaMetaMachine):
             raise NoInheritance("already inherited from item once: "
                                 "in-database inheritance not yet supported")
         if T.typeName is None:
-            raise NotImplementedError(
-                "%s did not specify a typeName attribute" % (qual(T),))
+            T.typeName = normalize(qual(T))
         if T.schemaVersion is None:
-            raise NotImplementedError(
-                "%s did not specify a schemaVersion attribute" % (qual(T),))
+            T.schemaVersion = 1
         if T.typeName in _typeNameToMostRecentClass:
             if T.__legacy__:
                 return T
@@ -513,7 +518,7 @@ class Item(Empowered):
         if self.store.autocommit:
             self.checkpoint()
 
-    # You _MUST_ specify version in subclasses
+    # You may specify schemaVersion and typeName in subclasses
     schemaVersion = None
     typeName = None
 
@@ -615,7 +620,6 @@ class _PowerupConnector(Item):
     I am a connector between the store and a powerup.
     """
     typeName = 'axiom_powerup_connector'
-    schemaVersion = 1
 
     powerup = reference()
     item = reference()
