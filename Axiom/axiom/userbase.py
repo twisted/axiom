@@ -11,6 +11,7 @@ from axiom.item import Item
 from axiom.substore import SubStore
 from axiom.attributes import text, integer, reference, boolean, AND
 from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
+from axiom import upgrade
 
 from zope.interface import implements, Interface, Attribute
 
@@ -58,7 +59,7 @@ class Preauthenticated(object):
 
 class LoginMethod(Item):
     typeName = 'login_method'
-    schemaVersion = 1
+    schemaVersion = 2
 
     localpart = text(doc="""
     A local-part of my user's identifier.
@@ -82,6 +83,17 @@ class LoginMethod(Item):
 
     verified = boolean(indexed=True, allowNone=False)
 
+def upgradeLoginMethod1To2(old):
+    return old.upgradeVersion(
+            'login_method', 1, 2,
+            localpart=old.localpart,
+            domain=old.domain,
+            internal=old.internal,
+            protocol=old.protocol,
+            account=old.account,
+            verified=old.verified)
+
+upgrade.registerUpgrader(upgradeLoginMethod1To2, 'login_method', 1, 2)
 
 class LoginAccount(Item):
     """
