@@ -27,13 +27,15 @@ class Catalog(Item):
     def tag(self, obj, tagName, tagger=None):
         """
         """
-        self.tagCount += 1
         # check to see if that tag exists:
-        for t in self.store.query(Tag,
-                                  AND(Tag.object == obj,
-                                      Tag.name == tagName,
-                                      Tag.tagger == tagger)):
+        if self.store.findFirst(Tag,
+                                AND(Tag.object==obj,
+                                    Tag.name==tagName,
+                                    Tag.catalog==self)):
             return
+
+        # Increment only if we are creating a new tag
+        self.tagCount += 1
         Tag(store=self.store, object=obj,
             name=tagName, catalog=self,
             created=Time(), tagger=tagger)
