@@ -101,7 +101,7 @@ class Comparable:
     _likeOperators = ('LIKE', 'NOT LIKE')
     def _like(self, op, *others):
         if op.upper() not in self._likeOperators:
-            raise ValueError, 'LIKE-style operators are: %s' % self._likeOperators
+            raise ValueError, 'LIKE-style operators are: %r' % self._likeOperators
         if not others:
             raise ValueError, 'Must pass at least one expression to _like'
 
