@@ -124,13 +124,23 @@ class SchemaMetaMachine(_SlotMetaMachine):
 
     determineSchema = classmethod(determineSchema)
 
+from twisted.python.reflect import allYourBase
+
 class _Strict(object):
     """
     I disallow all attributes from being set that do not have an explicit
     descriptor.
     """
+
+    def __getDescriptor(self, name):
+        for cls in [self.__class__] + allYourBase(self.__class__):
+            slt = cls.__dict__.get(name, _NOSLOT)
+            if slt is not _NOSLOT:
+                return slt
+        return _NOSLOT
+
     def __setattr__(self, name, value):
-        descr = getattr(self.__class__, name, _NOSLOT)
+        descr = self.__getDescriptor(name)
         if descr is _NOSLOT:
             raise AttributeError("%r can't set attribute %r" % (self.__class__.__name__,
                                                                 name))
