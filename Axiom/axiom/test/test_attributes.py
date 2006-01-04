@@ -74,3 +74,11 @@ class SortingTest(TestCase):
                                                sort=descsort)))
 
 
+class FunkyItem(Item):
+    name = unicode()
+
+class BadAttributeTest(TestCase):
+
+    def testBadAttribute(self):
+        s = Store()
+        self.failUnlessRaises(AttributeError, FunkyItem, store=s,name=u"foo")

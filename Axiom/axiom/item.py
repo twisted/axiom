@@ -206,7 +206,7 @@ def transacted(callable):
     _.func_name = callable.func_name
     return _
 
-class Item(Empowered):
+class Item(Empowered, slotmachine._Strict):
     # Python-Special Attributes
     __metaclass__ = MetaItem
 
