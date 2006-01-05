@@ -86,4 +86,4 @@ class BadAttributeTest(TestCase):
 
 class WhiteboxComparableTest(TestCase):
     def testLikeRejectsIllegalOperations(self):
-        self.assertRaises(ValueError, Comparable()._like('XYZ'))
+        self.assertRaises(ValueError, Comparable()._like, 'XYZ')
