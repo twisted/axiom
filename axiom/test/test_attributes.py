@@ -3,7 +3,7 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import integer, ieee754_double, ConstraintError
+from axiom.attributes import Comparable, integer, ieee754_double, ConstraintError
 
 import random
 
@@ -82,3 +82,8 @@ class BadAttributeTest(TestCase):
     def testBadAttribute(self):
         s = Store()
         self.failUnlessRaises(AttributeError, FunkyItem, store=s,name=u"foo")
+
+
+class WhiteboxComparableTest(TestCase):
+    def testLikeRejectsIllegalOperations(self):
+        self.assertRaises(ValueError, Comparable()._like('XYZ'))
