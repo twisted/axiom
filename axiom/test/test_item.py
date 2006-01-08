@@ -93,7 +93,10 @@ class TestItem(unittest.TestCase):
         e['PYTHONPATH'] = os.pathsep.join(sys.path) # os.pathsep.join([dir for dir in sys.path if not dir.startswith(sys.prefix)])
         d = defer.Deferred()
         p = ProcessOutputCollector(d)
-        reactor.spawnProcess(p, sys.executable, ["python", '-Wignore', itemtestmain.__file__.rstrip('co'), storePath, str(itemID)], e)
+        try:
+            reactor.spawnProcess(p, sys.executable, ["python", '-Wignore', itemtestmain.__file__.rstrip('co'), storePath, str(itemID)], e)
+        except NotImplementedError:
+            raise unittest.SkipTest("Implement processes here")
 
         def cbOutput(output):
             self.assertEquals(''.join(output).strip(), 'Hello, world!!!')
