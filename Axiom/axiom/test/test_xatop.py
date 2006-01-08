@@ -4,6 +4,8 @@ from twisted.trial import unittest
 from epsilon import extime
 from axiom import attributes, item, store, errors
 
+from pysqlite2.dbapi2 import sqlite_version_info
+
 class StoreTests(unittest.TestCase):
     def testCreation(self):
         dbdir = self.mktemp()
@@ -212,14 +214,14 @@ class AttributeTests(unittest.TestCase):
                 store=s,
                 withoutDefault=input)
             output = s.findFirst(AttributefulItem).withoutDefault
-            print input, output
             self.assertEquals(input, output)
             s.close()
 
-    testIntegerAttribute_SQLiteBug.todo = (
-        "If this test fails on your system, you should really upgrade SQLite "
-        "to at least 3.2.7.  Not doing so will lead to corruption of your "
-        "data.")
+    if sqlite_version_info < (3, 2, '7'):
+        testIntegerAttribute_SQLiteBug.todo = (
+            "If this test fails on your system, you should really upgrade SQLite "
+            "to at least 3.2.7.  Not doing so will lead to corruption of your "
+            "data.")
 
     def testQueries(self):
         s = store.Store()
