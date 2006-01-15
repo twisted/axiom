@@ -4,6 +4,20 @@ import operator
 
 from axiom.attributes import AND, OR
 
+def contains(startAttribute,
+             endAttribute,
+             value):
+    """
+    Return an L{axiom.iaxiom.IComparison} (an object that can be
+    passed as the 'comparison' argument to Store.query/.sum/.count)
+    which will constrain a query against 2 attributes for ranges which
+    contain the given argument.  The range is half-open.
+    """
+    return AND(
+        startAttribute <= value,
+        value < endAttribute)
+
+
 def overlapping(startAttribute, # X
                 endAttribute,   # Y
                 startValue,     # A
@@ -12,7 +26,7 @@ def overlapping(startAttribute, # X
     """
     Return an L{axiom.iaxiom.IComparison} (an object that can be passed as the
     'comparison' argument to Store.query/.sum/.count) which will constrain a
-    query against 2 attributes for ranges with overlap with the given
+    query against 2 attributes for ranges which overlap with the given
     arguments.
 
     For a database with Items of class O which represent values in this
