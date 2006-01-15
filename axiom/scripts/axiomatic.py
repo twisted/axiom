@@ -157,6 +157,10 @@ class Options(usage.Options):
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
         ]
 
+    optFlags = [
+        ('debug', 'b', 'Enable Axiom-level debug logging')]
+
+
     def subCommands():
         def get(self):
             yield ('start', None, Start, 'Launch the given Axiom database')
@@ -198,7 +202,7 @@ class Options(usage.Options):
     def getStore(self):
         from axiom.store import Store
         if self.store is None:
-            self.store = Store(self.getStoreDirectory())
+            self.store = Store(self.getStoreDirectory(), debug=self['debug'])
         return self.store
 
     def postOptions(self):
