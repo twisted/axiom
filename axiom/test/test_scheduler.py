@@ -1,3 +1,4 @@
+# -*- test-case-name: axiom.test.test_scheduler -*-
 
 
 from datetime import timedelta
@@ -91,7 +92,7 @@ class SchedTest(unittest.TestCase):
 
         d = Deferred()
 
-        interval = 10
+        interval = 30
 
         t1 = TestEvent(testCase=self,
                        name=u't1',
