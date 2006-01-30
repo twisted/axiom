@@ -6,6 +6,7 @@ from twisted.application.service import Service, IService
 from twisted.python import log
 
 from epsilon.extime import Time
+from epsilon import descriptor
 
 from axiom.item import Item
 from axiom.attributes import AND, timestamp, reference, integer, inmemory
@@ -22,6 +23,7 @@ class SchedulerMixin:
     def now(self):
         # testing hook
         return Time()
+
 
     def tick(self):
         now = self.now()
@@ -46,9 +48,11 @@ class SchedulerMixin:
             self._transientSchedule(x[0].time, now)
         log.msg("%r ran %d events" % (self, self.eventsRun - before,))
 
+
     def schedule(self, runnable, when):
         TimedEvent(store=self.store, time=when, runnable=runnable)
         self._transientSchedule(when, Time())
+
 
     def reschedule(self, runnable, fromWhen, toWhen):
         for evt in self.store.query(TimedEvent,
@@ -61,19 +65,40 @@ class SchedulerMixin:
             raise ValueError("%r is not scheduled to run at %r" % (runnable, fromWhen))
 
 
+    def unscheduleFirst(self, runnable):
+        for evt in self.store.query(TimedEvent, TimedEvent.runnable == runnable, TimedEvent.time.ascending):
+            evt.deleteFromStore()
+            break
+
+
+    def unscheduleAll(self, runnable):
+        for evt in self.store.query(TimedEvent, TimedEvent.runnable == runnable):
+            evt.deleteFromStore()
+
+
+
 class Scheduler(Item, Service, SchedulerMixin):
 
     typeName = 'axiom_scheduler'
     schemaVersion = 1
 
     parent = inmemory()
-    running = inmemory()
     name = inmemory()
     timer = inmemory()
 
     eventsRun = integer()
     lastEventAt = timestamp()
     nextEventAt = timestamp()
+
+
+    class running(descriptor.attribute):
+        def get(self):
+            return self.store.service is not None and self.store.service.running
+
+        def set(self, value):
+            # Eh whatever
+            pass
+
 
     def __init__(self, **kw):
         super(Scheduler, self).__init__(**kw)
@@ -86,7 +111,6 @@ class Scheduler(Item, Service, SchedulerMixin):
 
     def activate(self):
         self.timer = None
-        self.running = False
 
     def installOn(self, other):
         other.powerUp(self, IService)
