@@ -75,6 +75,9 @@ class _StoreIDComparer(Comparable):
     def infilter(self, pyval, oself, store):
         return pyval
 
+    def outfilter(self, dbval, oself):
+        return dbval
+
 
 class _SpecialStoreIDAttribute(slotmachine.SetOnce):
     """

@@ -233,7 +233,7 @@ class ItemQuery(BaseQuery):
     def _massageData(self, row):
         return self.store._loadedItem(self.tableClass, row[0], row[1:])
 
-    def getColumn(self, attributeName):
+    def getColumn(self, attributeName, raw=False):
         attr = getattr(self.tableClass, attributeName)
         return AttributeQuery(self.store,
                               self.tableClass,
@@ -241,7 +241,8 @@ class ItemQuery(BaseQuery):
                               self.limit,
                               self.offset,
                               self.sort,
-                              attr)
+                              attr,
+                              raw)
     def count(self):
         rslt = self._runQuery('SELECT',
                               'COUNT(' + self.tableClass.getTableName() + '.oid'
@@ -271,19 +272,23 @@ class AttributeQuery(BaseQuery):
                  tableClass,
                  comparison=None, limit=None,
                  offset=None, sort=None,
-                 attribute=None):
+                 attribute=None,
+                 raw=False):
         assert attribute.type is tableClass
         assert attribute is not None
         BaseQuery.__init__(self, store, tableClass,
                            comparison, limit,
                            offset, sort)
         self.attribute = attribute
+        self.raw = raw
         self._queryTarget = tableClass.getTableName() + '.' + attribute.columnName
 
     # XXX: Each implementation of 'outfilter' needs to be changed to deal
     # with self being 'None' in these cases.  most of the ones we're likely
     # to use (e.g. integer) are likely to have this already.
     def _massageData(self, row):
+        if self.raw:
+            return row[0]
         return self.attribute.outfilter(row[0], _FakeItemForFilter(self.store))
 
     def sum(self):
