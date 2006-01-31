@@ -57,7 +57,7 @@ class Comparable:
             a.append(other)
         return AttributeComparison(sql, a, tables, self)
 
-    def oneOf(self, seq):
+    def oneOf(self, seq, negate=False):
         """
         Choose items whose attributes are in a fixed set.
 
@@ -66,13 +66,17 @@ class Comparable:
         Implemented with the SQL 'in' statement.
         """
         nseq = list(seq)
-        return AttributeComparison(('%s.%s IN (%s)' % (
+        return AttributeComparison(('%s.%s %sIN (%s)' % (
                     self.type.getTableName(),
                     self.columnName,
+                    negate and 'NOT ' or '',
                     ', '.join(['?'] * len(nseq)))),
                                    nseq,
                                    [self.type],
                                    self)
+
+    def notOneOf(self, seq):
+        return self.oneOf(seq, negate=True)
 
     def __eq__(self, other):
         return self.compare(other, '=')
