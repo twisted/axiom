@@ -554,6 +554,12 @@ class Store(Empowered):
             p = p.child(subdir)
         return p
 
+    def newTemporaryFilePath(self, *path):
+        p = self.dbdir.child('temp')
+        for subdir in path:
+            p = p.child(subdir)
+        return p
+
     def newFile(self, *path):
         """
         Open a new file somewhere in this Store's file area.

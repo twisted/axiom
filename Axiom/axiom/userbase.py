@@ -444,7 +444,7 @@ class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
     failedLogins = integer(default=0)
 
 
-def getAccountNames(store):
+def getAccountNames(store, protocol=None):
     """
     Retrieve account name information about the given database.
 
@@ -458,7 +458,14 @@ def getAccountNames(store):
     if store.parent is None:
         raise ValueError("Orphan store has no account names")
     subStore = store.parent.getItemByID(store.idInParent)
-    for meth in store.parent.query(LoginMethod,
-                                   AND(LoginAccount.avatars == subStore,
-                                       LoginMethod.account == LoginAccount.storeID)):
-        yield (meth.localpart, meth.domain)
+    if protocol:
+        for meth in store.parent.query(LoginMethod,
+                                       AND(LoginAccount.avatars == subStore,
+                                           LoginMethod.account == LoginAccount.storeID,
+                                           LoginMethod.protocol == protocol)):
+            yield (meth.localpart, meth.domain)
+    else:
+        for meth in store.parent.query(LoginMethod,
+                                       AND(LoginAccount.avatars == subStore,
+                                           LoginMethod.account == LoginAccount.storeID)):
+            yield (meth.localpart, meth.domain)
