@@ -1,9 +1,12 @@
+# -*- test-case-name: axiom.test.test_attributes -*-
+
+from epsilon.extime import Time
 
 from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import Comparable, integer, ieee754_double, ConstraintError
+from axiom.attributes import Comparable, integer, ieee754_double, ConstraintError, timestamp
 
 import random
 
@@ -87,3 +90,25 @@ class BadAttributeTest(TestCase):
 class WhiteboxComparableTest(TestCase):
     def testLikeRejectsIllegalOperations(self):
         self.assertRaises(ValueError, Comparable()._like, 'XYZ')
+
+someRandomDate = Time.fromISO8601TimeAndDate("1980-05-29")
+
+class DatedThing(Item):
+    date = timestamp(default=someRandomDate)
+
+class CreationDatedThing(Item):
+    creationDate = timestamp(defaultFactory=lambda : Time())
+
+class StructuredDefaultTestCase(TestCase):
+    def testTimestampDefault(self):
+        s = Store()
+        sid = DatedThing(store=s).storeID
+        self.assertEquals(s.getItemByID(sid).date,
+                          someRandomDate)
+
+    def testTimestampNow(self):
+        s = Store()
+        sid = CreationDatedThing(store=s).storeID
+        self.failUnless(
+            (Time().asDatetime() - s.getItemByID(sid).creationDate.asDatetime()).seconds <
+            10)
