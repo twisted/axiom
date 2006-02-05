@@ -4,13 +4,10 @@ require('twisted', 'filepath_copyTo')
 
 import getpass
 
-from zope.interface import classProvides
-
 from twisted.python import usage
-from twisted import plugin
 from twisted.python import filepath
 
-from axiom import iaxiom, attributes, userbase
+from axiom import attributes, userbase
 from axiom.scripts import axiomatic
 
 class UserbaseMixin:
@@ -23,11 +20,11 @@ class UserbaseMixin:
             ls.installOn(other)
             return ls
 
-class Install(usage.Options, axiomatic.AxiomaticSubCommandMixin, UserbaseMixin):
+class Install(axiomatic.AxiomaticSubCommand, UserbaseMixin):
     def postOptions(self):
         self.installOn(self.store)
 
-class Create(usage.Options, axiomatic.AxiomaticSubCommandMixin, UserbaseMixin):
+class Create(axiomatic.AxiomaticSubCommand, UserbaseMixin):
     synopsis = "<username> <domain> [password]"
 
     def parseArgs(self, username, domain, password=None):
@@ -58,7 +55,7 @@ class Create(usage.Options, axiomatic.AxiomaticSubCommandMixin, UserbaseMixin):
             raise usage.UsageError("An account by that name already exists.")
 
 
-class Disable(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+class Disable(axiomatic.AxiomaticSubCommand):
     synopsis = "<username> <domain>"
 
     def parseArgs(self, username, domain):
@@ -78,7 +75,7 @@ class Disable(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             raise usage.UsageError("No account by that name exists.")
 
 
-class List(usage.Options, axiomatic.AxiomaticSubCommandMixin):
+class List(axiomatic.AxiomaticSubCommand):
     def postOptions(self):
         acc = None
         for acc in self.store.query(userbase.LoginMethod):
@@ -91,9 +88,7 @@ class List(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             print 'No accounts'
 
 
-class UserBaseCommand(usage.Options):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
-
+class UserBaseCommand(axiomatic.AxiomaticCommand):
     name = 'userbase'
     description = 'LoginSystem introspection and manipulation.'
 
@@ -108,8 +103,7 @@ class UserBaseCommand(usage.Options):
         return self.parent.getStore()
 
 
-class Extract(usage.Options, axiomatic.AxiomaticSubCommandMixin):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
+class Extract(axiomatic.AxiomaticCommand):
     name = 'extract-user'
     description = 'Remove an account from the login system, moving its associated database to the filesystem.'
     optParameters = [
@@ -130,8 +124,7 @@ class Extract(usage.Options, axiomatic.AxiomaticSubCommandMixin):
             self.decodeCommandLine(self['destination'])).child(localpart + '@' + domain + '.axiom')
         self.extractSubStore(localpart, domain, destinationPath)
 
-class Insert(usage.Options, axiomatic.AxiomaticSubCommandMixin):
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
+class Insert(axiomatic.AxiomaticCommand):
     name = 'insert-user'
     description = 'Insert a user store, such as one extracted with "extract-user", into a site store and login system.'
     optParameters = [
