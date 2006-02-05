@@ -311,8 +311,8 @@ class Item(Empowered, slotmachine._Strict):
 
         if not self.__everInserted:
             for (name, attr) in self.getSchema():
-                if name not in kw and not attr.allowNone:
-                    kw[name] = attr.default
+                if name not in kw:
+                    kw[name] = attr.computeDefault()
 
         for k, v in kw.iteritems():
             setattr(self, k, v)
@@ -455,12 +455,16 @@ class Item(Empowered, slotmachine._Strict):
         else:
             # case 2: we are in the middle of creating the object, we've never
             # been inserted into the db before
-            attrs = self.getSchema()
+            schemaAttrs = self.getSchema()
+
+            insertArgs = [self.storeID]
+            for (ignoredName, attrObj) in schemaAttrs:
+                attrObjDuplicate, attributeValue = self.__dirty__[attrObj.attrname]
+                # assert attrObjDuplicate is attrObj
+                insertArgs.append(attributeValue)
 
             # XXX this isn't atomic, gross.
-            self.store.executeSQL(self._baseInsertSQL(),
-                [self.storeID] +
-                [self.__dirty__.get(a[1].attrname, (None, a[1].default,))[1] for a in attrs])
+            self.store.executeSQL(self._baseInsertSQL(), insertArgs)
             self.__everInserted = True
         # In case 1, we're dirty but we did an update, synchronizing the
         # database, in case 2, we haven't been created but we issue an insert.

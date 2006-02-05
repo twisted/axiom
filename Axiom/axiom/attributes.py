@@ -286,11 +286,20 @@ class SQLAttribute(inmemory, Comparable):
     """
     sqltype = None
 
-    def __init__(self, doc='', indexed=False, default=None, allowNone=True):
+    def __init__(self, doc='', indexed=False, default=None, allowNone=True, defaultFactory=None):
         inmemory.__init__(self, doc)
         self.indexed = indexed
-        self.default = default
         self.allowNone = allowNone
+        self.default = default
+        self.defaultFactory = defaultFactory
+        if default is not None and defaultFactory is not None:
+            raise ValueError("You may specify only one of default "
+                             "or defaultFactory, not both")
+
+    def computeDefault(self):
+        if self.defaultFactory is not None:
+            return self.defaultFactory()
+        return self.default
 
 
     def prepareInsert(self, oself, store):
@@ -497,6 +506,8 @@ class boolean(SQLAttribute):
     sqltype = 'BOOLEAN'
 
     def infilter(self, pyval, oself, store):
+        if pyval is None:
+            return None
         if pyval is True:
             return 1
         elif pyval is False:
