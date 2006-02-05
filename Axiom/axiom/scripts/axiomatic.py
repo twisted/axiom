@@ -1,3 +1,4 @@
+from zope.interface import directlyProvides
 
 import os
 import sys
@@ -12,7 +13,7 @@ from twisted.application import app, service
 
 from axiom import iaxiom
 
-class AxiomaticSubCommandMixin:
+class AxiomaticSubCommandMixin(object):
     store = property(lambda self: self.parent.getStore())
 
     def decodeCommandLine(self, cmdline):
@@ -20,6 +21,18 @@ class AxiomaticSubCommandMixin:
         """
         codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
         return unicode(cmdline, codec)
+
+class _metaASC(type):
+    def __new__(cls, name, bases, attrs):
+        newcls = type.__new__(cls, name, bases, attrs)
+        directlyProvides(newcls, plugin.IPlugin, iaxiom.IAxiomaticCommand)
+        return newcls
+
+class AxiomaticSubCommand(usage.Options, AxiomaticSubCommandMixin):
+    pass
+
+class AxiomaticCommand(usage.Options, AxiomaticSubCommandMixin):
+    __metaclass__ = _metaASC
 
 # The following should REALLY be taken care of by Twisted itself.
 if platform.isWinNT():
