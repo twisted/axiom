@@ -1,5 +1,6 @@
 x.x.x (YYYY-MM-DD):
   - Made Item.typeName and Item.schemaVersion optional in most cases.
+  - Added axiom.batch for reliably operating on large groups of items.
 
 0.4.0 (2005-12-20):
   - Fixed sum() in the case of a table with no rows.
