@@ -479,7 +479,10 @@ class Store(Empowered):
         for oid, module, typename, version in self.querySQL(_schema.ALL_TYPES):
             self.typenameAndVersionToID[typename, version] = oid
             if typename not in _typeNameToMostRecentClass:
-                namedAny(module)
+                try:
+                    namedAny(module)
+                except ValueError, err:
+                    raise ImportError('cannot find module ' + module, str(err))
 
             cls = _typeNameToMostRecentClass.get(typename)
 
