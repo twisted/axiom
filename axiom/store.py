@@ -457,7 +457,11 @@ class Store(Empowered):
         if self._oldTypesRemaining:
             # Automatically upgrade when possible.
             self._upgradeComplete = PendingEvent()
-            self._upgradeService.addIterator(self._upgradeEverything())
+            d = self._upgradeService.addIterator(self._upgradeEverything())
+            def finishHim(resultOrFailure):
+                self._upgradeComplete.callback(resultOrFailure)
+                self._upgradeComplete = None
+            d.addBoth(finishHim)
         else:
             self._upgradeComplete = None
 
@@ -642,8 +646,6 @@ class Store(Empowered):
             o = onething[0]
             self.transact(upgrade.upgradeAllTheWay, o, t0.typeName, t0.schemaVersion)
             return True
-        self._upgradeComplete.callback(None)
-        self._upgradeComplete = None
         return False
 
     def _upgradeEverything(self):
