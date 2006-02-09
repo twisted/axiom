@@ -1,16 +1,33 @@
 
 from twisted.trial import unittest
-from axiom import store
+from axiom import store, upgrade
 from twisted.application.service import IService
 
 tntmrc = store._typeNameToMostRecentClass
+upgreg = upgrade._upgradeRegistry
+
 def choose(module=None):
-    del tntmrc[oldapp.Player.typeName]
-    del tntmrc[oldapp.Sword.typeName]
+    # This has an unfortunate amount of knowledge of the implementation.  TODO:
+    # add an API that can be used both for this test, and for general-purpose
+    # run-time module reloading.
+    tnames = [oldapp.Player.typeName,
+              oldapp.Sword.typeName,
+              'test_app_inv']
+    for tn in tnames:
+        tntmrc.pop(tn, None)
+
+    for k in upgreg.keys():
+        if k[0] in tnames:
+            upgreg.pop(k)
+
     if module is not None:
         reload(module)
 
 from axiom.test import oldapp
+
+choose()
+
+from axiom.test import toonewapp
 
 choose()
 
@@ -31,6 +48,11 @@ class SchemaUpgradeTest(unittest.TestCase):
 
     def startStoreService(self):
         IService(self.currentStore).startService()
+
+    def testUnUpgradeableStore(self):
+        self._testTwoObjectUpgrade()
+        choose(toonewapp)
+        self.assertRaises(RuntimeError, self.openStore)
 
     def _testTwoObjectUpgrade(self):
         choose(oldapp)

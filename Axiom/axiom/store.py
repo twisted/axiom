@@ -500,6 +500,35 @@ class Store(Empowered):
         for typename in self.typenameToID:
             self.checkTypeSchemaConsistency(typename)
 
+        cantUpgradeErrors = []
+        for oldVersion in self._oldTypesRemaining:
+            # We have to be able to get from oldVersion.schemaVersion to
+            # self._typeNameToMostRecentClass.get(typename).schemaVersion
+            currentType = _typeNameToMostRecentClass.get(
+                oldVersion.typeName, None)
+            if currentType is not None:
+                typeInQuestion = oldVersion.typeName
+                upgver = oldVersion.schemaVersion
+                while upgver < currentType.schemaVersion:
+                    # Do we have enough of the schema present to upgrade?
+                    if (typeInQuestion, upgver, upgver+1
+                        ) not in upgrade._upgradeRegistry:
+                        cantUpgradeErrors.append(
+                            "No upgrader present for %s from %d to %d" % (
+                                typeInQuestion, upgver, upgver+1))
+                    if upgver+1 != currentType.schemaVersion:
+                        for nextOldVersion in self._oldTypesRemaining:
+                            if (nextOldVersion.typeName == typeInQuestion and
+                                nextOldVersion.schemaVersion == upgver+1):
+                                break
+                        else:
+                            cantUpgradeErrors.append(
+                                "Type schema required for upgrade missing: %s version %d" %(
+                                    typeInQuestion, upgver+1))
+                    upgver += 1
+        if cantUpgradeErrors:
+            raise RuntimeError('\n    '.join(cantUpgradeErrors))
+
 
     def _initdb(self, dbfname):
         self.connection = sqlite.connect(dbfname)

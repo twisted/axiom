@@ -1,4 +1,4 @@
-# -*- axiom.test.test_upgrading -*-
+# -*- test-case-name: axiom.test.test_upgrading -*-
 _upgradeRegistry = {}
 
 def registerUpgrader(upgrader, typeName, oldVersion, newVersion):
