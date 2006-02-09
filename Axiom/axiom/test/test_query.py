@@ -34,6 +34,7 @@ class D(Item):
     one = bytes()
     two = bytes()
     three = bytes()
+    four = text()
 
 class E(Item):
     schemaVersion = 1
@@ -229,9 +230,9 @@ class QueryingTestCase(TestCase):
     def setUp(self):
         s = self.store = Store()
         def _createStuff():
-            self.d1 = D(store=s, one='d1.one', two='d1.two', three='d1.three', id='1')
-            self.d2 = D(store=s, one='d2.one', two='d2.two', three='d2.three', id='2')
-            self.d3 = D(store=s, one='d3.one', two='d3.two', three='d3.three', id='3')
+            self.d1 = D(store=s, one='d1.one', two='d1.two', three='d1.three', four=u'd1.four', id='1')
+            self.d2 = D(store=s, one='d2.one', two='d2.two', three='d2.three', four=u'd2.four', id='2')
+            self.d3 = D(store=s, one='d3.one', two='d3.two', three='d3.three', four=u'd3.four', id='3')
         s.transact(_createStuff)
 
     def tearDown(self):
@@ -374,6 +375,15 @@ class WildcardQueries(QueryingTestCase):
             '(item_d_v1.one LIKE (item_d_v1.two || ?))', ['%'])
         self.assertEquals(
             self.query(D, D.one.startswith(D.two)), [])
+
+    def testStartsEndsWithText(self):
+        self.assertEquals(
+            self.query(D, D.four.startswith(u'd1')),
+            [self.d1])
+        self.assertEquals(
+            self.query(D, D.four.endswith(u'2.four')),
+            [self.d2])
+    testStartsEndsWithText.todo = 'This is issue #402'
 
     def testOtherTable(self):
         self.assertQuery(
