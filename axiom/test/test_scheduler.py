@@ -6,10 +6,11 @@ from datetime import timedelta
 from twisted.trial import unittest
 from twisted.application.service import IService
 from twisted.internet.defer import Deferred
+from twisted.python import log
 
 from epsilon.extime import Time
 
-from axiom.scheduler import Scheduler, SubScheduler, TimedEvent, _SubSchedulerParentHook
+from axiom.scheduler import Scheduler, SubScheduler, TimedEvent, _SubSchedulerParentHook, TimedEventFailureLog
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
@@ -71,24 +72,41 @@ class TestEvent(Item):
         self.deferred.errback(self.testCase.failureException(*msg))
 
 
+class NotActuallyRunnable(Item):
+    huhWhat = integer()
+
+class SpecialError(Exception):
+    pass
+
+class SpecialErrorHandler(Item):
+    huhWhat = integer()
+    broken = integer(default=0)
+    procd = integer(default=0)
+
+    def run(self):
+        self.broken = 1
+        raise SpecialError()
+
+    def timedEventErrorHandler(self, timedEvent, failureObj):
+        failureObj.trap(SpecialError)
+        self.procd = 1
+
 class SchedTest(unittest.TestCase):
 
     def setUp(self):
-        self.storePath = self.mktemp()
-        self.store = Store(self.storePath)
+        # self.storePath = self.mktemp()
+        self.store = Store()
         Scheduler(store=self.store).installOn(self.store)
         IService(self.store).startService()
 
     def tearDown(self):
         IService(self.store).stopService()
 
-    def testScheduler(self, s=None):
+    def _doTestScheduler(self, s):
         # create 3 timed events.  the first one fires.  the second one fires,
         # then reschedules itself.  the third one should never fire because the
         # reactor is shut down first.  assert that the first and second fire
         # only once, and that the third never fires.
-        if s is None:
-            s = self.store
 
         d = Deferred()
 
@@ -117,10 +135,63 @@ class SchedTest(unittest.TestCase):
 
         return d
 
+class TopStoreSchedTest(SchedTest):
+
+    def testBasicScheduledError(self):
+        S = IScheduler(self.store)
+        now = Time()
+        S.schedule(NotActuallyRunnable(store=self.store), now)
+        d = Deferred()
+        te = TestEvent(store=self.store, testCase=self,
+                       name=u't1', maxRunCount=1, runAgain=None,
+                       winner=True, deferred=d)
+        self.te = te            # don't gc the deferred
+        now2 = Time()
+        S.schedule(te, now2)
+        self.assertEquals(
+            self.store.query(TimedEventFailureLog).count(), 0)
+        def later(result):
+            errs = log.flushErrors(AttributeError)
+            self.assertEquals(len(errs), 1)
+            self.assertEquals(self.store.query(TimedEventFailureLog).count(), 1)
+        return d.addCallback(later)
+
+    def testScheduledErrorWithHandler(self):
+        S = IScheduler(self.store)
+        now = Time()
+        spec = SpecialErrorHandler(store=self.store)
+        S.schedule(spec, now)
+        d = Deferred()
+        te = TestEvent(store=self.store, testCase=self,
+                       name=u't1', maxRunCount=1, runAgain=None,
+                       winner=True, deferred=d)
+        self.te = te            # don't gc the deferred
+        now2 = Time()
+        S.schedule(te, now2)
+        self.assertEquals(
+            self.store.query(TimedEventFailureLog).count(), 0)
+        def later(result):
+            errs = log.flushErrors(SpecialError)
+            self.assertEquals(len(errs), 1)
+            self.assertEquals(self.store.query(TimedEventFailureLog).count(), 0)
+            self.failUnless(spec.procd)
+            self.failIf(spec.broken)
+        return d.addCallback(later)
+
+    def testScheduler(self):
+        self._doTestScheduler(self.store)
+
+class SubSchedTest(SchedTest):
+    def setUp(self):
+        self.storePath = self.mktemp()
+        self.store = Store(self.storePath)
+        Scheduler(store=self.store).installOn(self.store)
+        IService(self.store).startService()
+
     def testSubScheduler(self):
         substoreItem = SubStore.createNew(self.store, ['scheduler_test'])
         substore = substoreItem.open()
         SubScheduler(store=substore).installOn(substore)
 
-        return self.testScheduler(substore)
+        return self._doTestScheduler(substore)
 
