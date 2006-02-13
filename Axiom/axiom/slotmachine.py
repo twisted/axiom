@@ -131,9 +131,18 @@ class _Strict(object):
     I disallow all attributes from being set that do not have an explicit
     descriptor.
     """
+    __baseCache = {}
+
+    def __bases(cls):
+        try:
+            return cls.__baseCache[cls]
+        except KeyError:
+            bases = cls.__baseCache[cls] = [cls] + allYourBase(cls)
+            return bases
+    __bases = classmethod(__bases)
 
     def __getDescriptor(self, name):
-        for cls in [self.__class__] + allYourBase(self.__class__):
+        for cls in self.__bases():
             slt = cls.__dict__.get(name, _NOSLOT)
             if slt is not _NOSLOT:
                 return slt
