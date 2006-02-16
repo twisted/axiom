@@ -266,6 +266,8 @@ class ItemQuery(BaseQuery):
             item.deleteFromStore()
 
 
+_noDefault = object()
+
 class AttributeQuery(BaseQuery):
     def __init__(self,
                  store,
@@ -307,6 +309,24 @@ class AttributeQuery(BaseQuery):
             return rslt[0][0]
         else:
             return 0
+
+    def max(self, default=_noDefault):
+        return self.minmax('MAX', default)
+
+    def min(self, default=_noDefault):
+        return self.minmax('MIN', default)
+
+    def minmax(self, which, default):
+        rslt = self._runQuery('SELECT', '%s(%s)' % (which, self._queryTarget,))
+        if rslt:
+            assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+            dbval = rslt[0][0]
+        else:
+            if default is _noDefault:
+                raise ValueError, '%s() on table with no items'%(which)
+            else:
+                return default
+        return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
 
     def distinct(self):
         """

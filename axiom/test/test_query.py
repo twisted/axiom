@@ -226,6 +226,27 @@ class BasicQuery(TestCase):
         s.transact(entesten)
         s.close()
 
+    def testAttributeQueryMinMax(self):
+        s = Store()
+        def entesten():
+            E(store=s, amount=-4)
+            E(store=s, amount=10)
+            E(store=s, amount=99)
+            E(store=s, amount=456)
+
+            self.assertEquals(s.query(E).getColumn("amount").min(), -4)
+            self.assertEquals(s.query(E).getColumn("amount").max(), 456)
+
+            self.assertRaises(ValueError, s.query(D).getColumn("id").max)
+            self.assertRaises(ValueError, s.query(D).getColumn("id").min)
+
+            self.assertEquals(s.query(D).getColumn("id").min(default=41), 41)
+            self.assertEquals(s.query(D).getColumn("id").max(default=42), 42)
+
+
+        s.transact(entesten)
+        s.close()
+
 class QueryingTestCase(TestCase):
     def setUp(self):
         s = self.store = Store()
