@@ -18,6 +18,8 @@ from axiom.errors import NoCrossStoreReferences
 
 from axiom.iaxiom import IComparison, IOrdering
 
+USING_APSW = False
+
 _NEEDS_FETCH = object()         # token indicating that a value was not found
 
 __metaclass__ = type
@@ -557,8 +559,6 @@ def requireType(attributeObj, value, typerepr, *types):
 
 inttyperepr = "integer less than %r" % (TOO_BIG,)
 
-import warnings
-
 class integer(SQLAttribute):
     sqltype = 'INTEGER'
     def infilter(self, pyval, oself, store):
@@ -618,8 +618,14 @@ class text(SQLAttribute):
                 self, "unicode string without NULL bytes", pyval)
         return pyval
 
-    def outfilter(self, dbval, oself):
-        return dbval
+    if USING_APSW:
+        def outfilter(self, dbval, oself):
+            if type(dbval) is str:
+                return unicode(dbval, 'ascii')
+            return dbval
+    else:
+        def outfilter(self, dbval, oself):
+            return dbval
 
 class path(text):
     """
