@@ -5,6 +5,7 @@ hotfix.require('twisted', 'filepath_copyTo')
 
 import time
 import os
+import gc
 import itertools
 import warnings
 
@@ -23,7 +24,16 @@ from epsilon.cooperator import SchedulingService
 
 from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 
-from pysqlite2 import dbapi2 as sqlite
+USING_APSW = attributes.USING_APSW
+
+if USING_APSW:
+    import apsw
+    UNDERLYING_ERRORS = apsw.Error
+else:
+    from pysqlite2 import dbapi2 as sqlite
+    UNDERLYING_ERRORS = (sqlite.ProgrammingError,
+                         sqlite.OperationalError,
+                         sqlite.InterfaceError)
 
 from axiom.item import \
     _typeNameToMostRecentClass, dummyItemSubclass,\
@@ -555,7 +565,13 @@ class Store(Empowered):
 
 
     def _initdb(self, dbfname):
-        self.connection = sqlite.connect(dbfname)
+        if USING_APSW:
+            self.connection = apsw.Connection(dbfname)
+            self.connection.setbusytimeout(10000)
+        else:
+            self.connection = sqlite.connect(dbfname,
+                                             timeout=10.0,
+                                             isolation_level=None)
         self.cursor = self.connection.cursor()
 
 
@@ -860,7 +876,7 @@ class Store(Empowered):
             item.checkpoint()
 
     def revert(self):
-        self.connection.rollback()
+        self._rollback()
         for item in self.transaction:
             item.revert()
 
@@ -869,10 +885,11 @@ class Store(Empowered):
     def transact(self, f, *a, **k):
         if self.transaction is not None:
             return f(*a, **k)
-        self.executedThisTransaction = []
-        self.transaction = set()
-        self.autocommit = False
         try:
+            self._begin()
+            self.executedThisTransaction = []
+            self.transaction = set()
+            self.autocommit = False
             try:
                 result = f(*a, **k)
                 self.checkpoint()
@@ -885,25 +902,65 @@ class Store(Empowered):
                     raise
                 raise
             else:
-                self.commit()
-                for committed in self.transaction:
-                    committed.committed()
+                self._commit()
             return result
         finally:
             self.autocommit = True
             self.transaction = None
             self.executedThisTransaction = None
 
-    def commit(self):
+    # The following three methods are necessary...
+
+    # - in PySQLite: because PySQLite has some buggy transaction handling which
+    #   makes it impossible to issue explicit BEGIN statements - which we
+    #   _need_ to do to provide guarantees for read/write transactions.
+
+    # - in APSW: because there are no .commit() or .rollback() methods.
+
+    def _begin(self):
+        if self.debug:
+            print '<'*10, 'BEGIN', '>'*10
+        self.cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+
+    def _commit(self):
         if self.debug:
             print '*'*10, 'COMMIT', '*'*10
-        self.connection.commit()
+        # self.connection.commit()
+        self.cursor.execute("COMMIT")
+        for committed in self.transaction:
+            committed.committed()
+
+    def _rollback(self):
+        if self.debug:
+            print '>'*10, 'ROLLBACK', '<'*10
+        # self.connection.rollback()
+        self.cursor.execute("ROLLBACK")
+
+    if USING_APSW:
+        def _lastrowid(self):
+            return self.connection.last_insert_rowid()
+    else:
+        def _lastrowid(self):
+            return self.cursor.lastrowid
+
 
     def close(self, _report=True):
-        self.cursor.close()
-        self.connection.close()
+        if not USING_APSW:
+            self.cursor.close()
+            self.connection.close()
         self.cursor = None
         self.connection = None
+        if USING_APSW:
+
+            # This is necessary because APSW does not provide .close() methods
+            # for the connection or cursor objects - they are managed as
+            # resources and explicitly closed in tp_del.  Here we tell the
+            # garbage collector to MAKE SURE that those objects are finalized,
+            # because there may be application-level requirements to require
+            # that the store is closed so that, for example, we may unlink some
+            # disk files related to it.
+
+            gc.collect()
 
         if self.debug and _report:
             if not self.queryTimes:
@@ -950,7 +1007,7 @@ class Store(Empowered):
         sqlstr.append(')')
 
         if not self.autocommit:
-            self.connection.rollback()
+            self._rollback()
 
         self.createSQL(''.join(sqlstr))
         for index in indexes:
@@ -1067,14 +1124,12 @@ class Store(Empowered):
             print '**', sql, '--', ', '.join(map(str, args))
         try:
             self.cursor.execute(sql, args)
-        except (sqlite.ProgrammingError, sqlite.OperationalError, sqlite.InterfaceError), oe:
+        except UNDERLYING_ERRORS, oe:
             raise errors.SQLError("SQL: %r(%r) caused exception: %s:%s" %(
                     sql, args, oe.__class__, oe))
-        result = self.cursor.fetchall()
-        if self.autocommit:
-            self.commit()
+        result = list(self.cursor)
         if self.debug:
-            print '  lastrow:', self.cursor.lastrowid
+            print '  lastrow:', self._lastrowid()
             print '  result:', result
         return result
 
@@ -1104,16 +1159,17 @@ class Store(Empowered):
         For use with UPDATE or INSERT statements.
         """
         sql = self._execSQL(sql, args)
-        result = self.cursor.lastrowid
+        result = self._lastrowid()
         if self.executedThisTransaction is not None:
             self.executedThisTransaction.append((result, sql, args))
         return result
 
     def _reexecute(self):
         assert self.executedThisTransaction is not None
+        self._begin()
         for resultLastTime, sql, args in self.executedThisTransaction:
             self._execSQL(sql, args)
-            resultThisTime = self.cursor.lastrowid
+            resultThisTime = self._lastrowid()
             if resultLastTime != resultThisTime:
                 raise errors.TableCreationConcurrencyError(
                     "Expected to get %s as a result "
