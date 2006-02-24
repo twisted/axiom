@@ -1,6 +1,8 @@
 # -*- test-case-name: axiom.test -*-
 __metaclass__ = type
 
+from inspect import getabsfile
+
 from twisted.python.reflect import qual
 from twisted.application.service import IService, IServiceCollection, MultiService
 
@@ -51,6 +53,20 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         if T.typeName in _typeNameToMostRecentClass:
             if T.__legacy__:
                 return T
+            otherT = _typeNameToMostRecentClass[T.typeName]
+
+            if (otherT.__name__ == T.__name__
+                    and getabsfile(T) == getabsfile(otherT)
+                    and T.__module__ != otherT.__module__):
+
+                if len(T.__module__) < len(otherT.__module__):
+                    relmod = T.__module__
+                else:
+                    relmod = otherT.__module__
+
+                raise RuntimeError("Use absolute imports; relative import"
+                        " detected for type %r (imported from %r)" % (T.typeName, relmod))
+
             raise RuntimeError("2 definitions of axiom typename %r: %r %r" % (
                     T.typeName, T, _typeNameToMostRecentClass[T.typeName]))
         _typeNameToMostRecentClass[T.typeName] = T
