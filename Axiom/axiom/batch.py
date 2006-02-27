@@ -127,7 +127,7 @@ class _BatchProcessorMixin:
 
         for listener in self.store.query(_ReliableListener,
                                          _ReliableListener.processor == self,
-                                         ): # sort=_ReliableListener.lastRun.ascending):
+                                         sort=_ReliableListener.lastRun.ascending):
             if not first:
                 return True
             listener.lastRun = now
