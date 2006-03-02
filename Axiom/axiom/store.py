@@ -1073,7 +1073,8 @@ class Store(Empowered):
             # for the moment we're going to assume no inheritance
             attrs = self.querySQL(self.getTableQuery(typename, version),
                                   [storeID])
-            assert len(attrs) == 1, "No results for known-to-be-good object"
+            if len(attrs) != 1:
+                raise errors.ItemNotFound("No results for known-to-be-good object")
             attrs = attrs[0]
             useMostRecent = False
             moreRecentAvailable = False
