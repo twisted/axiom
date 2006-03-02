@@ -121,6 +121,7 @@ def serviceSpecialCase(item, pups):
     return svc
 
 
+
 class InstallableMixin(object):
     """
     Mixin for Items which can be installed as powerups on other Items
