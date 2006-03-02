@@ -2,7 +2,7 @@
 from twisted.trial import unittest
 from twisted.python import log
 
-from axiom import iaxiom, store, item, attributes, batch, substore
+from axiom import store, item, attributes, batch
 
 
 class TestWorkUnit(item.Item):
@@ -275,27 +275,3 @@ class BatchTestCase(unittest.TestCase):
         proc.addReliableListener(listener)
         proc.addReliableListener(listener)
         self.assertEquals(list(proc.getReliableListeners()), [listener])
-
-
-class RemoteTestCase(unittest.TestCase):
-    def testBatchService(self):
-        """
-        Make sure SubStores can be adapted to L{iaxiom.IBatchService}.
-        """
-        dbdir = self.mktemp()
-        s = store.Store(dbdir)
-        ss = substore.SubStore.createNew(s, 'substore')
-        bs = iaxiom.IBatchService(ss)
-        self.failUnless(iaxiom.IBatchService.providedBy(bs))
-
-
-    def testProcessLifetime(self):
-        """
-        Test that the batch system process can be started and stopped.
-        """
-        dbdir = self.mktemp()
-        s = store.Store(dbdir)
-        svc = batch.BatchProcessingControllerService(s)
-        def started(ign):
-            return svc.stopService()
-        return svc.startService().addCallback(started)

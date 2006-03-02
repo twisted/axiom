@@ -17,12 +17,12 @@ from twisted.python import filepath
 from twisted.internet import defer
 from twisted.python.reflect import namedAny
 from twisted.python.util import unsignedID
-from twisted.application.service import IService, IServiceCollection
+from twisted.application.service import IService, IServiceCollection, MultiService
 
 from epsilon.pending import PendingEvent
 from epsilon.cooperator import SchedulingService
 
-from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
+from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 
 USING_APSW = attributes.USING_APSW
 
@@ -99,8 +99,6 @@ class AtomicFile(file):
 _noItem = object()              # tag for optional argument to getItemByID
                                 # default
 
-
-
 def storeServiceSpecialCase(st, pups):
     if st.parent is not None:
         # If for some bizarre reason we're starting a substore's service, let's
@@ -112,17 +110,10 @@ def storeServiceSpecialCase(st, pups):
     if st.service is not None:
         # not new, don't add twice.
         return st.service
-
-    collection = serviceSpecialCase(st, pups)
-
-    st._upgradeService.setServiceParent(collection)
-
-    if st.dbdir is not None:
-        batcher = batch.BatchProcessingControllerService(st)
-        batcher.setServiceParent(collection)
-
-    return collection
-
+    svc = serviceSpecialCase(st, pups)
+    subsvc = st._upgradeService
+    subsvc.setServiceParent(svc)
+    return svc
 
 
 class BaseQuery:
@@ -375,8 +366,7 @@ class Store(Empowered):
 
     aggregateInterfaces = {
         IService: storeServiceSpecialCase,
-        IServiceCollection: storeServiceSpecialCase,
-        iaxiom.IBatchService: batch.storeBatchServiceSpecialCase}
+        IServiceCollection: storeServiceSpecialCase}
 
     implements(iaxiom.IBeneficiary)
 
@@ -1200,3 +1190,30 @@ def timeinto(l, f, *a, **k):
 
 queryTimes = []
 execTimes = []
+
+
+class StorageService(MultiService):
+
+    def __init__(self, *a, **k):
+        MultiService.__init__(self)
+        self.a = a
+        self.k = k
+        self.store = None
+
+    def privilegedStartService(self):
+        self.store = Store(*self.a, **self.k)
+        def reallyStart():
+            IService(self.store).setServiceParent(self)
+            MultiService.privilegedStartService(self)
+        self.store.transact(reallyStart)
+
+    def close(self, ignored=None):
+        # final close method, called after the service has been stopped
+        self.store.close()
+        self.store = None
+        return ignored
+
+    def stopService(self):
+        return defer.maybeDeferred(
+            MultiService.stopService, self).addBoth(
+            self.close)

@@ -13,25 +13,23 @@ CREDENTIALS = (u'test', u'example.com', 'secret')
 GARBAGE_LEVEL = 26
 
 class LoginMethodUpgradeTest(stubloader.StubbedTest):
-    def setUp(self):
-        stubloader.StubbedTest.setUp(self)
-        self.service = IService(self.store)
-        self.service.startService()
-        return self.store.whenFullyUpgraded()
-
-
-    def tearDown(self):
-        return self.service.stopService()
-
 
     def testUpgrade(self):
-        p = Portal(IRealm(self.store),
-                   [ICredentialsChecker(self.store)])
+        s = self.store
+        p = Portal(IRealm(s),
+                   [ICredentialsChecker(s)])
 
-        def loggedIn((interface, avatarAspect, logout)):
-            # if we can login, i guess everything is fine
-            self.assertEquals(avatarAspect.garbage, GARBAGE_LEVEL)
+        svc = IService(s)
+        svc.startService()
+        D = s.whenFullyUpgraded()
 
-        creds = UsernamePassword('@'.join(CREDENTIALS[:-1]), CREDENTIALS[-1])
-        d = p.login(creds, None, IGarbage)
-        return d.addCallback(loggedIn)
+        def upgraded():
+            def loggedIn((interface, avatarAspect, logout)):
+                assert avatarAspect.garbage == GARBAGE_LEVEL
+                # if we can login, i guess everything is fine
+
+            return p.login(UsernamePassword(
+                '@'.join(CREDENTIALS[:-1]), CREDENTIALS[-1]),
+                None, IGarbage).addCallback(loggedIn)
+
+        return D.addCallback(lambda ign: upgraded())
