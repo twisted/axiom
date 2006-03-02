@@ -47,7 +47,9 @@ class SchemaUpgradeTest(unittest.TestCase):
         self.currentStore = None
 
     def startStoreService(self):
-        IService(self.currentStore).startService()
+        svc = IService(self.currentStore)
+        svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
+        svc.startService()
 
     def testUnUpgradeableStore(self):
         self._testTwoObjectUpgrade()
@@ -177,4 +179,6 @@ class SubStoreCompat(SchemaUpgradeTest):
         self.currentTopStore = None
 
     def startStoreService(self):
-        IService(self.currentTopStore).startService()
+        svc = IService(self.currentTopStore)
+        svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
+        svc.startService()

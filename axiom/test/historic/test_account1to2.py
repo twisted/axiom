@@ -12,21 +12,26 @@ from axiom.test.historic import stubloader
 SECRET = 'asdf'
 SECRET2 = 'ghjk'
 
-class AccountUpgradeTest(stubloader.StubbedTest, ):
+class AccountUpgradeTest(stubloader.StubbedTest):
+    def setUp(self):
+        stubloader.StubbedTest.setUp(self)
+        self.service = IService(self.store)
+        self.service.startService()
+        return self.store.whenFullyUpgraded()
+
+
+    def tearDown(self):
+        return self.service.stopService()
+
 
     def testUpgrade(self):
-        s = self.store
-        p = Portal(IRealm(s),
-                   [ICredentialsChecker(s)])
+        p = Portal(IRealm(self.store),
+                   [ICredentialsChecker(self.store)])
 
-        svc = IService(s)
-        svc.startService()
-        D = s.whenFullyUpgraded()
-        def _(fu):
-            def __((ifc, av, lgo)):
-                assert av.garbage == 7
-                # Bug in cooperator?  this triggers an exception.
-                # return svc.stopService()
-            return p.login(UsernamePassword(
-                    'test@example.com', SECRET), None, IGarbage).addCallback(__)
-        return D.addCallback(_)
+        def loggedIn((ifc, av, lgo)):
+            assert av.garbage == 7
+            # Bug in cooperator?  this triggers an exception.
+            # return svc.stopService()
+        d = p.login(
+            UsernamePassword('test@example.com', SECRET), None, IGarbage)
+        return d.addCallback(loggedIn)
