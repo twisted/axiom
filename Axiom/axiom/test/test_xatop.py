@@ -316,3 +316,48 @@ class TestFindOrCreate(unittest.TestCase):
         ai = AttributefulItem(store=s, withDefault=55)
         ai2 = s.findFirst(AttributefulItem)
         self.assertEquals(a0, ai2)
+
+
+# Item types we will use to change the underlying database schema (by creating
+# them).
+class ConcurrentItemA(item.Item):
+    anAttribute = attributes.text()
+
+class ConcurrentItemB(item.Item):
+    anotherAttribute = attributes.integer()
+
+class ConcurrencyTestCase(unittest.TestCase):
+    def testSchemaChange(self):
+        """
+        When a statement is executed after the underlying schema has been
+        changed (tables are added, database is vacuumed, etc) by another thread
+        of execution, PySQLite2 will raise an OperationalError.  This is
+        basically harmless and the query will work if re-executed.  This should
+        be done transparently.
+        """
+        dbdir = self.mktemp()
+
+        firstStore = store.Store(dbdir)
+        ConcurrentItemA(store=firstStore)
+
+        secondStore = store.Store(dbdir)
+
+        ConcurrentItemB(store=firstStore)
+
+        self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)
+
+
+    def testNewItemType(self):
+        """
+        Creating the first instance of a of an Item subclass changes the
+        underlying database schema as well as some Store-private state which
+        tracks that schema.  Test to make sure that creating the first instance
+        of an Item subclass in one store is reflected in a second store.
+        """
+        dbdir = self.mktemp()
+
+        firstStore = store.Store(dbdir)
+        secondStore = store.Store(dbdir)
+
+        ConcurrentItemA(store=firstStore)
+        self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)

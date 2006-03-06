@@ -19,6 +19,16 @@ class SQLError(RuntimeError):
     """
     Axiom internally generated some bad SQL.
     """
+    def __init__(self, sql, args, underlying):
+        RuntimeError.__init__(self, sql, args, underlying)
+        self.sql, self.args, self.underlying = self.args
+
+    def __str__(self):
+        return "<SQLError: %r(%r) caused %s: %s>" % (
+            self.sql, self.args,
+            self.underlying.__class__, self.underlying)
+
+
 
 class SQLWarning(Warning):
     """
