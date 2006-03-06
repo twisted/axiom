@@ -27,13 +27,9 @@ from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
 USING_APSW = attributes.USING_APSW
 
 if USING_APSW:
-    import apsw
-    UNDERLYING_ERRORS = apsw.Error
+    from axiom._apsw import Connection
 else:
-    from pysqlite2 import dbapi2 as sqlite
-    UNDERLYING_ERRORS = (sqlite.ProgrammingError,
-                         sqlite.OperationalError,
-                         sqlite.InterfaceError)
+    from axiom._pysqlite2 import Connection
 
 from axiom.item import \
     _typeNameToMostRecentClass, dummyItemSubclass,\
@@ -214,11 +210,6 @@ class BaseQuery:
             self.store.checkpoint()
         tnsv = (self.tableClass.typeName,
                 self.tableClass.schemaVersion)
-        if tnsv not in self.store.typenameAndVersionToID:
-            # Early out in the case where the specific table we are asking for
-            # results from is not present in the database; we can safely do
-            # this because we can only ask for one type of result at a time.
-            return []
         sqlstr, sqlargs = self._sqlAndArgs(verb, subject)
         sqlResults = self.store.querySQL(sqlstr, sqlargs)
         return sqlResults
@@ -270,11 +261,8 @@ class ItemQuery(BaseQuery):
         rslt = self._runQuery('SELECT',
                               'COUNT(' + self.tableClass.getTableName() + '.oid'
                               + ')')
-        if rslt:
-            assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
-            return rslt[0][0]
-        else:
-            return 0
+        assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+        return rslt[0][0] or 0
 
 
     def deleteFromStore(self):
@@ -317,21 +305,15 @@ class AttributeQuery(BaseQuery):
         return self.attribute.outfilter(row[0], _FakeItemForFilter(self.store))
 
     def sum(self):
-        res = self._runQuery('SELECT', 'SUM(%s)' % (self._queryTarget,))
-        if res:
-            assert len(res) == 1, "more than one result: %r" % (res,)
-            dbval = res[0][0]
-        else:
-            dbval = 0
+        res = self._runQuery('SELECT', 'SUM(%s)' % (self._queryTarget,)) or [(0,)]
+        assert len(res) == 1, "more than one result: %r" % (res,)
+        dbval = res[0][0] or 0
         return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
 
     def count(self):
-        rslt = self._runQuery('SELECT', 'COUNT(%s)' % (self._queryTarget,))
-        if rslt:
-            assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
-            return rslt[0][0]
-        else:
-            return 0
+        rslt = self._runQuery('SELECT', 'COUNT(%s)' % (self._queryTarget,)) or [(0,)]
+        assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+        return rslt[0][0]
 
     def max(self, default=_noDefault):
         return self.minmax('MAX', default)
@@ -340,11 +322,10 @@ class AttributeQuery(BaseQuery):
         return self.minmax('MIN', default)
 
     def minmax(self, which, default):
-        rslt = self._runQuery('SELECT', '%s(%s)' % (which, self._queryTarget,))
-        if rslt:
-            assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
-            dbval = rslt[0][0]
-        else:
+        rslt = self._runQuery('SELECT', '%s(%s)' % (which, self._queryTarget,)) or [(None,)]
+        assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+        dbval = rslt[0][0]
+        if dbval is None:
             if default is _noDefault:
                 raise ValueError, '%s() on table with no items'%(which)
             else:
@@ -575,13 +556,7 @@ class Store(Empowered):
 
 
     def _initdb(self, dbfname):
-        if USING_APSW:
-            self.connection = apsw.Connection(dbfname)
-            self.connection.setbusytimeout(10000)
-        else:
-            self.connection = sqlite.connect(dbfname,
-                                             timeout=10.0,
-                                             isolation_level=None)
+        self.connection = Connection(dbfname)
         self.cursor = self.connection.cursor()
 
 
@@ -946,32 +921,9 @@ class Store(Empowered):
         # self.connection.rollback()
         self.cursor.execute("ROLLBACK")
 
-    if USING_APSW:
-        def _lastrowid(self):
-            return self.connection.last_insert_rowid()
-    else:
-        def _lastrowid(self):
-            return self.cursor.lastrowid
-
-
     def close(self, _report=True):
-        if not USING_APSW:
-            self.cursor.close()
-            self.connection.close()
-        self.cursor = None
-        self.connection = None
-        if USING_APSW:
-
-            # This is necessary because APSW does not provide .close() methods
-            # for the connection or cursor objects - they are managed as
-            # resources and explicitly closed in tp_del.  Here we tell the
-            # garbage collector to MAKE SURE that those objects are finalized,
-            # because there may be application-level requirements to require
-            # that the store is closed so that, for example, we may unlink some
-            # disk files related to it.
-
-            gc.collect()
-
+        self.cursor.close()
+        self.cursor = self.connection = None
         if self.debug and _report:
             if not self.queryTimes:
                 print 'no queries'
@@ -1133,14 +1085,10 @@ class Store(Empowered):
     def _queryandfetch(self, sql, args):
         if self.debug:
             print '**', sql, '--', ', '.join(map(str, args))
-        try:
-            self.cursor.execute(sql, args)
-        except UNDERLYING_ERRORS, oe:
-            raise errors.SQLError("SQL: %r(%r) caused exception: %s:%s" %(
-                    sql, args, oe.__class__, oe))
+        self.cursor.execute(sql, args)
         result = list(self.cursor)
         if self.debug:
-            print '  lastrow:', self._lastrowid()
+            print '  lastrow:', self.cursor.lastRowID()
             print '  result:', result
         return result
 
@@ -1170,7 +1118,7 @@ class Store(Empowered):
         For use with UPDATE or INSERT statements.
         """
         sql = self._execSQL(sql, args)
-        result = self._lastrowid()
+        result = self.cursor.lastRowID()
         if self.executedThisTransaction is not None:
             self.executedThisTransaction.append((result, sql, args))
         return result
@@ -1180,7 +1128,7 @@ class Store(Empowered):
         self._begin()
         for resultLastTime, sql, args in self.executedThisTransaction:
             self._execSQL(sql, args)
-            resultThisTime = self._lastrowid()
+            resultThisTime = self.cursor.lastRowID()
             if resultLastTime != resultThisTime:
                 raise errors.TableCreationConcurrencyError(
                     "Expected to get %s as a result "
