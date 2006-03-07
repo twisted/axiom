@@ -1,6 +1,6 @@
 
 from twisted.trial import unittest
-from twisted.python import log
+from twisted.python import log, failure
 
 from axiom import iaxiom, store, item, attributes, batch, substore
 
@@ -206,9 +206,17 @@ class BatchTestCase(unittest.TestCase):
 
         proc.addReliableListener(listener)
 
+        # Make some work, step the processor, and fake the error handling
+        # behavior the Scheduler actually provides.
         for i in range(3):
             TestWorkUnit(store=self.store, information=i)
-            proc.step()
+            try:
+                proc.step()
+            except batch._ProcessingFailure:
+                proc.timedEventErrorHandler(
+                    (u"Oh crap, I do not have a TimedEvent, "
+                     "I sure hope that never becomes a problem."),
+                    failure.Failure())
 
         self.assertEquals(processedItems, [0, 2])
 

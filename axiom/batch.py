@@ -19,7 +19,7 @@ from vertex import juice
 
 from axiom import iaxiom, item, attributes
 
-VERBOSE = True
+VERBOSE = False
 
 _processors = weakref.WeakValueDictionary()
 
@@ -29,6 +29,28 @@ class _NoWorkUnits(Exception):
     Raised by a _ReliableListener's step() method to indicate it
     didn't do anything.
     """
+
+
+class _ProcessingFailure(Exception):
+    """
+    Raised when processItem raises any exception.
+    """
+    def __init__(self, reliableListener, workUnit, failure):
+        Exception.__init__(self)
+        self.reliableListener = reliableListener
+        self.workUnit = workUnit
+        self.failure = failure
+
+
+
+class _ForwardProcessingFailure(_ProcessingFailure):
+    pass
+
+
+
+class _BackwardProcessingFailure(_ProcessingFailure):
+    pass
+
 
 
 class BatchProcessingError(item.Item):
@@ -102,6 +124,8 @@ class _ReliableListener(item.Item):
     def _backwardWork(self, workUnitType):
         if VERBOSE:
             log.msg("%r looking backward from %r" % (self, self.backwardMark,))
+        if self.backwardMark == 0:
+            return []
         return self.store.query(
             workUnitType,
             workUnitType.storeID < self.backwardMark,
@@ -109,21 +133,16 @@ class _ReliableListener(item.Item):
             limit=2)
 
 
-    def _doOneWork(self, workUnit):
+    def _doOneWork(self, workUnit, failureType):
         if VERBOSE:
             log.msg("Processing a unit of work: %r" % (workUnit,))
         try:
-            self.store.transact(self.listener.processItem, workUnit)
+            self.listener.processItem(workUnit)
         except:
             f = failure.Failure()
-            log.msg("Batch processing failure")
-            log.err(f)
-            BatchProcessingError(
-                store=self.store,
-                processor=self.processor,
-                listener=self.listener,
-                item=workUnit,
-                error=f.getErrorMessage())
+            if VERBOSE:
+                log.msg("Processing failed: %s" % (f.getErrorMessage(),))
+            raise failureType(self, workUnit, f)
 
 
     def step(self):
@@ -134,14 +153,14 @@ class _ReliableListener(item.Item):
             else:
                 return True
             self.forwardMark = workUnit.storeID
-            self._doOneWork(workUnit)
+            self._doOneWork(workUnit, _ForwardProcessingFailure)
         for workUnit in self._backwardWork(self.processor.workUnitType):
             if first:
                 first = False
             else:
                 return True
             self.backwardMark = workUnit.storeID
-            self._doOneWork(workUnit)
+            self._doOneWork(workUnit, _BackwardProcessingFailure)
         if first:
             raise _NoWorkUnits()
         if VERBOSE:
@@ -151,13 +170,14 @@ class _ReliableListener(item.Item):
 
 
 class _BatchProcessorMixin:
-    def step(self, style=iaxiom.LOCAL):
+    def step(self, style=iaxiom.LOCAL, skip=()):
         now = extime.Time()
         first = True
 
         for listener in self.store.query(_ReliableListener,
                                          attributes.AND(_ReliableListener.processor == self,
-                                                        _ReliableListener.style == style),
+                                                        _ReliableListener.style == style,
+                                                        _ReliableListener.listener.notOneOf(skip)),
                                          sort=_ReliableListener.lastRun.ascending):
             if not first:
                 if VERBOSE:
@@ -184,6 +204,29 @@ class _BatchProcessorMixin:
         if self.step():
             return now + datetime.timedelta(milliseconds=self.busyInterval)
         return now + datetime.timedelta(milliseconds=self.idleInterval)
+
+
+    def timedEventErrorHandler(self, timedEvent, failureObj):
+        failureObj.trap(_ProcessingFailure)
+        workUnit = failureObj.value.workUnit
+        listener = failureObj.value.reliableListener
+        processingFailure = failureObj.value.failure
+
+        log.msg("Batch processing failure")
+        log.err(processingFailure)
+        BatchProcessingError(
+            store=self.store,
+            processor=listener.processor,
+            listener=listener.listener,
+            item=workUnit,
+            error=processingFailure.getErrorMessage())
+
+        if failureObj.check(_ForwardProcessingFailure):
+            listener.forwardMark = workUnit.storeID
+        elif failureObj.check(_BackwardProcessingFailure):
+            listener.backwardMark = workUnit.storeID
+
+        return extime.Time() + datetime.timedelta(milliseconds=self.busyInterval)
 
 
     def addReliableListener(self, listener, style=iaxiom.LOCAL):
@@ -326,6 +369,7 @@ def _childProcTerminated(self, err):
         d.errback(err)
     del self.waitingForProcess
 
+
 class ProcessController(object):
     """Stateful class which tracks a Juice connection to a child process.
 
@@ -387,18 +431,19 @@ class ProcessController(object):
     @ivar process: A reference to the process object.  Set in every non-stopped
     mode.
 
-    @ivar broker: A reference to the perspective broker.  Set in the ready
-    mode.
-
-    @ivar root: A reference to the root of the remote object graph.  Set in the
-    ready mode.
+    @ivar juice: A reference to the juice protocol.  Set in all modes.
 
     @ivar connector: A reference to the process protocol.  Set in every
     non-stopped mode.
 
-    @ivar onProcessStartup: None or a callable which will be invoked with the
-    root object whenever a Juice connection is first established to a newly
+    @ivar onProcessStartup: None or a no-argument callable which will
+    be invoked whenever the connection is first established to a newly
     spawned child process.
+
+    @ivar onProcessTermination: None or a no-argument callable which
+    will be invoked whenever a Juice connection is lost, except in the
+    case where process shutdown was explicitly requested via
+    stopProcess().
     """
 
     __metaclass__ = modal.ModalType
@@ -416,15 +461,12 @@ class ProcessController(object):
     # non-None value in every state except stopped.
     connector = None
 
-    def __init__(self, name, juice, tacPath, onProcessStartup=None):
-        # Primarily, keep the indexer in memory, which will in turn
-        # keep a reference to us, which basically results in the whole
-        # setup remaining in memory for the duration of the process
-        # lifecycle.
+    def __init__(self, name, juice, tacPath, onProcessStartup=None, onProcessTermination=None):
         self.name = name
-        self.onProcessStartup = onProcessStartup
         self.juice = juice
         self.tacPath = tacPath
+        self.onProcessStartup = onProcessStartup
+        self.onProcessTermination = onProcessTermination
 
     def _startProcess(self):
         executable = sys.executable
@@ -443,8 +485,8 @@ class ProcessController(object):
         args = (
             sys.executable,
             twistd,
-            '--logfile=%s.%d.log' % (self.name, os.getpid()),
-            '--pidfile=%s.%d.pid' % (self.name, os.getpid()),
+            '--logfile=%s.log' % (self.name,),
+            '--pidfile=%s.pid' % (self.name,),
             '-noy',
             self.tacPath)
 
@@ -489,13 +531,16 @@ class ProcessController(object):
             self.mode = 'ready'
 
             if self.onProcessStartup is not None:
-                self.onProcessStartup(self.juice)
+                self.onProcessStartup()
 
             for d in self.waitingForProcess:
                 d.callback(self.juice)
             del self.waitingForProcess
 
-        childProcessTerminated = _childProcTerminated
+        def childProcessTerminated(self, reason):
+            _childProcTerminated(self, reason)
+            if self.onProcessTermination is not None:
+                self.onProcessTermination()
 
 
     class ready(modal.mode):
@@ -668,12 +713,17 @@ class BatchProcessingControllerService(service.Service):
         tacPath = util.sibpath(__file__, "batch.tac")
         proto = BatchProcessingProtocol()
         self.batchController = ProcessController(
-            "batch", proto, tacPath)
-        return self.batchController.getProcess().addCallback(self._addStore)
+            "batch", proto, tacPath,
+            self._setStore, self._restartProcess)
+        return self.batchController.getProcess()
 
 
-    def _addStore(self, proto):
-        return SetStore(storepath=self.store.dbdir).do(proto)
+    def _setStore(self):
+        return SetStore(storepath=self.store.dbdir).do(self.batchController.juice)
+
+
+    def _restartProcess(self):
+        self.batchController.getProcess()
 
 
     def stopService(self):
@@ -740,7 +790,7 @@ class BatchProcessingProtocol(JuiceChild):
 
         assert self.siteStore is None
 
-        self.siteStore = store.Store(storepath)
+        self.siteStore = store.Store(storepath, debug=False)
         self.subStores = {}
         self.pollCall = task.LoopingCall(self._pollSubStores)
         self.pollCall.start(10.0)
@@ -760,22 +810,17 @@ class BatchProcessingProtocol(JuiceChild):
 
     def _pollSubStores(self):
         from axiom import store, substore
-        try:
-            paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
-        except:
-            # See #658
-            log.err()
-        else:
-            for removed in set(self.subStores) - paths:
-                self.subStores[removed].disownServiceParent()
-                del self.subStores[removed]
-                if VERBOSE:
-                    log.msg("Removed SubStore " + removed)
-            for added in paths - set(self.subStores):
-                self.subStores[added] = BatchProcessingService(store.Store(added), style=iaxiom.REMOTE)
-                self.subStores[added].setServiceParent(self.service)
-                if VERBOSE:
-                    log.msg("Added SubStore " + added)
+        paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
+        for removed in set(self.subStores) - paths:
+            self.subStores[removed].disownServiceParent()
+            del self.subStores[removed]
+            if VERBOSE:
+                log.msg("Removed SubStore " + removed)
+        for added in paths - set(self.subStores):
+            self.subStores[added] = BatchProcessingService(store.Store(added, debug=False), style=iaxiom.REMOTE)
+            self.subStores[added].setServiceParent(self.service)
+            if VERBOSE:
+                log.msg("Added SubStore " + added)
 
 
 
@@ -812,34 +857,50 @@ class BatchProcessingService(service.Service):
 
 
     def step(self):
-        while True:
-            try:
-                items = list(self.items())
-            except:
-                # See #658
-                log.err()
-                yield self.deferLater(1.0)
-                continue
+        while self.running:
+            items = list(self.items())
 
             if VERBOSE:
                 log.msg("Found %d processors for %s" % (len(items), self.store))
+
+            more = False
             while items and self.running:
                 item = items.pop()
-                if item not in self.suspended:
-                    if VERBOSE:
-                        log.msg("Stepping processor %r" % (item,))
-                    try:
-                        item.step(style=self.style)
-                    except:
-                        # See #658
-                        log.err()
-                else:
-                    if VERBOSE:
-                        log.msg("Skipping suspended processor %r" % (item,))
+                if VERBOSE:
+                    log.msg("Stepping processor %r (suspended is %r)" % (item, self.suspended))
+                more = more or item.store.transact(item.step, style=self.style, skip=self.suspended)
                 yield None
-            yield self.deferLater(1.0)
+            yield self.deferLater([10.0, 0.1][more])
+
+
+    def ensafen(self, iterator, onError):
+        """
+        Create an iterator which yields the same elements C{iterator} would
+        have produced, but catch any exceptions it raises (except for
+        C{StopIteration}) and invoke C{onError} to handle them.
+        """
+        while True:
+            try:
+                yield iterator.next()
+            except StopIteration:
+                break
+            except:
+                f = failure.Failure()
+                onError(f)
+
+
+    def _desist(self, err):
+        log.msg("Batch processor for %r encountered an error" % (self.store,))
+        log.err(err)
+        self.disownServiceParent()
+        raise StopIteration
 
 
     def startService(self):
         service.Service.startService(self)
-        self.parent.cooperator.coiterate(self.step())
+        self.parent.cooperator.coiterate(self.ensafen(self.step(), self._desist))
+
+
+    def stopService(self):
+        service.Service.stopService(self)
+        self.store.close()

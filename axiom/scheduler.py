@@ -12,6 +12,8 @@ from axiom.item import Item
 from axiom.attributes import AND, timestamp, reference, integer, inmemory, bytes
 from axiom.iaxiom import IScheduler
 
+VERBOSE = False
+
 class TimedEventFailureLog(Item):
     typeName = 'timed_event_failure_log'
     schemaVersion = 1
@@ -30,17 +32,24 @@ class TimedEvent(Item):
     time = timestamp(indexed=True)
     runnable = reference()
 
+    def _rescheduleFromRun(self, newTime):
+        """
+        Schedule this event to be run at the indicated time, or if the
+        indicated time is None, delete this event.
+        """
+        if newTime is None:
+            self.deleteFromStore()
+        else:
+            self.time = newTime
+
+
     def invokeRunnable(self):
         """
         Run my runnable, and reschedule or delete myself based on its result.
         Must be run in a transaction.
         """
+        self._rescheduleFromRun(self.runnable.run())
 
-        newTime = self.runnable.run()
-        if newTime is None:
-            self.deleteFromStore()
-        else:
-            self.time = newTime
 
     def handleError(self, now, failureObj):
         """ An error occurred running my runnable.  Check my runnable for an
@@ -53,10 +62,10 @@ class TimedEvent(Item):
         """
         errorHandler = getattr(self.runnable, 'timedEventErrorHandler', None)
         if errorHandler is not None:
-            errorHandler(self, failureObj)
-            self.deleteFromStore()
+            self._rescheduleFromRun(errorHandler(self, failureObj))
         else:
             self._defaultErrorHandler(now, failureObj)
+
 
     def _defaultErrorHandler(self, now, failureObj):
         tefl = TimedEventFailureLog(store=self.store,
@@ -66,11 +75,14 @@ class TimedEvent(Item):
                                     traceback=failureObj.getTraceback())
         self.deleteFromStore()
 
+
+
 class _WackyControlFlow(Exception):
     def __init__(self, eventObject, failureObject):
         Exception.__init__(self, "User code failed during timed event")
         self.eventObject = eventObject
         self.failureObject = failureObject
+
 
 MAX_WORK_PER_TICK = 10
 
@@ -78,6 +90,7 @@ class SchedulerMixin:
     def now(self):
         # testing hook
         return Time()
+
 
     def _oneTick(self, now):
         theEvent = self._getNextEvent(now)
@@ -89,6 +102,7 @@ class SchedulerMixin:
             raise _WackyControlFlow(theEvent, failure.Failure())
         self.lastEventAt = now
         return True
+
 
     def _getNextEvent(self, now):
         # o/` gonna party like it's 1984 o/`
@@ -119,9 +133,11 @@ class SchedulerMixin:
         x = list(self.store.query(TimedEvent, sort=TimedEvent.time.ascending, limit=1))
         if x:
             self._transientSchedule(x[0].time, now)
-        log.msg("The scheduler ran %(eventCount)s events%(errors)s." % dict(
-                eventCount=workUnitsPerformed,
-                errors=(errors and (" (with %d errors)" % (errors,))) or ''))
+        if errors or VERBOSE:
+            log.msg("The scheduler ran %(eventCount)s events%(errors)s." % dict(
+                    eventCount=workUnitsPerformed,
+                    errors=(errors and (" (with %d errors)" % (errors,))) or ''))
+
 
     def schedule(self, runnable, when):
         TimedEvent(store=self.store, time=when, runnable=runnable)
