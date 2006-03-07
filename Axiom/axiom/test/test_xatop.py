@@ -342,6 +342,10 @@ class ConcurrencyTestCase(unittest.TestCase):
 
         secondStore = store.Store(dbdir)
 
+        self.assertNotIdentical(firstStore, secondStore) # if this line starts
+                                                         # breaking, rewrite
+                                                         # this test.
+
         ConcurrentItemB(store=firstStore)
 
         self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)

@@ -5,7 +5,6 @@ hotfix.require('twisted', 'filepath_copyTo')
 
 import time
 import os
-import gc
 import itertools
 import warnings
 
@@ -506,6 +505,9 @@ class Store(Empowered):
         version information for upgrader service to run later.
         """
         for oid, module, typename, version in self.querySQL(_schema.ALL_TYPES):
+            if self.debug:
+                print
+                print 'SCHEMA:', oid, module, typename, version
             self.typenameAndVersionToID[typename, version] = oid
             if typename not in _typeNameToMostRecentClass:
                 try:
@@ -946,6 +948,15 @@ class Store(Empowered):
         if key in self.typenameAndVersionToID:
             return self.typenameAndVersionToID[key]
 
+        # We may need to create a table.  Although we don't have a memory of
+        # this table from the last time we called "_startup()", another process
+        # may have updated the schema since then.  Let's give it a chance to
+        # update the in-memory schema if it has changed on disk.
+        self._startup()
+
+        if key in self.typenameAndVersionToID:
+            return self.typenameAndVersionToID[key]
+
         sqlstr = []
         sqlarg = []
         indexes = []
@@ -968,17 +979,11 @@ class Store(Empowered):
         sqlstr.append(', '.join(sqlarg))
         sqlstr.append(')')
 
-        if not self.autocommit:
-            self._rollback()
-
         self.createSQL(''.join(sqlstr))
         for index in indexes:
             self.createSQL('CREATE INDEX axiomidx_%s_%s ON %s([%s])'
                            % (tableName, index,
                               tableName, index))
-
-        if not self.autocommit:
-            self._reexecute()
 
         typeID = self.executeSQL(_schema.CREATE_TYPE, [tableClass.typeName,
                                                        tableClass.__module__,
@@ -1096,13 +1101,7 @@ class Store(Empowered):
         """ For use with auto-committing statements such as CREATE TABLE or CREATE
         INDEX.
         """
-        try:
-            self._execSQL(sql, args)
-        except errors.SQLError, se:
-            if not str(se).endswith('already exists'):
-                warnings.warn(
-                    "(Probably harmless) error during table or index creation: "+str(se),
-                    errors.SQLWarning)
+        self._execSQL(sql, args)
 
     def _execSQL(self, sql, args):
         sql = self._normalizeSQL(sql)
@@ -1123,19 +1122,26 @@ class Store(Empowered):
             self.executedThisTransaction.append((result, sql, args))
         return result
 
-    def _reexecute(self):
-        assert self.executedThisTransaction is not None
-        self._begin()
-        for resultLastTime, sql, args in self.executedThisTransaction:
-            self._execSQL(sql, args)
-            resultThisTime = self.cursor.lastRowID()
-            if resultLastTime != resultThisTime:
-                raise errors.TableCreationConcurrencyError(
-                    "Expected to get %s as a result "
-                    "of %r:%r, got %s" % (
-                        resultLastTime,
-                        sql, args,
-                        resultThisTime))
+# This isn't actually useful any more.  It turns out that the pysqlite
+# documentation is confusingly worded; it's perfectly possible to create tables
+# within transactions, but PySQLite's automatic transaction management (which
+# we turn off) breaks that.  However, a function very much like it will be
+# useful for doing nested transactions without support from the database
+# itself, so I'm keeping it here commented out as an example.
+
+#     def _reexecute(self):
+#         assert self.executedThisTransaction is not None
+#         self._begin()
+#         for resultLastTime, sql, args in self.executedThisTransaction:
+#             self._execSQL(sql, args)
+#             resultThisTime = self.cursor.lastRowID()
+#             if resultLastTime != resultThisTime:
+#                 raise errors.TableCreationConcurrencyError(
+#                     "Expected to get %s as a result "
+#                     "of %r:%r, got %s" % (
+#                         resultLastTime,
+#                         sql, args,
+#                         resultThisTime))
 
 
 def timeinto(l, f, *a, **k):
