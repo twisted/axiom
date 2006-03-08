@@ -1,10 +1,16 @@
 
+import sys
+import os
+
 from twisted.trial import unittest
+from twisted.internet import protocol, defer
+from twisted.python.util import sibpath
 
 from epsilon import extime
 from axiom import attributes, item, store, errors
 
 from pysqlite2.dbapi2 import sqlite_version_info
+
 
 class StoreTests(unittest.TestCase):
     def testCreation(self):
@@ -326,6 +332,53 @@ class ConcurrentItemA(item.Item):
 class ConcurrentItemB(item.Item):
     anotherAttribute = attributes.integer()
 
+class ProcessConcurrencyTestCase(unittest.TestCase,
+                                 protocol.ProcessProtocol):
+
+    def spawn(self, *args):
+        self.d = defer.Deferred()
+        from twisted.internet import reactor
+        reactor.spawnProcess(
+            self,
+            sys.executable,
+            [sys.executable] + list(args),
+            os.environ)
+        return self.d
+
+    ok = 0
+
+    def outReceived(self, data):
+        if data == '1':
+            # step 1: create an item
+            cia = ConcurrentItemA(store=self.store,
+                                  anAttribute=u'aaa')
+            # then tell the subprocess to load it
+            self.transport.write(str(cia.storeID)+'\n')
+        elif data == '2':
+            # step 2: the subprocess has notified us that it has successfully
+            # completed
+            self.ok = 1
+
+    def errReceived(self, data):
+        # we should never *really* get anything to stdout
+        print data
+
+    def processEnded(self, reason):
+        # total correctness would have us checking the exit code too, but we
+        # got all the output we expected, so whatever.
+        if self.ok:
+            self.d.callback('OK')
+        else:
+            self.d.errback(reason)
+
+    def testNewItemTypeInSubprocess(self):
+        dbdir = self.mktemp()
+        self.store = store.Store(dbdir)
+        # Open the store and leave its schema empty (don't create any items)
+        # until the subprocess has opened it and loaded the bogus schema.
+        return self.spawn(sibpath(__file__, "openthenload.py"), dbdir)
+
+
 class ConcurrencyTestCase(unittest.TestCase):
     def testSchemaChange(self):
         """
@@ -365,3 +418,4 @@ class ConcurrencyTestCase(unittest.TestCase):
 
         ConcurrentItemA(store=firstStore)
         self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)
+
