@@ -79,6 +79,10 @@ class Attribute(object):
         self.name = attrname
         yield attrname
 
+    def __get__(self, oself, type=None):
+        assert oself is None, "%s: should be masked" % (self.name,)
+        return self
+
 _RAISE = object()
 class SetOnce(Attribute):
 
