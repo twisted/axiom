@@ -119,6 +119,9 @@ def storeServiceSpecialCase(st, pups):
     return collection
 
 
+def _typeIsTotallyUnknown(typename, version):
+    return ((typename not in _typeNameToMostRecentClass)
+            and ((typename, version) not in _legacyTypes))
 
 class BaseQuery:
 
@@ -1035,6 +1038,26 @@ class Store(Empowered):
             attrs = attrs[0]
             useMostRecent = False
             moreRecentAvailable = False
+
+            # The schema may have changed since the last time I saw the
+            # database.  Let's look to see if this is suspiciously broken...
+
+            if _typeIsTotallyUnknown(typename, version):
+                # Another process may have created it - let's re-up the schema
+                # and see what we get.
+                self._startup()
+
+                # OK, all the modules have been loaded now, everything
+                # verified.
+                if _typeIsTotallyUnknown(typename, version):
+
+                    # If there is STILL no inkling of it anywhere, we are
+                    # almost certainly boned.  Let's tell the user in a
+                    # structured way, at least.
+                    raise errors.SQLError(
+                        "cannot load unknown schema/version pair: %r %r - id: %r" %
+                        (typename, version, storeID))
+
             if typename in _typeNameToMostRecentClass:
                 moreRecentAvailable = True
                 mostRecent = _typeNameToMostRecentClass[typename]
