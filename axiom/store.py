@@ -159,7 +159,7 @@ class BaseQuery:
     def _sqlAndArgs(self, verb, subject):
         # SQL and arguments
         if self.comparison is not None:
-            where = 'WHERE '+self.comparison.getQuery()
+            where = 'WHERE '+self.comparison.getQuery(self.store)
             tables = self.comparison.getInvolvedTables()
             args = self.comparison.getArgs(self.store)
         else:
@@ -177,7 +177,7 @@ class BaseQuery:
             self.store.getTypeID(t) # getTypeID is what currently does table
                                     # creation / testing, but we don't actually
                                     # care about the result.
-        fromClause = ', '.join([table.getTableName() for table in tables])
+        fromClause = ', '.join([table.getTableName(self.store) for table in tables])
         limitClause = []
         if self.limit is not None:
             # XXX LIMIT and OFFSET used to be using ?, but they started
@@ -198,7 +198,7 @@ class BaseQuery:
             assert self.offset is None, 'Offset specified without limit'
         sqlstr = ' '.join([verb, subject,
                            'FROM', fromClause,
-                           where, self.sort.orderSQL(),
+                           where, self.sort.orderSQL(self.store),
                            ' '.join(limitClause)])
         return (sqlstr, args)
 
@@ -243,8 +243,13 @@ class _FakeItemForFilter:
 class ItemQuery(BaseQuery):
     def __init__(self, *a, **k):
         BaseQuery.__init__(self, *a, **k)
-        self._queryTarget = (self.tableClass.getTableName()+'.oid, ' +
-                             self.tableClass.getTableName()+'.*')
+        tc = self.tableClass
+        self._queryTarget = (
+            tc.getTableName(self.store) + '.oid, ' + (
+                ', '.join(
+                    [attrobj.getColumnName(self.store)
+                     for name, attrobj in self.tableClass.getSchema()
+                     ])))
 
     def _massageData(self, row):
         return self.store._loadedItem(self.tableClass, row[0], row[1:])
@@ -261,7 +266,7 @@ class ItemQuery(BaseQuery):
                               raw)
     def count(self):
         rslt = self._runQuery('SELECT',
-                              'COUNT(' + self.tableClass.getTableName() + '.oid'
+                              'COUNT(' + self.tableClass.getTableName(self.store) + '.oid'
                               + ')')
         assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
         return rslt[0][0] or 0
@@ -296,7 +301,7 @@ class AttributeQuery(BaseQuery):
                            offset, sort)
         self.attribute = attribute
         self.raw = raw
-        self._queryTarget = tableClass.getTableName() + '.' + attribute.columnName
+        self._queryTarget = attribute.getColumnName(self.store)
 
     # XXX: Each implementation of 'outfilter' needs to be changed to deal
     # with self being 'None' in these cases.  most of the ones we're likely
@@ -367,6 +372,9 @@ class Store(Empowered):
 
     storeID = -1                # I have a StoreID so that things can reference
                                 # me
+
+    databaseName = 'main'       # can differ if database is attached to another
+                                # database.
 
     dbdir = None # FilePath to the Axiom database directory, or None for
                  # in-memory Stores.
@@ -498,7 +506,7 @@ class Store(Empowered):
         # every single statement is a CREATE TABLE or a CREATE
         # INDEX and those commit transactions silently anyway.
         for stmt in _schema.BASE_SCHEMA:
-            self.executeSQL(stmt)
+            self.executeSchemaSQL(stmt)
 
 
     def _startup(self):
@@ -507,7 +515,7 @@ class Store(Empowered):
         classes in memory.  Load all Python modules for stored items, and load
         version information for upgrader service to run later.
         """
-        for oid, module, typename, version in self.querySQL(_schema.ALL_TYPES):
+        for oid, module, typename, version in self.querySchemaSQL(_schema.ALL_TYPES):
             if self.debug:
                 print
                 print 'SCHEMA:', oid, module, typename, version
@@ -667,15 +675,15 @@ class Store(Empowered):
                            storedAttribute.attrname)
                           for (name, storedAttribute) in actualType.getSchema()]
 
-        onDiskSchema = self.querySQL(_schema.IDENTIFYING_SCHEMA, [typeID])
+        onDiskSchema = self.querySchemaSQL(_schema.IDENTIFYING_SCHEMA, [typeID])
 
         if inMemorySchema != onDiskSchema:
             raise RuntimeError(
                 "Schema mismatch on already-loaded %r object version %d: %r != %r" %
                 (actualType.typeName, actualType.schemaVersion, onDiskSchema, inMemorySchema))
 
-        if self.querySQL(_schema.GET_TYPE_OF_VERSION,
-                      [typename, actualType.schemaVersion]):
+        if self.querySchemaSQL(_schema.GET_TYPE_OF_VERSION,
+                               [typename, actualType.schemaVersion]):
             raise RuntimeError(
                 "Greater versions of database %r objects in the DB than in memory" %
                 (typename,))
@@ -734,7 +742,7 @@ class Store(Empowered):
         Returns a 4-tuple suitable as args for dummyItemSubclass
         """
 
-        appropriateSchema = self.querySQL(_schema.SCHEMA_FOR_TYPE, [typeID])
+        appropriateSchema = self.querySchemaSQL(_schema.SCHEMA_FOR_TYPE, [typeID])
         # create actual attribute objects
         dummyAttributes = {}
         for indexed, pythontype, attribute, docstring in appropriateSchema:
@@ -965,7 +973,7 @@ class Store(Empowered):
         indexes = []
 
         # needs to be calculated including version
-        tableName = tableClass.getTableName()
+        tableName = tableClass.getTableName(self)
 
         sqlstr.append("CREATE TABLE %s (" % tableName)
 
@@ -974,7 +982,7 @@ class Store(Empowered):
             sqlarg.append("\n%s %s" %
                           (atr.columnName, atr.sqltype))
             if atr.indexed:
-                indexes.append(nam)
+                indexes.append(atr)
         if len(sqlarg) == 0:
             # XXX should be raised way earlier, in the class definition or something
             raise NoEmptyItems("%r did not define any attributes" % (tableClass,))
@@ -984,16 +992,20 @@ class Store(Empowered):
 
         self.createSQL(''.join(sqlstr))
         for index in indexes:
-            self.createSQL('CREATE INDEX axiomidx_%s_%s ON %s([%s])'
-                           % (tableName, index,
-                              tableName, index))
+            self.createSQL('CREATE INDEX %s ON %s(%s)' %
+                           (index.getIndexName(self),
+                            # _ZOMFG_ SQL is such a piece of _shit_: you can't
+                            # fully qualify the table name here because the
+                            # _INDEX_ is fully qualified!
+                            '.'.join(tableClass.getTableName(self).split(".")[1:]),
+                            index.columnName))
 
-        typeID = self.executeSQL(_schema.CREATE_TYPE, [tableClass.typeName,
-                                                       tableClass.__module__,
-                                                       tableClass.schemaVersion])
+        typeID = self.executeSchemaSQL(_schema.CREATE_TYPE, [tableClass.typeName,
+                                                             tableClass.__module__,
+                                                             tableClass.schemaVersion])
 
         for n, (name, storedAttribute) in enumerate(tableClass.getSchema()):
-            self.executeSQL(
+            self.executeSchemaSQL(
                 _schema.ADD_SCHEMA_ATTRIBUTE,
                 [typeID, n, storedAttribute.indexed, storedAttribute.sqltype,
                  storedAttribute.allowNone, storedAttribute.attrname,
@@ -1011,7 +1023,7 @@ class Store(Empowered):
     def getTableQuery(self, typename, version):
         if typename not in self.tableQueries:
             query = 'SELECT * FROM %s WHERE oid = ?' % (
-                TABLE_NAME(typename, version), )
+                TABLE_NAME(self, typename, version), )
             self.tableQueries[typename, version] = query
         return self.tableQueries[typename, version]
 
@@ -1025,7 +1037,7 @@ class Store(Empowered):
             return self
         if self.objectCache.has(storeID):
             return self.objectCache.get(storeID)
-        results = self.querySQL(_schema.TYPEOF_QUERY, [storeID])
+        results = self.querySchemaSQL(_schema.TYPEOF_QUERY, [storeID])
         assert (len(results) in [1, 0]),\
             "Database panic: more than one result for TYPEOF!"
         if results:
@@ -1099,6 +1111,9 @@ class Store(Empowered):
             self.statementCache[sql] = normsql
         return self.statementCache[sql]
 
+    def querySchemaSQL(self, sql, args=()):
+        sql = sql.replace("*DATABASE*", self.databaseName)
+        return self.querySQL(sql, args)
 
     def querySQL(self, sql, args=()):
         """For use with SELECT (or SELECT-like PRAGMA) statements.
@@ -1134,6 +1149,10 @@ class Store(Empowered):
             rows = self._queryandfetch(sql, args)
         assert not rows
         return sql
+
+    def executeSchemaSQL(self, sql, args=()):
+        sql = sql.replace("*DATABASE*", self.databaseName)
+        return self.executeSQL(sql, args)
 
     def executeSQL(self, sql, args=()):
         """

@@ -273,7 +273,7 @@ class QueryingTestCase(TestCase):
         # at least the args are right, and it does grant some coverage, so I'm
         # leaving them in for now)
 
-        # self.assertEquals(query.getQuery(), sql)
+        # self.assertEquals(query.getQuery(self.store), sql)
         self.assertEquals([str(a) for a in query.getArgs(self.store)], args)
 
 
@@ -343,17 +343,17 @@ class SetMembershipQuery(QueryingTestCase):
 class WildcardQueries(QueryingTestCase):
     def testNoConditions(self):
         self.assertRaises(ValueError, D.one.like)
-        self.assertRaises(ValueError, D.one.not_like)
+        self.assertRaises(ValueError, D.one.notLike)
 
     def testOneString(self):
         self.assertQuery(
             D.one.like('foobar%'),
             '(item_d_v1.one LIKE (?))', ['foobar%'])
         self.assertQuery(
-            D.one.not_like('foobar%'),
+            D.one.notLike('foobar%'),
             '(item_d_v1.one NOT LIKE (?))', ['foobar%'])
         self.assertEquals(self.query(D, D.one.like('d1.one')), [self.d1])
-        self.assertEquals(self.query(D, D.one.not_like('d%.one')), [])
+        self.assertEquals(self.query(D, D.one.notLike('d%.one')), [])
 
     def testOneColumn(self):
         self.assertQuery(

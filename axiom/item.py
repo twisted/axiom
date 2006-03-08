@@ -72,8 +72,11 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         _typeNameToMostRecentClass[T.typeName] = T
         return T
 
-def TABLE_NAME(typename, version):
-    return "item_%s_v%d" % (typename, version)
+def TABLE_NAME(st, typename, version):
+    return "%s.item_%s_v%d" % (st.databaseName, typename, version)
+
+def INDEX_NAME(st, typename, version, attrname):
+    return "%s.axiomidx_%s_v%d_%s" % (st.databaseName, typename, version, attrname)
 
 def noop():
     pass
@@ -86,6 +89,9 @@ class _StoreIDComparer(Comparable):
 
     def __init__(self, type):
         self.type = type
+
+    def getColumnName(self, st):
+        return self.type.getTableName(st) + '.oid'
 
     # attributes required by ColumnComparer
     def infilter(self, pyval, oself, store):
@@ -213,9 +219,10 @@ class Empowered(object):
         Returns powerups installed using C{powerUp}, in order of descending
         priority.
         """
+        name = unicode(qual(interface), 'ascii')
         for cable in self.store.query(
             _PowerupConnector,
-            AND(_PowerupConnector.interface == unicode(qual(interface)),
+            AND(_PowerupConnector.interface == name,
                 _PowerupConnector.item == self),
             sort=_PowerupConnector.priority.descending):
             yield cable.powerup
@@ -269,7 +276,7 @@ class Item(Empowered, slotmachine._Strict):
                 atr.prepareInsert(self, store)
             self.__store = store
             # make damn sure all of our references point to this store:
-            oid = self.storeID = self.store.executeSQL(
+            oid = self.storeID = self.store.executeSchemaSQL(
                 _schema.CREATE_OBJECT, [self.store.getTypeID(type(self))])
             store.objectCache.cache(oid, self)
             if store.autocommit:
@@ -384,6 +391,7 @@ class Item(Empowered, slotmachine._Strict):
         return all persistent class attributes
         """
         for name, atr in cls.__attributes__:
+            atr = atr.__get__(None, cls)
             if isinstance(atr, SQLAttribute):
                 yield (name, atr)
 
@@ -444,20 +452,20 @@ class Item(Empowered, slotmachine._Strict):
             raise NotInStore("You can't checkpoint %r: not in a store" % (self,))
 
         if self.__deleting:
-            self.store.executeSQL(self._baseDeleteSQL(), [self.storeID])
+            self.store.executeSQL(self._baseDeleteSQL(self.store), [self.storeID])
             # re-using OIDs plays havoc with the cache, and with other things
             # as well.  We need to make sure that we leave a placeholder row at
             # the end of the table.
             if self.__deletingObject:
                 # Mark this object as dead.
-                self.store.executeSQL(_schema.CHANGE_TYPE, [self.storeID, -1])
+                self.store.executeSchemaSQL(_schema.CHANGE_TYPE, [self.storeID, -1])
 
                 # Can't do this any more:
-                # self.store.executeSQL(_schema.DELETE_OBJECT, [self.storeID])
+                # self.store.executeSchemaSQL(_schema.DELETE_OBJECT, [self.storeID])
 
                 # TODO: need to measure the performance impact of this, then do
                 # it to make sure things are in fact deleted:
-                # self.store.executeSQL(_schema.APP_VACUUM)
+                # self.store.executeSchemaSQL(_schema.APP_VACUUM)
             else:
                 assert self.__legacy__
 
@@ -481,7 +489,7 @@ class Item(Empowered, slotmachine._Strict):
                 insertArgs.append(attributeValue)
 
             # XXX this isn't atomic, gross.
-            self.store.executeSQL(self._baseInsertSQL(), insertArgs)
+            self.store.executeSQL(self._baseInsertSQL(self.store), insertArgs)
             self.__everInserted = True
         # In case 1, we're dirty but we did an update, synchronizing the
         # database, in case 2, we haven't been created but we issue an insert.
@@ -529,8 +537,8 @@ class Item(Empowered, slotmachine._Strict):
         if not new.__legacy__:
             self.store.objectCache.cache(self.storeID, new)
 
-        self.store.executeSQL(_schema.CHANGE_TYPE,
-                              [newTypeID, self.storeID])
+        self.store.executeSchemaSQL(_schema.CHANGE_TYPE,
+                                    [newTypeID, self.storeID])
         self.deleteFromStore(False)
         return new
 
@@ -548,32 +556,38 @@ class Item(Empowered, slotmachine._Strict):
 
     ###### SQL generation ######
 
-    def getTableName(cls):
-        return TABLE_NAME(cls.typeName, cls.schemaVersion)
+    def getTableName(cls, st):
+        return TABLE_NAME(st, cls.typeName, cls.schemaVersion)
 
     getTableName = classmethod(getTableName)
 
+    def indexNameOf(cls, st, atr):
+        return INDEX_NAME(st, cls.typeName, cls.schemaVersion, atr.attrname)
+
+    indexNameOf = classmethod(indexNameOf)
+
     _cachedInsertSQL = None
 
-    def _baseInsertSQL(cls):
+    def _baseInsertSQL(cls, st):
         if cls._cachedInsertSQL is None:
             attrs = list(cls.getSchema())
             qs = ', '.join((['?']*(len(attrs)+1)))
-            cls._cachedInsertSQL = ('INSERT INTO '+
-             cls.getTableName()+' (' + ', '.join(
+            cls._cachedInsertSQL = (
+                'INSERT INTO '+
+                cls.getTableName(st) + ' (' + ', '.join(
                     ['oid'] +
                     [a[1].columnName for a in attrs]) +
-             ') VALUES (' + qs + ')')
+                ') VALUES (' + qs + ')')
         return cls._cachedInsertSQL
 
     _baseInsertSQL = classmethod(_baseInsertSQL)
 
     _cachedDeleteSQL = None
 
-    def _baseDeleteSQL(cls):
+    def _baseDeleteSQL(cls, st):
          if cls._cachedDeleteSQL is None:
             stmt = ' '.join(['DELETE FROM',
-                             cls.getTableName(),
+                             cls.getTableName(st),
                              'WHERE oid = ? '
                              ])
             return stmt
@@ -594,7 +608,7 @@ class Item(Empowered, slotmachine._Strict):
             dirtyColumns.append(dirtyAttribute.columnName)
             dirtyValues.append(dirtyValue)
         stmt = ' '.join([
-            'UPDATE', self.getTableName(), 'SET',
+            'UPDATE', self.getTableName(self.store), 'SET',
              ', '.join(['%s = ?'] * len(dirty)) %
               tuple(dirtyColumns),
               'WHERE oid = ?'])

@@ -1,4 +1,4 @@
-# -*- test-case-name: axiom.test -*-
+# -*- test-case-name: axiom.test.test_attributes -*-
 
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
@@ -36,28 +36,19 @@ class Comparable:
         a = []
         tables = [self.type]
         if isinstance(other, Comparable):
-            sql = ('(%s.%s %s %s.%s)' % (self.type.getTableName(),
-                                         self.columnName,
-                                         sqlop,
-                                         other.type.getTableName(),
-                                         other.columnName))
-            tables.append(other.type)
+            return TwoAttributeComparison(self, sqlop, other)
         elif other is None:
-            col = (self.type.getTableName(), self.columnName)
             if sqlop == '=':
-                sql = '%s.%s IS NULL' % col
+                negate = False
             elif sqlop == '!=':
-                sql = '%s.%s NOT NULL' % col
+                negate = True
             else:
                 raise TypeError(
                     "None/NULL does not work with %s comparison" % (sqlop,))
+            return NullComparison(self, negate)
         else:
             # convert to constant usable in the database
-            sql = ('(%s.%s %s ?)' % (self.type.getTableName(),
-                                     self.columnName,
-                                     sqlop))
-            a.append(other)
-        return AttributeComparison(sql, a, tables, self)
+            return AttributeValueComparison(self, sqlop, other)
 
     def oneOf(self, seq, negate=False):
         """
@@ -67,15 +58,7 @@ class Comparable:
 
         Implemented with the SQL 'in' statement.
         """
-        nseq = list(seq)
-        return AttributeComparison(('%s.%s %sIN (%s)' % (
-                    self.type.getTableName(),
-                    self.columnName,
-                    negate and 'NOT ' or '',
-                    ', '.join(['?'] * len(nseq)))),
-                                   nseq,
-                                   [self.type],
-                                   self)
+        return SequenceComparison(self, list(seq), negate)
 
     def notOneOf(self, seq):
         return self.oneOf(seq, negate=True)
@@ -105,48 +88,37 @@ class Comparable:
 
 
     _likeOperators = ('LIKE', 'NOT LIKE')
-    def _like(self, op, *others):
-        if op.upper() not in self._likeOperators:
-            raise ValueError, 'LIKE-style operators are: %r' % (self._likeOperators,)
+    def _like(self, negate, *others):
         if not others:
             raise ValueError, 'Must pass at least one expression to _like'
 
-        sqlParts = []
-        sqlArgs = []
-
-        tables = [self.type]
+        likeParts = []
 
         for other in others:
             if isinstance(other, Comparable):
-                sqlParts.append('%s.%s' % (other.type.getTableName(),
-                                           other.columnName))
-                tables.append(other.type)
+                likeParts.append(LikeColumn(other))
             elif other is None:
                 # LIKE NULL is a silly condition, but it's allowed.
-                sqlParts.append('NULL')
+                likeParts.append(LikeNull())
             else:
-                sqlParts.append('?')
-                sqlArgs.append(other)
+                likeParts.append(LikeValue(other))
 
-        sql = '(%s.%s %s (%s))' % (self.type.getTableName(),
-                                   self.columnName,
-                                   op, ' || '.join(sqlParts))
-        return AttributeComparison(sql, sqlArgs, tables, self)
+        return LikeComparison(self, negate, likeParts)
 
     def like(self, *others):
-        return self._like('LIKE', *others)
+        return self._like(False, *others)
 
 
-    def not_like(self, *others):
-        return self._like('NOT LIKE', *others)
+    def notLike(self, *others):
+        return self._like(True, *others)
 
 
     def startswith(self, other):
-        return self._like('LIKE', other, '%')
+        return self._like(False, other, '%')
 
 
     def endswith(self, other):
-        return self._like('LIKE', '%', other)
+        return self._like(False, '%', other)
 
 
     # XXX TODO: improve error reporting
@@ -182,19 +154,18 @@ class SimpleOrdering:
         self.attribute = attribute
         self.direction = direction
 
-    def columnAndDirection(self):
+    def columnAndDirection(self, store):
         """
         'Internal' API.  Called by CompoundOrdering.
         """
-        return '%s.%s %s' % (self.attribute.type.getTableName(),
-                             self.attribute.columnName,
-                             self.direction)
+        return '%s %s' % (self.attribute.getColumnName(store),
+                          self.direction)
 
-    def orderSQL(self):
+    def orderSQL(self, store):
         """
         'External' API.  Called by Query objects in store.py.
         """
-        return 'ORDER BY ' + self.columnAndDirection()
+        return 'ORDER BY ' + self.columnAndDirection(store)
 
     def __add__(self, other):
         if isinstance(other, SimpleOrdering):
@@ -252,8 +223,8 @@ class CompoundOrdering:
         else:
             return NotImplemented
 
-    def orderSQL(self):
-        return 'ORDER BY ' + (', '.join([o.columnAndDirection() for o in self.simpleOrderings]))
+    def orderSQL(self, store):
+        return 'ORDER BY ' + (', '.join([o.columnAndDirection(store) for o in self.simpleOrderings]))
 
 class UnspecifiedOrdering:
     implements(IOrdering)
@@ -266,7 +237,7 @@ class UnspecifiedOrdering:
 
     __radd__ = __add__
 
-    def orderSQL(self):
+    def orderSQL(self, store):
         return ''
 
 
@@ -297,6 +268,12 @@ class SQLAttribute(inmemory, Comparable):
         if default is not None and defaultFactory is not None:
             raise ValueError("You may specify only one of default "
                              "or defaultFactory, not both")
+
+    def getColumnName(self, st):
+        return self.type.getTableName(st) + '.' + self.columnName
+
+    def getIndexName(self, st):
+        return self.type.indexNameOf(st, self)
 
     def computeDefault(self):
         if self.defaultFactory is not None:
@@ -423,32 +400,133 @@ class SQLAttribute(inmemory, Comparable):
             oself.checkpoint()
 
 
-class AttributeComparison:
-    """
-    A comparison of one attribute with another in-database attribute or with a
-    Python value.
-    """
-
+class TwoAttributeComparison:
     implements(IComparison)
-
-    def __init__(self,
-                 sqlString,
-                 sqlArguments,
-                 involvedTableClasses,
-                 leftAttribute):
-        self.sqlString = sqlString
-        self.sqlArguments = sqlArguments
-        self.involvedTableClasses = involvedTableClasses
+    def __init__(self, leftAttribute, operationString, rightAttribute):
         self.leftAttribute = leftAttribute
+        self.operationString = operationString
+        self.rightAttribute = rightAttribute
 
-    def getQuery(self):
-        return self.sqlString
-
-    def getArgs(self, store):
-        return [self.leftAttribute.infilter(arg, None, store) for arg in self.sqlArguments]
+    def getQuery(self, store):
+        sql = ('(%s %s %s)' % (self.leftAttribute.getColumnName(store),
+                               self.operationString,
+                               self.rightAttribute.getColumnName(store)))
+        return sql
 
     def getInvolvedTables(self):
-        return set(self.involvedTableClasses)
+        return set([self.leftAttribute.type, self.rightAttribute.type])
+
+    def getArgs(self, store):
+        return []
+
+
+class AttributeValueComparison:
+    implements(IComparison)
+    def __init__(self, attribute, operationString, value):
+        self.attribute = attribute
+        self.operationString = operationString
+        self.value = value
+
+    def getQuery(self, store):
+        return ('(%s %s ?)' % (self.attribute.getColumnName(store),
+                               self.operationString))
+
+    def getArgs(self, store):
+        return [self.attribute.infilter(self.value, None, store)]
+
+    def getInvolvedTables(self):
+        return set([self.attribute.type])
+
+class NullComparison:
+    implements(IComparison)
+    def __init__(self, attribute, negate=False):
+        self.attribute = attribute
+        self.negate = negate
+
+    def getQuery(self, store):
+        if self.negate:
+            op = 'NOT'
+        else:
+            op = 'IS'
+        return ('(%s %s NULL)' % (self.attribute.getColumnName(store),
+                                  op))
+
+    def getArgs(self, store):
+        return []
+
+    def getInvolvedTables(self):
+        return set([self.attribute.type])
+
+class LikeFragment:
+    def getLikeArgs(self):
+        return []
+
+    def getLikeQuery(self, st):
+        raise NotImplementedError()
+
+    def getLikeTables(self):
+        return []
+
+class LikeNull(LikeFragment):
+    def getLikeQuery(self, st):
+        return "NULL"
+
+class LikeValue(LikeFragment):
+    def __init__(self, value):
+        self.value = value
+
+    def getLikeQuery(self, st):
+        return "?"
+
+    def getLikeArgs(self):
+        return [self.value]
+
+class LikeColumn(LikeFragment):
+    def __init__(self, attribute):
+        self.attribute = attribute
+
+    def getLikeQuery(self, st):
+        return self.attribute.getColumnName(st)
+
+    def getLikeTables(self):
+        return [self.attribute.type]
+
+
+class LikeComparison:
+    implements(IComparison)
+    # Not AggregateComparison or AttributeValueComparison because there is a
+    # different, optimized syntax for 'or'.  WTF is wrong with you, SQL??
+
+    def __init__(self, attribute, negate, likeParts):
+        self.negate = negate
+        self.attribute = attribute
+        self.likeParts = likeParts
+
+    def getInvolvedTables(self):
+        tbls = set()
+        for lf in self.likeParts:
+            tbls.update(lf.getLikeTables())
+        return tbls
+
+    def getQuery(self, store):
+        if self.negate:
+            op = 'NOT LIKE'
+        else:
+            op = 'LIKE'
+        sqlParts = [lf.getLikeQuery(store) for lf in self.likeParts]
+        sql = '(%s %s (%s))' % (self.attribute.getColumnName(store),
+                                op, ' || '.join(sqlParts))
+        return sql
+
+    def getArgs(self, store):
+        l = []
+        for lf in self.likeParts:
+            for pyval in lf.getLikeArgs():
+                l.append(
+                    self.attribute.infilter(
+                        pyval, None, store))
+        return l
+
 
 
 class AggregateComparison:
@@ -469,10 +547,10 @@ class AggregateComparison:
             raise ValueError, ('%s condition requires at least one argument'
                                % self.operator)
 
-    def getQuery(self):
+    def getQuery(self, store):
         oper = ' %s ' % self.operator
         return '(%s)' % oper.join(
-            [condition.getQuery() for condition in self.conditions])
+            [condition.getQuery(store) for condition in self.conditions])
 
     def getArgs(self, store):
         args = []
@@ -491,6 +569,24 @@ class AggregateComparison:
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__,
                            ', '.join(map(repr, self.conditions)))
+
+class SequenceComparison:
+    def __init__(self, attribute, seq, negate):
+        self.attribute = attribute
+        self.seq = seq
+        self.negate = negate
+
+    def getQuery(self, store):
+        return '%s %sIN (%s)' % (
+            self.attribute.getColumnName(store),
+            self.negate and 'NOT ' or '',
+            ', '.join(['?'] * len(self.seq)))
+
+    def getArgs(self, store):
+        return [self.attribute.infilter(pyval, None, store) for pyval in self.seq]
+
+    def getInvolvedTables(self):
+        return set([self.attribute.type])
 
 class AND(AggregateComparison):
     """
