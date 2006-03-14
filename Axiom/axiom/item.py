@@ -3,7 +3,7 @@ __metaclass__ = type
 
 from inspect import getabsfile
 
-from twisted.python.reflect import qual
+from twisted.python.reflect import qual, namedAny
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema
@@ -226,6 +226,13 @@ class Empowered(object):
                 _PowerupConnector.item == self),
             sort=_PowerupConnector.priority.descending):
             yield cable.powerup
+
+    def interfacesFor(self, powerup):
+        pc = _PowerupConnector
+        for iface in self.store.query(pc,
+                                      AND(pc.item == self,
+                                          pc.powerup == powerup)).getColumn('interface'):
+            yield namedAny(iface)
 
 def transacted(callable):
     def _(item, *a, **kw):
