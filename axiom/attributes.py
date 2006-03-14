@@ -437,6 +437,11 @@ class AttributeValueComparison:
     def getInvolvedTables(self):
         return set([self.attribute.type])
 
+    def __repr__(self):
+        return ' '.join((self.attribute.fullyQualifiedName(),
+                         self.operationString,
+                         repr(self.value)))
+
 class NullComparison:
     implements(IComparison)
     def __init__(self, attribute, negate=False):
