@@ -25,7 +25,8 @@ _NEEDS_FETCH = object()         # token indicating that a value was not found
 __metaclass__ = type
 
 class Comparable:
-    """ Helper for a thing that can be compared like an SQLAttribute (or is in fact
+    """
+    Helper for a thing that can be compared like an SQLAttribute (or is in fact
     an SQLAttribute).  Requires that 'self' have 'type' (Item-subclass) and
     'columnName' (str) attributes, as well as an 'infilter' method in the
     spirit of SQLAttribute, documented below.
@@ -280,6 +281,9 @@ class SQLAttribute(inmemory, Comparable):
             return self.defaultFactory()
         return self.default
 
+    def reprFor(self, oself):
+        return repr(self.__get__(oself))
+
 
     def prepareInsert(self, oself, store):
         """
@@ -334,14 +338,25 @@ class SQLAttribute(inmemory, Comparable):
                          self.classname,
                          self.attrname])
 
-    type = None
+    def __repr__(self):
+        return '<%s %s>' % ( self.__class__.__name__, self.fullyQualifiedName())
+
+    def type():
+        def get(self):
+            if self._type is None:
+                from twisted.python.reflect import namedAny
+                self._type = namedAny(self.modname+'.'+self.classname)
+            return self._type
+        return get,
+    _type = None
+    type = property(*type())
 
     def __get__(self, oself, type=None):
         if type is not None and oself is None:
-            if self.type is not None:
-                assert self.type == type
+            if self._type is not None:
+                assert self._type == type
             else:
-                self.type = type
+                self._type = type
             return self
 
         pyval = getattr(oself, self.underlying, _NEEDS_FETCH)
@@ -813,14 +828,54 @@ class timestamp(integer):
             return None
         return Time.fromPOSIXTimestamp(dbval / MICRO)
 
-class reference(integer):
-    def __init__(self, doc='', indexed=True, allowNone=True, reftype=None):
-        integer.__init__(self, doc, indexed, None, allowNone)
-        self.reftype = reftype
+_cascadingDeletes = {}
 
+class reference(integer):
+    NULLIFY = object()
+    DISALLOW = object()
+    CASCADE = object()
+
+    def __init__(self, doc='', indexed=True, allowNone=True, reftype=None,
+                 whenDeleted=NULLIFY):
+        integer.__init__(self, doc, indexed, None, allowNone)
+        assert whenDeleted in (reference.NULLIFY,
+                               reference.CASCADE,
+                               reference.DISALLOW),(
+            "whenDeleted must be one of: "
+            "reference.NULLIFY, reference.CASCADE, reference.DISALLOW")
+        self.reftype = reftype
+        self.whenDeleted = whenDeleted
+        if whenDeleted is reference.CASCADE:
+            # Note; this list is technically in a slightly inconsistent state
+            # as things are being built.
+            _cascadingDeletes.setdefault(reftype, []).append(self)
+
+    def reprFor(self, oself):
+        sid = getattr(oself, self.dbunderlying, None)
+        if sid is None:
+            return 'None'
+        return 'reference(%d)' % (sid,)
+
+    def __get__(self, oself, type=None):
+        rv = super(reference, self).__get__(oself, type)
+        if rv is self:
+            # If it's an attr lookup on the class, just do that.
+            return self
+        if rv is None:
+            return rv
+        if not rv._currentlyValidAsReferentFor(oself.store):
+            # Make sure it's currently valid, i.e. it's not going to be deleted
+            # this transaction or it hasn't been deleted.
+
+            # XXX TODO: drop cached in-memory referent if it's been deleted /
+            # no longer valid.
+            assert self.whenDeleted is reference.NULLIFY, (
+                "not sure what to do if not...")
+            return None
+        return rv
 
     def prepareInsert(self, oself, store):
-        oitem = self.__get__(oself)
+        oitem = super(reference, self).__get__(oself) # bypass NULLIFY
         if oitem is not None and oitem.store is not store:
             raise NoCrossStoreReferences(
                 "Trying to insert item: %r into store: %r, "
