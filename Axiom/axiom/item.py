@@ -9,7 +9,7 @@ from twisted.application.service import IService, IServiceCollection, MultiServi
 from axiom import slotmachine, _schema
 
 from axiom.attributes import SQLAttribute, Comparable, inmemory, \
-    reference, text, integer, AND
+    reference, text, integer, AND, _cascadingDeletes
 
 _typeNameToMostRecentClass = {}
 
@@ -272,6 +272,19 @@ class Item(Empowered, slotmachine._Strict):
     storeID = _SpecialStoreIDAttribute(default=None)
     service = inmemory()
 
+    def _currentlyValidAsReferentFor(self, store):
+        """
+        Is this object currently valid as a reference?  Objects which will be
+        deleted in this transaction, or objects which are not in the same store
+        are not valid.  See attributes.reference.__get__.
+        """
+        if self.store is not store:
+            return False
+        if self.__deletingObject:
+            return False
+        return True
+    # return (self.store is store and not self.__deletingObject)
+
     def store():
         def get(self):
             return self.__store
@@ -304,25 +317,24 @@ class Item(Empowered, slotmachine._Strict):
 
 # XXX: Think about how to do this _safely_ (e.g. not recursing infinitely
 # through circular references) before turning it on
-#     def __repr__(self):
-#         L = [self.__name__]
-#         L.append('(')
-#         A = []
-#         for nam, atr in self.getSchema():
-#             try:
-#                 val = atr.__get__(self)
-#                 V = (repr(val))
-#             except:
-#                 import traceback
-#                 import sys
-#                 traceback.print_exc(file=sys.stdout)
-#                 V = "<error>"
-#             A.append('%s=%s' % (nam, V))
-#         A.append('storeID=' + str(self.storeID))
-#         L.append(', '.join(A))
-#         L.append(')')
-#         L.append('@' + str(id(self)))
-#         return ''.join(L)
+    def __repr__(self):
+        L = [self.__name__]
+        L.append('(')
+        A = []
+        for nam, atr in self.getSchema():
+            try:
+                V = atr.reprFor(self)
+            except:
+                import traceback
+                import sys
+                traceback.print_exc(file=sys.stdout)
+                V = "<error>"
+            A.append('%s=%s' % (nam, V))
+        A.append('storeID=' + str(self.storeID))
+        L.append(', '.join(A))
+        L.append(')')
+        L.append('@' + str(id(self)))
+        return ''.join(L)
 
 
     def __subinit__(self, **kw):
@@ -458,6 +470,7 @@ class Item(Empowered, slotmachine._Strict):
         if self.store is None:
             raise NotInStore("You can't checkpoint %r: not in a store" % (self,))
 
+
         if self.__deleting:
             self.store.executeSQL(self._baseDeleteSQL(self.store), [self.storeID])
             # re-using OIDs plays havoc with the cache, and with other things
@@ -473,6 +486,11 @@ class Item(Empowered, slotmachine._Strict):
                 # TODO: need to measure the performance impact of this, then do
                 # it to make sure things are in fact deleted:
                 # self.store.executeSchemaSQL(_schema.APP_VACUUM)
+
+                # we're done...
+                if self.store.autocommit:
+                    self.committed()
+                return
             else:
                 assert self.__legacy__
 
@@ -549,13 +567,28 @@ class Item(Empowered, slotmachine._Strict):
         self.deleteFromStore(False)
         return new
 
+    def dependentItems(self):
+        for cascadingAttr in (_cascadingDeletes.get(self.__class__, []) +
+                              _cascadingDeletes.get(None, [])):
+            for cascadedItem in self.store.query(cascadingAttr.type,
+                                                 cascadingAttr == self):
+                yield cascadedItem
+
+
     def deleteFromStore(self, deleteObject=True):
+        # go grab dependent stuff
+        if deleteObject:
+            for dependent in self.dependentItems():
+                dependent.deleteFromStore()
+
         self.touch()
+
         self.__deleting = True
         self.__deletingObject = deleteObject
 
         if self.store.autocommit:
             self.checkpoint()
+
 
     # You may specify schemaVersion and typeName in subclasses
     schemaVersion = None

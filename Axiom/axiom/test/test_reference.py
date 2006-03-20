@@ -1,3 +1,5 @@
+import gc
+
 from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
@@ -10,20 +12,21 @@ class Referee(Item):
 
     topSecret = integer()
 
+class _Referent(Item):
+    schemaVersion = 1
+
+    ref = reference(whenDeleted=reference.CASCADE)
+
 class SimpleReferent(Item):
     schemaVersion = 1
     typeName = "test_reference_referent"
 
     ref = reference()
 
-class SomeException(Exception):
-    pass
-
-class AnotherException(SomeException):
-    pass
+class DependentReferent(Item):
+    ref = reference(whenDeleted=reference.CASCADE)
 
 class BadReferenceTestCase(TestCase):
-    exceptions = (SomeException, AnotherException, ZeroDivisionError, ValueError)
     ntimes = 10
 
     def testSanity(self):
@@ -36,45 +39,51 @@ class BadReferenceTestCase(TestCase):
             referee.deleteFromStore()
             referent.deleteFromStore()
 
-    def _makeReferentItem(self, whenDeleted, unique):
-        class _Referent(Item):
-            schemaVersion = 1
-            typeName = "test_reference_referent_%r" % unique
-
-            ref = reference(whenDeleted=whenDeleted)
-
-        return _Referent
-
-    def testBadReferenceRaises(self):
-        store = Store()
-        for (i, exc) in enumerate(self.exceptions):
-            MyReferent = self._makeReferentItem(exc, i)
-            referee = Referee(store=store)
-            referent = MyReferent(store=store, ref=referee)
-            referee.deleteFromStore()
-            del referee
-
-            (referent,) = list(store.query(MyReferent))
-            self.assertRaises(exc, lambda: referent.ref)
-            referent.deleteFromStore()
-
     def testBadReferenceNone(self):
         store = Store()
         referee = Referee(store=store, topSecret=0)
-        MyReferent = self._makeReferentItem(None, None)
-        referent = MyReferent(store=store, ref=referee)
+        referent = SimpleReferent(store=store, ref=referee)
         referee.deleteFromStore()
-        del referee
 
-        (referent,) = list(store.query(MyReferent))
+        referee = None
+        gc.collect()
+
+        (referent,) = list(store.query(SimpleReferent))
         self.assertEqual(referent.ref, None)
 
-    testBadReferenceRaises.todo = testBadReferenceNone.todo = 'No behavior yet defined for bad references'
+    def testBadReferenceNoneRevert(self):
+        store = Store()
+        referee = Referee(store=store, topSecret=0)
+        referent = SimpleReferent(store=store, ref=referee)
+        def txn():
+            referee.deleteFromStore()
+            self.assertEqual(referent.ref, None)
+            1 / 0
+        self.assertRaises(ZeroDivisionError, store.transact, txn)
+        self.assertEqual(referent.ref, referee)
+
+        referent = None
+        referee = None
+        gc.collect()
+
+        referent = store.findUnique(SimpleReferent)
+        referee = store.findUnique(Referee)
+        self.assertEqual(referent.ref, referee)
 
     def testReferenceQuery(self):
-        from axiom.test import oldapp
         store = Store()
-        oldapp.Sword(store=store)
-        list(store.query(oldapp.Sword, oldapp.Player.sword == oldapp.Sword.storeID))
+        referee = Referee(store=store, topSecret=0)
+        self.assertEqual(
+            list(store.query(SimpleReferent,
+                             SimpleReferent.ref == Referee.storeID)),
+            [])
 
-    testReferenceQuery.todo = 'No behaviour yet defined for querying unfulfilled references'
+    def testReferenceDeletion(self):
+        store = Store()
+        referee = Referee(store=store, topSecret=0)
+        dep = DependentReferent(store=store,
+                                ref=referee)
+        sid = dep.storeID
+        self.assertIdentical(store.getItemByID(sid), dep) # sanity
+        referee.deleteFromStore()
+        self.assertRaises(KeyError, store.getItemByID, sid)

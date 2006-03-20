@@ -23,12 +23,15 @@ from epsilon.cooperator import SchedulingService
 
 from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
 
-USING_APSW = attributes.USING_APSW
-
-if USING_APSW:
-    from axiom._apsw import Connection
+# Doing this in a slightly awkward way so Pyflakes won't complain; it really
+# doesn't like conditional imports.
+if attributes.USING_APSW:
+    backendName = 'axiom._apsw.Connection'
 else:
-    from axiom._pysqlite2 import Connection
+    backendName = 'axiom._pysqlite2.Connection'
+
+Connection = namedAny(backendName)
+
 
 from axiom.item import \
     _typeNameToMostRecentClass, dummyItemSubclass,\
@@ -265,9 +268,11 @@ class ItemQuery(BaseQuery):
                               attr,
                               raw)
     def count(self):
-        rslt = self._runQuery('SELECT',
-                              'COUNT(' + self.tableClass.getTableName(self.store) + '.oid'
-                              + ')')
+        self.store.getTypeID(self.tableClass)
+        rslt = self._runQuery(
+            'SELECT',
+            'COUNT(' + self.tableClass.getTableName(self.store) + '.oid'
+            + ')')
         assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
         return rslt[0][0] or 0
 
@@ -323,13 +328,14 @@ class AttributeQuery(BaseQuery):
         return rslt[0][0]
 
     def max(self, default=_noDefault):
-        return self.minmax('MAX', default)
+        return self._functionOnTarget('MAX', default)
 
     def min(self, default=_noDefault):
-        return self.minmax('MIN', default)
+        return self._functionOnTarget('MIN', default)
 
-    def minmax(self, which, default):
-        rslt = self._runQuery('SELECT', '%s(%s)' % (which, self._queryTarget,)) or [(None,)]
+    def _functionOnTarget(self, which, default):
+        rslt = self._runQuery('SELECT', '%s(%s)' %
+                              (which, self._queryTarget,)) or [(None,)]
         assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
         dbval = rslt[0][0]
         if dbval is None:
@@ -346,6 +352,7 @@ class AttributeQuery(BaseQuery):
         sqlResults = self._runQuery('SELECT DISTINCT', self._queryTarget)
         for row in sqlResults:
             yield self._massageData(row)
+
 
 class Store(Empowered):
     """
@@ -385,6 +392,14 @@ class Store(Empowered):
                                         # am 'stored' within myself; this is
                                         # also for references to use.
 
+    def _currentlyValidAsReferentFor(self, store):
+        """necessary because I can be a target of attributes.reference()
+        """
+        if store is self:
+            return True
+        else:
+            return False
+
     def __init__(self, dbdir=None, debug=False, parent=None, idInParent=None):
         """
         Create a store.
@@ -412,6 +427,9 @@ class Store(Empowered):
         self.autocommit = True
         self.queryTimes = []
         self.execTimes = []
+
+        self._attachedChildren = {} # database name => child store object
+
         self.statementCache = {} # non-normalized => normalized qmark SQL
                                  # statements
 
@@ -499,6 +517,35 @@ class Store(Empowered):
             d.addBoth(finishHim)
         else:
             self._upgradeComplete = None
+
+    _childCounter = 0
+
+    def _attachChild(self, child):
+        "attach a child database, returning an identifier for it"
+        self._childCounter += 1
+        databaseName = 'child_db_%d' % (self._childCounter,)
+        self._attachedChildren[databaseName] = child
+        # ATTACH DATABASE statements can't use bind paramaters, blech.
+        self.executeSQL("ATTACH DATABASE '%s' AS %s" % (
+                child.dbdir.child('db.sqlite').path,
+                databaseName,))
+        return databaseName
+
+    attachedToParent = False
+
+    def attachToParent(self):
+        assert self.parent is not None, 'must have a parent to attach'
+        assert self.transaction is None, "can't attach within a transaction"
+
+        self.close()
+
+        self.attachedToParent = True
+        self.databaseName = self.parent._attachChild(self)
+        self.cursor = self.parent.connection
+        self.cursor = self.parent.cursor
+
+#     def detachFromParent(self):
+#         pass
 
 
     def _initSchema(self):
@@ -873,21 +920,16 @@ class Store(Empowered):
             # executemany.
             item.checkpoint()
 
-    def revert(self):
-        self._rollback()
-        for item in self.transaction:
-            item.revert()
-
     executedThisTransaction = None
+    tablesCreatedThisTransaction = None
 
     def transact(self, f, *a, **k):
         if self.transaction is not None:
             return f(*a, **k)
+        if self.attachedToParent:
+            return self.parent.transact(f, *a, **k)
         try:
             self._begin()
-            self.executedThisTransaction = []
-            self.transaction = set()
-            self.autocommit = False
             try:
                 result = f(*a, **k)
                 self.checkpoint()
@@ -903,9 +945,7 @@ class Store(Empowered):
                 self._commit()
             return result
         finally:
-            self.autocommit = True
-            self.transaction = None
-            self.executedThisTransaction = None
+            self._cleanupTxnState()
 
     # The following three methods are necessary...
 
@@ -919,12 +959,24 @@ class Store(Empowered):
         if self.debug:
             print '<'*10, 'BEGIN', '>'*10
         self.cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        self._setupTxnState()
+
+    def _setupTxnState(self):
+        self.executedThisTransaction = []
+        self.tablesCreatedThisTransaction = []
+        self.transaction = set()
+        self.autocommit = False
+        for sub in self._attachedChildren.values():
+            sub._setupTxnState()
 
     def _commit(self):
         if self.debug:
             print '*'*10, 'COMMIT', '*'*10
         # self.connection.commit()
         self.cursor.execute("COMMIT")
+        self._postCommitHook()
+
+    def _postCommitHook(self):
         for committed in self.transaction:
             committed.committed()
 
@@ -933,6 +985,32 @@ class Store(Empowered):
             print '>'*10, 'ROLLBACK', '<'*10
         # self.connection.rollback()
         self.cursor.execute("ROLLBACK")
+
+
+    def revert(self):
+        self._rollback()
+        self._inMemoryRollback()
+
+
+    def _inMemoryRollback(self):
+        for item in self.transaction:
+            item.revert()
+        for tableClass in self.tablesCreatedThisTransaction:
+            typeID = self.typenameToID.pop(tableClass.typeName)
+            del self.typenameAndVersionToID[tableClass.typeName,
+                                            tableClass.schemaVersion]
+            del self.idToTypename[typeID]
+        for sub in self._attachedChildren.values():
+            sub._inMemoryRollback()
+
+
+    def _cleanupTxnState(self):
+        self.autocommit = True
+        self.transaction = None
+        self.executedThisTransaction = None
+        self.tablesCreatedThisTransaction = []
+        for sub in self._attachedChildren.values():
+            sub._cleanupTxnState()
 
     def close(self, _report=True):
         self.cursor.close()
@@ -948,7 +1026,8 @@ class Store(Empowered):
                 print 'exec:', self.avgms(self.execTimes)
 
     def avgms(self, l):
-        return 'count: %d avg: %dus' % (len(l), int( (sum(l)/len(l)) * 1000000.),)
+        return 'count: %d avg: %dus' % (len(l),
+                                        int( (sum(l)/len(l)) * 1000000.),)
 
 
     def getTypeID(self, tableClass):
@@ -1000,9 +1079,10 @@ class Store(Empowered):
                             '.'.join(tableClass.getTableName(self).split(".")[1:]),
                             index.columnName))
 
-        typeID = self.executeSchemaSQL(_schema.CREATE_TYPE, [tableClass.typeName,
-                                                             tableClass.__module__,
-                                                             tableClass.schemaVersion])
+        typeID = self.executeSchemaSQL(_schema.CREATE_TYPE,
+                                       [tableClass.typeName,
+                                        tableClass.__module__,
+                                        tableClass.schemaVersion])
 
         for n, (name, storedAttribute) in enumerate(tableClass.getSchema()):
             self.executeSchemaSQL(
@@ -1017,6 +1097,8 @@ class Store(Empowered):
         self.typenameToID[tableClass.typeName] = typeID
         self.typenameAndVersionToID[key] = typeID
         self.idToTypename[typeID] = tableClass.typeName
+        if self.tablesCreatedThisTransaction is not None:
+            self.tablesCreatedThisTransaction.append(tableClass)
 
         return typeID
 
@@ -1098,7 +1180,13 @@ class Store(Empowered):
         return default
 
     def _normalizeSQL(self, sql):
-        assert "'" not in sql, "Strings are _NOT ALLOWED_"
+        # It turns out that "ATTACH DATABASE" *requires* string interpolation,
+        # since it syntactically does not support bind parameters.  It takes a
+        # string as a parameter though.  Considering that this assertion was
+        # never tripped before I don't feel too bad commenting it out, but I
+        # wish there were a way to preserve 'paranoid mode'
+
+        # assert "'" not in sql, "Strings are _NOT ALLOWED_"
         if sql not in self.statementCache:
             accum = []
             lines = sql.split('\n')

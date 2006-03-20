@@ -186,7 +186,11 @@ class SubSchedTest(SchedTest):
         self.storePath = self.mktemp()
         self.store = Store(self.storePath)
         Scheduler(store=self.store).installOn(self.store)
-        IService(self.store).startService()
+        self.svc = IService(self.store)
+        self.svc.startService()
+
+    def tearDown(self):
+        return self.svc.stopService()
 
     def testSubScheduler(self):
         substoreItem = SubStore.createNew(self.store, ['scheduler_test'])

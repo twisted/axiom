@@ -273,7 +273,7 @@ def extractUserStore(userAccount, extractionDestination, legacySiteAuthoritative
         av.deleteFromStore()
         userAccount.deleteLoginMethods()
         userAccount.deleteFromStore()
-        userAccount.avatars.storepath.moveTo(extractionDestination)
+        av.storepath.moveTo(extractionDestination)
     userAccount.store.transact(_)
 
 
