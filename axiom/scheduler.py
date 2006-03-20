@@ -122,7 +122,6 @@ class SchedulerMixin:
         workUnitsPerformed = 0
         errors = 0
         while workBeingDone and workUnitsPerformed < MAX_WORK_PER_TICK:
-            workUnitsPerformed += 1
             try:
                 workBeingDone = self.store.transact(self._oneTick, now)
             except _WackyControlFlow, wcf:
@@ -130,6 +129,8 @@ class SchedulerMixin:
                 log.err(wcf.failureObject)
                 errors += 1
                 workBeingDone = True
+            if workBeingDone:
+                workUnitsPerformed += 1
         x = list(self.store.query(TimedEvent, sort=TimedEvent.time.ascending, limit=1))
         if x:
             self._transientSchedule(x[0].time, now)
