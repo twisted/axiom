@@ -1049,7 +1049,7 @@ class Store(Empowered):
 
         sqlstr = []
         sqlarg = []
-        indexes = []
+        indexes = set()
 
         # needs to be calculated including version
         tableName = tableClass.getTableName(self)
@@ -1060,8 +1060,13 @@ class Store(Empowered):
             # it's a stored attribute
             sqlarg.append("\n%s %s" %
                           (atr.columnName, atr.sqltype))
+
             if atr.indexed:
-                indexes.append(atr)
+                indexes.add(((atr.columnName,), (atr.attrname,)))
+            for compound in atr.compoundIndexes:
+                indexes.add((tuple(inatr.columnName for inatr in compound),
+                             tuple(inatr.attrname for inatr in compound)))
+
         if len(sqlarg) == 0:
             # XXX should be raised way earlier, in the class definition or something
             raise NoEmptyItems("%r did not define any attributes" % (tableClass,))
@@ -1070,14 +1075,19 @@ class Store(Empowered):
         sqlstr.append(')')
 
         self.createSQL(''.join(sqlstr))
-        for index in indexes:
-            self.createSQL('CREATE INDEX %s ON %s(%s)' %
-                           (index.getIndexName(self),
-                            # _ZOMFG_ SQL is such a piece of _shit_: you can't
-                            # fully qualify the table name here because the
-                            # _INDEX_ is fully qualified!
-                            '.'.join(tableClass.getTableName(self).split(".")[1:]),
-                            index.columnName))
+
+        # _ZOMFG_ SQL is such a piece of _shit_: you can't fully qualify the
+        # table name in CREATE INDEX statements because the _INDEX_ is fully
+        # qualified!
+
+        indexColumnPrefix = '.'.join(tableClass.getTableName(self).split(".")[1:])
+
+        for (indexColumns, indexAttrs) in indexes:
+            csql = ('CREATE INDEX %s ON %s(%s)' %
+                    (tableClass.indexNameOf(self, '_'.join(indexAttrs)),
+                     indexColumnPrefix,
+                     ', '.join(indexColumns)))
+            self.createSQL(csql)
 
         typeID = self.executeSchemaSQL(_schema.CREATE_TYPE,
                                        [tableClass.typeName,

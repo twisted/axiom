@@ -247,6 +247,10 @@ registerAdapter(CompoundOrdering, tuple, IOrdering)
 registerAdapter(UnspecifiedOrdering, type(None), IOrdering)
 registerAdapter(SimpleOrdering, Comparable, IOrdering)
 
+def compoundIndex(*columns):
+    for column in columns:
+        column.compoundIndexes.append(columns)
+
 class SQLAttribute(inmemory, Comparable):
     """
     Abstract superclass of all attributes.
@@ -263,6 +267,7 @@ class SQLAttribute(inmemory, Comparable):
     def __init__(self, doc='', indexed=False, default=None, allowNone=True, defaultFactory=None):
         inmemory.__init__(self, doc)
         self.indexed = indexed
+        self.compoundIndexes = []
         self.allowNone = allowNone
         self.default = default
         self.defaultFactory = defaultFactory
@@ -272,9 +277,6 @@ class SQLAttribute(inmemory, Comparable):
 
     def getColumnName(self, st):
         return self.type.getTableName(st) + '.' + self.columnName
-
-    def getIndexName(self, st):
-        return self.type.indexNameOf(st, self)
 
     def computeDefault(self):
         if self.defaultFactory is not None:

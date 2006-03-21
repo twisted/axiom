@@ -45,6 +45,8 @@ class TestItem(item.Item):
 
     myStore = attributes.reference()
 
+    attributes.compoundIndex(bar, baz)
+
     def activate(self):
         self.activated = True
         if getattr(self, 'checkactive', False):
