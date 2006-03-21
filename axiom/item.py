@@ -601,8 +601,9 @@ class Item(Empowered, slotmachine._Strict):
 
     getTableName = classmethod(getTableName)
 
-    def indexNameOf(cls, st, atr):
-        return INDEX_NAME(st, cls.typeName, cls.schemaVersion, atr.attrname)
+    def indexNameOf(cls, st, attrsnames):
+        "private to store"
+        return INDEX_NAME(st, cls.typeName, cls.schemaVersion, attrsnames)
 
     indexNameOf = classmethod(indexNameOf)
 
