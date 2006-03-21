@@ -5,14 +5,13 @@ import warnings
 from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
-from twisted.python import log
 
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
 from axiom.attributes import text, integer, reference, boolean, AND
 from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
-from axiom import upgrade, iaxiom
+from axiom import upgrade
 
 from zope.interface import implements, Interface, Attribute
 
@@ -410,8 +409,6 @@ class LoginBase:
             impl = interface(av, None)
             if impl is not None:
                 self.loginCount += 1
-                log.msg(interface=iaxiom.IStatEvent, name='cred',
-                        cred_interface=interface)
                 return interface, impl, self.logoutFactory(impl)
         raise NotImplementedError()
 
