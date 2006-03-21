@@ -1,6 +1,5 @@
 
 from twisted.cred.portal import Portal, IRealm
-from twisted.application.service import IService
 
 from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred.credentials import UsernamePassword
@@ -13,17 +12,6 @@ SECRET = 'asdf'
 SECRET2 = 'ghjk'
 
 class AccountUpgradeTest(stubloader.StubbedTest):
-    def setUp(self):
-        stubloader.StubbedTest.setUp(self)
-        self.service = IService(self.store)
-        self.service.startService()
-        return self.store.whenFullyUpgraded()
-
-
-    def tearDown(self):
-        return self.service.stopService()
-
-
     def testUpgrade(self):
         p = Portal(IRealm(self.store),
                    [ICredentialsChecker(self.store)])

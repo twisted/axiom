@@ -6,6 +6,8 @@ import tarfile
 import inspect
 
 from twisted.trial import unittest
+from twisted.application.service import IService
+
 from axiom.store import Store
 
 def saveStub(funcobj, revision):
@@ -38,5 +40,10 @@ class StubbedTest(unittest.TestCase):
         for member in tarball.getnames():
             tarball.extract(member, temp)
         self.store = Store(os.path.join(temp, os.path.basename(dfn)))
+        self.service = IService(self.store)
+        self.service.startService()
+        return self.store.whenFullyUpgraded()
 
 
+    def tearDown(self):
+        return self.service.stopService()
