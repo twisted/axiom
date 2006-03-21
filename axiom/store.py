@@ -107,9 +107,9 @@ def storeServiceSpecialCase(st, pups):
         # figure out whether we need to or not, I just doubt this will ever
         # even happen in practice -- fix here if it does)
         return serviceSpecialCase(st, pups)
-    if st.service is not None:
+    if st._axiom_service is not None:
         # not new, don't add twice.
-        return st.service
+        return st._axiom_service
 
     collection = serviceSpecialCase(st, pups)
 
@@ -454,7 +454,7 @@ class Store(Empowered):
         self._oldTypesRemaining = [] # a list of old types which have not been
                                      # fully upgraded in this database.
 
-        self.service = None
+        self._axiom_service = None
 
 
         if self.parent is None:
