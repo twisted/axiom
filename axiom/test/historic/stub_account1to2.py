@@ -1,8 +1,4 @@
-import os
-import shutil
-import tarfile
 
-from axiom.store import Store
 from axiom.userbase import LoginSystem
 from axiom.test.test_userbase import GarbageProtocolHandler
 
@@ -15,19 +11,7 @@ def createDatabase(s):
     gph.installOn(ss)
     # ls.addAccount(u'test2', u'example.com', 'ghjk')
 
-# Below here should eventually be framework code.
-
-def determineFile(f):
-    return os.path.join(
-        os.path.dirname(f),
-        os.path.basename(f).split("stub_")[1].split('.py')[0]+'.axiom')
+from axiom.test.historic.stubloader import saveStub
 
 if __name__ == '__main__':
-    dbfn = determineFile(__file__)
-    s = Store(dbfn)
-    s.transact(createDatabase, s)
-    s.close()
-    tarball = tarfile.open(dbfn+'.tbz2', 'w:bz2')
-    tarball.add(os.path.basename(dbfn))
-    tarball.close()
-    shutil.rmtree(dbfn)
+    saveStub(createDatabase)

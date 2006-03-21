@@ -1,20 +1,38 @@
 
+import os
+import sys
+import shutil
+import tarfile
+import inspect
+
 from twisted.trial import unittest
 from axiom.store import Store
 
-import os
-import sys
-import tarfile
+def saveStub(funcobj, revision):
+    # You may notice certain files don't pass the second argument.  They don't
+    # work any more.  Please feel free to update them with the revision number
+    # they were created at.
+    filename = inspect.getfile(funcobj)
+    dbfn = os.path.join(
+        os.path.dirname(filename),
+        os.path.basename(filename).split("stub_")[1].split('.py')[0]+'.axiom')
 
-def determineFile(f):
-    return os.path.join(
-        os.path.dirname(f),
-        os.path.basename(f).split("test_")[1].split('.py')[0]+'.axiom')
+    s = Store(dbfn)
+    s.transact(funcobj, s)
+
+    s.close()
+    tarball = tarfile.open(dbfn+'.tbz2', 'w:bz2')
+    tarball.add(os.path.basename(dbfn))
+    tarball.close()
+    shutil.rmtree(dbfn)
 
 class StubbedTest(unittest.TestCase):
     def setUp(self):
         temp = self.mktemp()
-        dfn = determineFile(sys.modules[self.__module__].__file__)
+        f = sys.modules[self.__module__].__file__
+        dfn = os.path.join(
+            os.path.dirname(f),
+            os.path.basename(f).split("test_")[1].split('.py')[0]+'.axiom')
         arcname = dfn + '.tbz2'
         tarball = tarfile.open(arcname, 'r:bz2')
         for member in tarball.getnames():
