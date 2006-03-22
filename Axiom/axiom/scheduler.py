@@ -184,7 +184,7 @@ class Scheduler(Item, Service, SchedulerMixin):
 
     class running(descriptor.attribute):
         def get(self):
-            return self.store.service is not None and self.store.service.running
+            return self.store._axiom_service is not None and self.store._axiom_service.running
 
         def set(self, value):
             # Eh whatever

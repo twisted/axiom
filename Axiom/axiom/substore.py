@@ -1,8 +1,9 @@
 # -*- test-case-name: axiom.test.test_substore -*-
 
 from axiom.store import Store
-from axiom.item import Item
-from axiom.attributes import path, inmemory
+from axiom.item import Item, InstallableMixin
+from axiom.attributes import path, inmemory, reference
+from twisted.application import service
 
 class SubStore(Item):
 
@@ -45,3 +46,25 @@ class SubStore(Item):
         ifa = interface(self.open(debug=self.store.debug), None)
         return ifa
 
+
+
+class SubStoreStartupService(Item, service.Service, InstallableMixin):
+    installedOn = reference()
+    parent = inmemory()
+    running = inmemory()
+    name = inmemory()
+
+    def installOn(self, store):
+        super(SubStoreStartupService, self).installOn(store)
+        store.powerUp(self, service.IService)
+        if self.parent is None:
+            self.setServiceParent(store)
+            self.startService()
+    def startService(self):
+        super(SubStoreStartupService, self).startService()
+        for ss in self.store.query(SubStore):
+            svc = service.IService(ss, None)
+            if svc:
+                svc.setServiceParent(self)
+                if not svc.running:
+                    svc.startService()
