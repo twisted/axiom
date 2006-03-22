@@ -118,12 +118,12 @@ class _SpecialStoreIDAttribute(slotmachine.SetOnce):
 
 
 def serviceSpecialCase(item, pups):
-    if item._axiom_service is not None:
-        return item._axiom_service
+    if item.service is not None:
+        return item.service
     svc = MultiService()
     for subsvc in pups:
         subsvc.setServiceParent(svc)
-    item._axiom_service = svc
+    item.service = svc
     return svc
 
 
@@ -270,7 +270,7 @@ class Item(Empowered, slotmachine._Strict):
                                   # part of an upgrade)
 
     storeID = _SpecialStoreIDAttribute(default=None)
-    _axiom_service = inmemory()
+    service = inmemory()
 
     def _currentlyValidAsReferentFor(self, store):
         """
@@ -342,7 +342,7 @@ class Item(Empowered, slotmachine._Strict):
         Initializer called regardless of whether this object was created by
         instantiation or loading from the database.
         """
-        self._axiom_service = None
+        self.service = None
         self.__dirty__ = {}
         to__store = kw.pop('__store', None)
         to__everInserted = kw.pop('__everInserted', False)
