@@ -9,7 +9,7 @@ import weakref, datetime, os, sys
 
 from zope.interface import implements
 
-from twisted.python import reflect, failure, log, procutils, util
+from twisted.python import reflect, failure, log, procutils, util, runtime
 from twisted.application import service
 from twisted.internet import task, defer, reactor, error, protocol
 
@@ -482,20 +482,23 @@ class ProcessController(object):
 
         self.connector = JuiceConnector(self.juice, self)
 
-        args = (
+        args = [
             sys.executable,
             twistd,
-            '--logfile=%s.log' % (self.name,),
-            '--pidfile=%s.pid' % (self.name,),
-            '-noy',
-            self.tacPath)
+            '--logfile=%s.log' % (self.name,)]
+
+        if not runtime.platform.isWindows():
+            args.append('--pidfile=%s.pid' % (self.name,))
+
+        args.extend(['-noy',
+                     self.tacPath])
 
         if setsid:
-            args = ('setsid',) + args
+            args = ['setsid'] + args
             executable = setsid[0]
 
         self.process = process.spawnProcess(
-            self.connector, executable, args, env=env)
+            self.connector, executable, tuple(args), env=env)
 
     class stopped(modal.mode):
         def getProcess(self):
@@ -783,7 +786,6 @@ class BatchProcessingProtocol(JuiceChild):
         self.service = service
         if service is not None:
             self.service.cooperator = cooperator.Cooperator()
-
 
     def command_SET_STORE(self, storepath):
         from axiom import store
