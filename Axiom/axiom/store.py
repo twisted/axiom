@@ -317,6 +317,9 @@ class AttributeQuery(BaseQuery):
         return self.attribute.outfilter(row[0], _FakeItemForFilter(self.store))
 
     def sum(self):
+        #XXX sqlite has a 'total()' function that always returns a
+        #float.  If it was used here instead of sum(), these three
+        #functions might be refactored together.
         res = self._runQuery('SELECT', 'SUM(%s)' % (self._queryTarget,)) or [(0,)]
         assert len(res) == 1, "more than one result: %r" % (res,)
         dbval = res[0][0] or 0
@@ -324,6 +327,12 @@ class AttributeQuery(BaseQuery):
 
     def count(self):
         rslt = self._runQuery('SELECT', 'COUNT(%s)' % (self._queryTarget,)) or [(0,)]
+        assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+        return rslt[0][0]
+
+    def average(self):
+        """Apply the SQL AVG() function to the results of this query."""
+        rslt = self._runQuery('SELECT', 'AVG(%s)' % (self._queryTarget,)) or [(0,)]
         assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
         return rslt[0][0]
 
@@ -891,7 +900,7 @@ class Store(Empowered):
         @param sort: an L{ISort}, something that comes from an SQLAttribute's
         'ascending' or 'descending' attribute.
 
-        @return: an L{ItemQuery} object, which is an interable of items.
+        @return: an L{ItemQuery} object, which is an iterable of items.
         """
         return ItemQuery(self, tableClass, comparison, limit, offset, sort)
 
@@ -899,7 +908,6 @@ class Store(Empowered):
         args = (self, summableAttribute.type) + a
         return AttributeQuery(attribute=summableAttribute,
                               *args, **k).sum()
-
     def count(self, *a, **k):
         return self.query(*a, **k).count()
 
