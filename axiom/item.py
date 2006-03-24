@@ -3,10 +3,11 @@ __metaclass__ = type
 
 from inspect import getabsfile
 
+from twisted.python import log
 from twisted.python.reflect import qual, namedAny
 from twisted.application.service import IService, IServiceCollection, MultiService
 
-from axiom import slotmachine, _schema
+from axiom import slotmachine, _schema, iaxiom
 
 from axiom.attributes import SQLAttribute, Comparable, inmemory, \
     reference, text, integer, AND, _cascadingDeletes
@@ -300,6 +301,9 @@ class Item(Empowered, slotmachine._Strict):
                 _schema.CREATE_OBJECT, [self.store.getTypeID(type(self))])
             store.objectCache.cache(oid, self)
             if store.autocommit:
+                log.msg(interface=iaxiom.IStatEvent,
+                        name='database', stat_autocommits=1)
+
                 self.checkpoint()
             else:
                 self.touch()
