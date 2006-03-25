@@ -5,6 +5,7 @@ from inspect import getabsfile
 
 from twisted.python import log
 from twisted.python.reflect import qual, namedAny
+from twisted.python.util import unsignedID
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema, iaxiom
@@ -337,7 +338,7 @@ class Item(Empowered, slotmachine._Strict):
         A.append('storeID=' + str(self.storeID))
         L.append(', '.join(A))
         L.append(')')
-        L.append('@' + str(id(self)))
+        L.append('@' + hex(unsignedID(self)))
         return ''.join(L)
 
 
