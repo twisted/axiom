@@ -58,8 +58,8 @@ ADD_SCHEMA_ATTRIBUTE = (
 
 ALL_TYPES = 'SELECT oid, module, typename, version FROM *DATABASE*.axiom_types'
 
-GET_TYPE_OF_VERSION = ('SELECT version FROM *DATABASE*.axiom_types '
-                       'WHERE typename = ? AND version > ? -- get type of version')
+GET_GREATER_VERSIONS_OF_TYPE = ('SELECT version FROM *DATABASE*.axiom_types '
+                                'WHERE typename = ? AND version > ?')
 
 SCHEMA_FOR_TYPE = ('SELECT indexed, pythontype, attribute, docstring '
                    'FROM *DATABASE*.axiom_attributes '
