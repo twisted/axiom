@@ -1,10 +1,13 @@
-
+# -*- test-case-name: axiom.test.test_upgrading -*-
 from twisted.trial import unittest
-from axiom import store, upgrade
+
+from axiom import store, upgrade, item, errors
+
 from twisted.application.service import IService
 
 tntmrc = store._typeNameToMostRecentClass
 upgreg = upgrade._upgradeRegistry
+legtyp = item._legacyTypes
 
 def choose(module=None):
     # This has an unfortunate amount of knowledge of the implementation.  TODO:
@@ -14,10 +17,16 @@ def choose(module=None):
               oldapp.Sword.typeName,
               'test_app_inv']
     for tn in tnames:
+        #print '------'
+        #pprint( tntmrc )
         tntmrc.pop(tn, None)
+        for (tnam, schever) in legtyp.keys():
+            if tnam == tn:
+                legtyp.pop((tnam, schever))
 
     for k in upgreg.keys():
         if k[0] in tnames:
+            #print 'ridding', k
             upgreg.pop(k)
 
     if module is not None:
@@ -31,6 +40,10 @@ from axiom.test import toonewapp
 
 choose()
 
+from axiom.test import morenewapp
+
+choose()
+
 from axiom.test import newapp
 
 
@@ -38,8 +51,11 @@ class SchemaUpgradeTest(unittest.TestCase):
     def setUp(self):
         self.dbdir = self.mktemp()
 
-    def openStore(self):
-        self.currentStore = store.Store(self.dbdir)
+    def tearDown(self):
+        choose(oldapp)
+
+    def openStore(self, dbg=False):
+        self.currentStore = store.Store(self.dbdir, debug=dbg)
         return self.currentStore
 
     def closeStore(self):
@@ -54,11 +70,23 @@ class SchemaUpgradeTest(unittest.TestCase):
     def testUnUpgradeableStore(self):
         self._testTwoObjectUpgrade()
         choose(toonewapp)
-        self.assertRaises(RuntimeError, self.openStore)
+        self.assertRaises(errors.NoUpgradePathAvailable, self.openStore)
+
+    def testUpgradeWithMissingVersion(self):
+        playerID, swordID = self._testTwoObjectUpgrade()
+        choose(morenewapp)
+        s = self.openStore()
+        self.startStoreService()
+        def afterUpgrade(result):
+            player = s.getItemByID(playerID, autoUpgrade=False)
+            sword = s.getItemByID(swordID, autoUpgrade=False)
+            self._testPlayerAndSwordState(player, sword)
+        return s.whenFullyUpgraded().addCallback(afterUpgrade)
 
     def _testTwoObjectUpgrade(self):
         choose(oldapp)
         s = self.openStore()
+        assert tntmrc[oldapp.Player.typeName] is oldapp.Player
 
         sword = oldapp.Sword(
             store=s,
@@ -142,6 +170,8 @@ class SchemaUpgradeTest(unittest.TestCase):
         return player, sword
 
     def _testPlayerAndSwordState(self, player, sword):
+        assert not player.__legacy__
+        assert not sword.__legacy__
         self.assertEquals(player.name, 'Milton')
         self.failIf(hasattr(player, 'sword'))
         self.assertEquals(sword.name, 'flaming vorpal doom')

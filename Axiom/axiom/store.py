@@ -34,7 +34,7 @@ Connection = namedAny(backendName)
 
 
 from axiom.item import \
-    _typeNameToMostRecentClass, dummyItemSubclass,\
+    _typeNameToMostRecentClass, declareLegacyItem,\
     _legacyTypes, TABLE_NAME, Empowered, serviceSpecialCase
 
 IN_MEMORY_DATABASE = ':memory:'
@@ -452,13 +452,9 @@ class Store(Empowered):
                                 # database handle for what we'll call a 'FQPN',
                                 # i.e. arg to namedAny.
 
-        self.typenameToID = {} # map database-persistent typename to an oid in
-                               # the types table
+        self.typenameAndVersionToID = {} # map database-persistent typename and
+                                         # version to an oid in the types table
 
-        self.typenameAndVersionToID = {} # obvious I hope
-
-        self.idToTypename = {} # map database-persistent typeID (oid in types
-                               # table) to typename
 
         self._oldTypesRemaining = [] # a list of old types which have not been
                                      # fully upgraded in this database.
@@ -571,6 +567,7 @@ class Store(Empowered):
         classes in memory.  Load all Python modules for stored items, and load
         version information for upgrader service to run later.
         """
+        typesToCheck = []
         for oid, module, typename, version in self.querySchemaSQL(_schema.ALL_TYPES):
             if self.debug:
                 print
@@ -585,43 +582,50 @@ class Store(Empowered):
             cls = _typeNameToMostRecentClass.get(typename)
 
             if cls is not None:
-                if version == cls.schemaVersion:
-                    self.typenameToID[typename] = oid
-                    self.idToTypename[oid] = typename
+                if version != cls.schemaVersion:
+                    typesToCheck.append(
+                        self._prepareOldVersionOf(oid, typename, version))
                 else:
-                    self._prepareOldVersionOf(oid, typename, version)
+                    typesToCheck.append(cls)
 
-        for typename in self.typenameToID:
-            self.checkTypeSchemaConsistency(typename)
+        for cls in typesToCheck:
+            self.checkTypeSchemaConsistency(cls)
 
         cantUpgradeErrors = []
         for oldVersion in self._oldTypesRemaining:
             # We have to be able to get from oldVersion.schemaVersion to
-            # self._typeNameToMostRecentClass.get(typename).schemaVersion
+            # the most recent type.
+
             currentType = _typeNameToMostRecentClass.get(
                 oldVersion.typeName, None)
-            if currentType is not None:
-                typeInQuestion = oldVersion.typeName
-                upgver = oldVersion.schemaVersion
-                while upgver < currentType.schemaVersion:
-                    # Do we have enough of the schema present to upgrade?
-                    if (typeInQuestion, upgver, upgver+1
-                        ) not in upgrade._upgradeRegistry:
+
+            if currentType is None:
+                # There isn't a current version of this type; it's entirely
+                # legacy, will be upgraded by deleting and replacing with
+                # something else.
+                continue
+
+            typeInQuestion = oldVersion.typeName
+            upgver = oldVersion.schemaVersion
+
+            while upgver < currentType.schemaVersion:
+                # Do we have enough of the schema present to upgrade?
+                if ((typeInQuestion, upgver, upgver+1)
+                    not in upgrade._upgradeRegistry):
+                    cantUpgradeErrors.append(
+                        "No upgrader present for %s from %d to %d" % (
+                            typeInQuestion, upgver, upgver+1))
+
+                # Is there a type available for each upgrader version?
+                if upgver+1 != currentType.schemaVersion:
+                    if (typeInQuestion, upgver+1) not in _legacyTypes:
                         cantUpgradeErrors.append(
-                            "No upgrader present for %s from %d to %d" % (
-                                typeInQuestion, upgver, upgver+1))
-                    if upgver+1 != currentType.schemaVersion:
-                        for nextOldVersion in self._oldTypesRemaining:
-                            if (nextOldVersion.typeName == typeInQuestion and
-                                nextOldVersion.schemaVersion == upgver+1):
-                                break
-                        else:
-                            cantUpgradeErrors.append(
-                                "Type schema required for upgrade missing: %s version %d" %(
-                                    typeInQuestion, upgver+1))
-                    upgver += 1
+                            "Type schema required for upgrade missing:"
+                            " %s version %d" % (
+                                typeInQuestion, upgver+1))
+                upgver += 1
         if cantUpgradeErrors:
-            raise RuntimeError('\n    '.join(cantUpgradeErrors))
+            raise errors.NoUpgradePathAvailable('\n    '.join(cantUpgradeErrors))
 
 
     def _initdb(self, dbfname):
@@ -710,7 +714,7 @@ class Store(Empowered):
             p = p.child(subdir)
         return p
 
-    def checkTypeSchemaConsistency(self, typename):
+    def checkTypeSchemaConsistency(self, actualType):
         """
         Called for all known types at database startup: make sure that what we know
         (in memory) about this type is
@@ -719,30 +723,41 @@ class Store(Empowered):
         # make sure that both the runtime and the database both know about this
         # type; if they don't both know, we can't check that their views are
         # consistent
-        assert typename in self.typenameToID
-        if typename not in _typeNameToMostRecentClass:
-            print 'EARLY OUT CONSISTENCY CHECK: WHAT?'
-            return
-        typeID = self.typenameToID[typename]
-        actualType = _typeNameToMostRecentClass[typename]
-        #
-        inMemorySchema = [(storedAttribute.indexed, storedAttribute.sqltype,
-                           storedAttribute.allowNone,
+
+        inMemorySchema = [(#storedAttribute.indexed,
+                           storedAttribute.sqltype,
+                           #storedAttribute.allowNone,
                            storedAttribute.attrname)
                           for (name, storedAttribute) in actualType.getSchema()]
 
-        onDiskSchema = self.querySchemaSQL(_schema.IDENTIFYING_SCHEMA, [typeID])
+        # getTypeID is the wrong thing to do here because it's recursive!
+        typeID = self.typenameAndVersionToID[actualType.typeName,
+                                             actualType.schemaVersion]
+
+        onDiskSchema = [(ondisksqltype, ondiskattrname) for
+                        (ondiskindexed,
+                         ondisksqltype,
+                         ondiskallownone,
+                         ondiskattrname) in
+                        self.querySchemaSQL(_schema.IDENTIFYING_SCHEMA,
+                                           [typeID])]
 
         if inMemorySchema != onDiskSchema:
             raise RuntimeError(
-                "Schema mismatch on already-loaded %r object version %d: %r != %r" %
-                (actualType.typeName, actualType.schemaVersion, onDiskSchema, inMemorySchema))
+                "Schema mismatch on already-loaded %r <%r> object version %d: %r != %r" %
+                (actualType, actualType.typeName, actualType.schemaVersion,
+                 onDiskSchema, inMemorySchema))
 
-        if self.querySchemaSQL(_schema.GET_TYPE_OF_VERSION,
-                               [typename, actualType.schemaVersion]):
+
+        if actualType.__legacy__:
+            return
+
+        if self.querySchemaSQL(_schema.GET_GREATER_VERSIONS_OF_TYPE,
+                               [actualType.typeName,
+                                actualType.schemaVersion]):
             raise RuntimeError(
                 "Greater versions of database %r objects in the DB than in memory" %
-                (typename,))
+                (actualType.typeName,))
 
         # finally find old versions of the data and prepare to upgrade it.
 
@@ -751,8 +766,18 @@ class Store(Empowered):
         Note that this database contains old versions of a particular type.
         Create the appropriate dummy item subclass.
         """
-        self._oldTypesRemaining.append(
-            dummyItemSubclass(*self._dssargs(typeID, typename, version)))
+
+        appropriateSchema = self.querySchemaSQL(_schema.SCHEMA_FOR_TYPE, [typeID])
+        # create actual attribute objects
+        dummyAttributes = {}
+        for indexed, pythontype, attribute, docstring in appropriateSchema:
+            atr = getattr(attributes, pythontype)(indexed=indexed,
+                                                  doc=docstring)
+            dummyAttributes[attribute] = atr
+        dummyBases = []
+        dis = declareLegacyItem(typename, version, dummyAttributes, dummyBases)
+        self._oldTypesRemaining.append(dis)
+        return dis
 
 
     def _upgradeOneThing(self):
@@ -793,26 +818,10 @@ class Store(Empowered):
     def getOldVersionOf(self, typename, version):
         return _legacyTypes[typename, version]
 
-    def _dssargs(self, typeID, typename, version):
-        """
-        Returns a 4-tuple suitable as args for dummyItemSubclass
-        """
-
-        appropriateSchema = self.querySchemaSQL(_schema.SCHEMA_FOR_TYPE, [typeID])
-        # create actual attribute objects
-        dummyAttributes = {}
-        for indexed, pythontype, attribute, docstring in appropriateSchema:
-            atr = getattr(attributes, pythontype)(indexed=indexed,
-                                                  doc=docstring)
-            dummyAttributes[attribute] = atr
-        dummyBases = []
-        retval = (typename, version, dummyAttributes, dummyBases)
-        return retval
 
 
         # grab the schema for that version
         # look up upgraders which push it forward
-        # insert "AutoUpgrader" class into idToTypename somehow(?)
 
     def findUnique(self, tableClass, comparison=None, default=_noItem):
         """
@@ -1008,10 +1017,8 @@ class Store(Empowered):
         for item in self.transaction:
             item.revert()
         for tableClass in self.tablesCreatedThisTransaction:
-            typeID = self.typenameToID.pop(tableClass.typeName)
             del self.typenameAndVersionToID[tableClass.typeName,
                                             tableClass.schemaVersion]
-            del self.idToTypename[typeID]
         for sub in self._attachedChildren.values():
             sub._inMemoryRollback()
 
@@ -1116,9 +1123,8 @@ class Store(Empowered):
             # when we figure out a good way to do user-defined attributes or we
             # start parameterizing references.
 
-        self.typenameToID[tableClass.typeName] = typeID
         self.typenameAndVersionToID[key] = typeID
-        self.idToTypename[typeID] = tableClass.typeName
+
         if self.tablesCreatedThisTransaction is not None:
             self.tablesCreatedThisTransaction.append(tableClass)
 

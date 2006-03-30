@@ -10,6 +10,16 @@ class NoSuchUser(UnauthorizedLogin):
 class DuplicateUser(Exception):
     pass
 
+class CannotOpenStore(RuntimeError):
+    """
+    There is a problem such that the store cannot be opened.
+    """
+
+class NoUpgradePathAvailable(CannotOpenStore):
+    """
+    No upgrade path is available, so the store cannot be opened.
+    """
+
 class NoCrossStoreReferences(AttributeError):
     """
     References are not allowed between items within different Stores.

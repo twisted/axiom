@@ -294,10 +294,10 @@ class Item(Empowered, slotmachine._Strict):
             if self.__store is not None:
                 raise AttributeError(
                     "Store already set - can't move between stores")
+            # make damn sure all of our references point to this store:
             for name, atr in self.getSchema():
                 atr.prepareInsert(self, store)
             self.__store = store
-            # make damn sure all of our references point to this store:
             oid = self.storeID = self.store.executeSchemaSQL(
                 _schema.CREATE_OBJECT, [self.store.getTypeID(type(self))])
             store.objectCache.cache(oid, self)
@@ -351,6 +351,7 @@ class Item(Empowered, slotmachine._Strict):
         self.__dirty__ = {}
         to__store = kw.pop('__store', None)
         to__everInserted = kw.pop('__everInserted', False)
+        to__justUpgraded = kw.pop('__justUpgraded', False)
         self.__store = to__store
         self.__everInserted = to__everInserted
         self.__deletingObject = False
@@ -366,7 +367,13 @@ class Item(Empowered, slotmachine._Strict):
             setattr(self, k, v)
 
         if tostore != None:
-            self.store = tostore
+            if to__justUpgraded:
+                self.__store = tostore
+                # skip all the interesting just-created stuff, like ID allocation.
+                if tostore.autocommit:
+                    self.checkpoint()
+            else:
+                self.store = tostore
 
     def __init__(self, **kw):
         """
@@ -430,7 +437,8 @@ class Item(Empowered, slotmachine._Strict):
     def revert(self):
         if self.__justCreated:
             # The SQL revert has already been taken care of.
-            self.store.objectCache.uncache(self.storeID, self)
+            if not self.__legacy__:
+                self.store.objectCache.uncache(self.storeID, self)
             return
         self.__dirty__.clear()
         dbattrs = self.store.querySQL(
@@ -477,6 +485,10 @@ class Item(Empowered, slotmachine._Strict):
 
 
         if self.__deleting:
+            if not self.__everInserted:
+                # don't issue duplicate SQL and crap; we were created, then
+                # destroyed immediately.
+                return
             self.store.executeSQL(self._baseDeleteSQL(self.store), [self.storeID])
             # re-using OIDs plays havoc with the cache, and with other things
             # as well.  We need to make sure that we leave a placeholder row at
@@ -492,12 +504,13 @@ class Item(Empowered, slotmachine._Strict):
                 # it to make sure things are in fact deleted:
                 # self.store.executeSchemaSQL(_schema.APP_VACUUM)
 
-                # we're done...
-                if self.store.autocommit:
-                    self.committed()
-                return
             else:
                 assert self.__legacy__
+
+            # we're done...
+            if self.store.autocommit:
+                self.committed()
+            return
 
         if self.__everInserted:
             # case 1: we've been inserted before, either previously in this
@@ -534,7 +547,7 @@ class Item(Empowered, slotmachine._Strict):
         # right now there is only ever one acceptable series of arguments here
         # but it is useful to pass them anyway to make sure the code is
         # functioning as expected
-        assert typename == self.typeName
+        assert typename == self.typeName, '%r != %r' % (typename, self.typeName)
         assert oldversion == self.schemaVersion
         assert newversion == oldversion + 1
         key = typename, newversion
@@ -551,11 +564,8 @@ class Item(Empowered, slotmachine._Strict):
         newTypeID = self.store.getTypeID(T) # call first to make sure the table
                                             # exists for doInsert below
 
-        # set store privately so we don't hit the CREATE_OBJECT logic in
-        # store's set() above; set storeID because it's already been allocated;
-        # don't set __everInserted to True because we want to run insert logic
-
-        new = T(__store=self.store,
+        new = T(store=self.store,
+                __justUpgraded=True,
                 storeID=self.storeID,
                 **kw)
 
@@ -664,7 +674,7 @@ class Item(Empowered, slotmachine._Strict):
 
 _legacyTypes = {}               # map (typeName, schemaVersion) to dummy class
 
-def dummyItemSubclass(typeName, schemaVersion, attributes, dummyBases):
+def declareLegacyItem(typeName, schemaVersion, attributes, dummyBases=()):
     """
     Generate a dummy subclass of Item that will have the given attributes,
     and the base Item methods, but no methods of its own.  This is for use
@@ -682,7 +692,7 @@ def dummyItemSubclass(typeName, schemaVersion, attributes, dummyBases):
     if (typeName, schemaVersion) in _legacyTypes:
         return _legacyTypes[typeName, schemaVersion]
     if dummyBases:
-        realBases = [dummyItemSubclass(*A) for A in dummyBases]
+        realBases = [declareLegacyItem(*A) for A in dummyBases]
     else:
         realBases = (Item,)
     attributes = attributes.copy()

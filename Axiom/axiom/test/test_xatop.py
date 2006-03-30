@@ -138,6 +138,29 @@ class ItemTests(unittest.TestCase):
 
         self.assertEquals(len(list(loaded)), 10)
 
+    def testCreateThenDelete(self):
+        timeval = extime.Time.fromISO8601TimeAndDate('2004-10-05T10:12:14.1234')
+        sid = []
+        def txn():
+            s = TestItem(
+                store = self.store,
+                foo = 42,
+                bar = u'hello world',
+                baz = timeval,
+                booleanT = True,
+                booleanF = False
+            )
+            sid.append(s.storeID)
+            self.assertEquals(list(self.store.query(TestItem)), [s])
+            s.deleteFromStore()
+            self.assertEquals(list(self.store.query(TestItem)), [])
+            # hmm.  possibly due its own test.
+            # self.assertRaises(KeyError, self.store.getItemByID, sid[0])
+
+        self.store.transact(txn)
+        self.assertRaises(KeyError, self.store.getItemByID, sid[0])
+        self.assertEquals(list(self.store.query(TestItem)), [])
+
     def testInMemoryRevert(self):
         item1 = TestItem(
             store=self.store,
