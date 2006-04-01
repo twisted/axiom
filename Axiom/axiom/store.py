@@ -991,8 +991,7 @@ class Store(Empowered):
             print '*'*10, 'COMMIT', '*'*10
         # self.connection.commit()
         self.cursor.execute("COMMIT")
-        log.msg(interface=iaxiom.IStatEvent,
-                name='database', stat_commits=1)
+        log.msg(interface=iaxiom.IStatEvent, stat_commits=1)
         self._postCommitHook()
 
     def _postCommitHook(self):
@@ -1004,8 +1003,7 @@ class Store(Empowered):
             print '>'*10, 'ROLLBACK', '<'*10
         # self.connection.rollback()
         self.cursor.execute("ROLLBACK")
-        log.msg(interface=iaxiom.IStatEvent,
-                name='database', stat_rollbacks=1)
+        log.msg(interface=iaxiom.IStatEvent, stat_rollbacks=1)
 
 
     def revert(self):
@@ -1147,8 +1145,7 @@ class Store(Empowered):
             return self
         if self.objectCache.has(storeID):
             return self.objectCache.get(storeID)
-        log.msg(interface=iaxiom.IStatEvent,
-                name='database', stat_cache_misses=1, key=storeID)
+        log.msg(interface=iaxiom.IStatEvent, stat_cache_misses=1, key=storeID)
         results = self.querySchemaSQL(_schema.TYPEOF_QUERY, [storeID])
         assert (len(results) in [1, 0]),\
             "Database panic: more than one result for TYPEOF!"

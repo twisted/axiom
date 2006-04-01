@@ -44,7 +44,6 @@ class Cursor(object):
                     return self._cursor.execute(sql, args)
                 finally:
                     log.msg(interface=iaxiom.IStatEvent,
-                            name='database',
                             stat_cursor_execute_time=time.time() - t)
             except dbapi2.OperationalError, e:
                 if e.args[0] == 'database schema has changed':

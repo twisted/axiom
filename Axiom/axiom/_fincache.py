@@ -85,7 +85,6 @@ class FinalizingCache:
         if o is None:
             raise CacheFault(
                 "FinalizingCache has %r but its value is no more." % (key,))
-        log.msg(interface=iaxiom.IStatEvent,
-                name='database', stat_cache_hits=1, key=key)
+        log.msg(interface=iaxiom.IStatEvent, stat_cache_hits=1, key=key)
         return o
 
