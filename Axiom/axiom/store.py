@@ -7,7 +7,6 @@ import time
 import os
 import itertools
 import warnings
-import sys
 
 from zope.interface import implements
 
@@ -212,25 +211,13 @@ class BaseQuery:
         # but right now Store's interface to SQL is all through one cursor.
         # I'm not sure how to do this and preserve the chokepoint so that we
         # can do, e.g. transaction fallbacks.
-        t= time.time()
         if not self.store.autocommit:
             self.store.checkpoint()
         tnsv = (self.tableClass.typeName,
                 self.tableClass.schemaVersion)
         sqlstr, sqlargs = self._sqlAndArgs(verb, subject)
         sqlResults = self.store.querySQL(sqlstr, sqlargs)
-        cs =self.locateCallSite()
-        log.msg(interface=iaxiom.IStatEvent, querySite=cs, queryTime=time.time()-t)
         return sqlResults
-
-    def locateCallSite(self):
-        i = 3
-        frame = sys._getframe(i)
-        while frame.f_code.co_filename == __file__:
-            #let's not get stuck in findOrCreate, etc
-            i += 1
-            frame = sys._getframe(i)
-        return (frame.f_code.co_filename, frame.f_lineno)
 
     def __iter__(self):
         """
