@@ -31,6 +31,7 @@ class _NoWorkUnits(Exception):
     """
 
 
+
 class _ProcessingFailure(Exception):
     """
     Raised when processItem raises any exception.
@@ -44,12 +45,26 @@ class _ProcessingFailure(Exception):
 
 
 class _ForwardProcessingFailure(_ProcessingFailure):
-    pass
+    """
+    An error occurred in a reliable listener while processing items forward
+    from the mark.
+    """
 
 
 
 class _BackwardProcessingFailure(_ProcessingFailure):
-    pass
+    """
+    An error occurred in a reliable listener while processing items backwards
+    from the mark.
+    """
+
+
+
+class _TrackedProcessingFailure(_ProcessingFailure):
+    """
+    An error occurred in a reliable listener while processing items specially
+    added to the batch run.
+    """
 
 
 
@@ -68,6 +83,29 @@ class BatchProcessingError(item.Item):
 
     error = attributes.bytes(doc="""
     The error message which was associated with this failure.
+    """)
+
+
+
+class _ReliableTracker(item.Item):
+    """
+    A tracking item for an out-of-sequence item which a reliable listener
+    should be given to process.
+
+    These are created when L{_ReliableListener.addItem} is called and the
+    specified item is in the range of items which have already been processed.
+    """
+
+    processor = attributes.reference(doc="""
+    The batch processor which owns this tracker.
+    """)
+
+    listener = attributes.reference(doc="""
+    The listener which is responsible for this tracker's item.
+    """)
+
+    item = attributes.reference(doc="""
+    The item which this is tracking.
     """)
 
 
@@ -111,6 +149,16 @@ class _ReliableListener(item.Item):
                                                  self.storeID)
 
 
+    def addItem(self, item):
+        assert type(item) is self.processor.workUnitType, \
+               "Adding work unit of type %r to listener for type %r" % (
+            type(item), self.processor.workUnitType)
+        if item.storeID >= self.backwardMark and item.storeID <= self.forwardMark:
+            _ReliableTracker(store=self.store,
+                             listener=self,
+                             item=item)
+
+
     def _forwardWork(self, workUnitType):
         if VERBOSE:
             log.msg("%r looking forward from %r" % (self, self.forwardMark,))
@@ -133,6 +181,12 @@ class _ReliableListener(item.Item):
             limit=2)
 
 
+    def _extraWork(self):
+        return self.store.query(_ReliableTracker,
+                                _ReliableTracker.listener == self,
+                                limit=2)
+
+
     def _doOneWork(self, workUnit, failureType):
         if VERBOSE:
             log.msg("Processing a unit of work: %r" % (workUnit,))
@@ -142,11 +196,21 @@ class _ReliableListener(item.Item):
             f = failure.Failure()
             if VERBOSE:
                 log.msg("Processing failed: %s" % (f.getErrorMessage(),))
+                log.err(f)
             raise failureType(self, workUnit, f)
 
 
     def step(self):
         first = True
+        for workTracker in self._extraWork():
+            if first:
+                first = False
+            else:
+                return True
+            item = workTracker.item
+            workTracker.deleteFromStore()
+            self._doOneWork(item, _TrackedProcessingFailure)
+
         for workUnit in self._forwardWork(self.processor.workUnitType):
             if first:
                 first = False
@@ -154,6 +218,7 @@ class _ReliableListener(item.Item):
                 return True
             self.forwardMark = workUnit.storeID
             self._doOneWork(workUnit, _ForwardProcessingFailure)
+
         for workUnit in self._backwardWork(self.processor.workUnitType):
             if first:
                 first = False
@@ -161,6 +226,7 @@ class _ReliableListener(item.Item):
                 return True
             self.backwardMark = workUnit.storeID
             self._doOneWork(workUnit, _BackwardProcessingFailure)
+
         if first:
             raise _NoWorkUnits()
         if VERBOSE:
@@ -240,12 +306,15 @@ class _BatchProcessorMixin:
 
         @param listener: An Item instance which provides a
         C{processItem} method.
+
+        @return: An Item representing L{listener}'s persistent tracking state.
         """
-        if self.store.findUnique(_ReliableListener,
-                                 attributes.AND(_ReliableListener.processor == self,
-                                                _ReliableListener.listener == listener),
-                                 default=None) is not None:
-            return
+        existing = self.store.findUnique(_ReliableListener,
+                                         attributes.AND(_ReliableListener.processor == self,
+                                                        _ReliableListener.listener == listener),
+                                         default=None)
+        if existing is not None:
+            return existing
 
         for work in self.store.query(self.workUnitType,
                                      sort=self.workUnitType.storeID.descending,
@@ -257,12 +326,12 @@ class _BatchProcessorMixin:
             forwardMark = 0
             backwardMark = 0
 
-        _ReliableListener(store=self.store,
-                          processor=self,
-                          listener=listener,
-                          forwardMark=forwardMark,
-                          backwardMark=backwardMark,
-                          style=style)
+        return _ReliableListener(store=self.store,
+                                 processor=self,
+                                 listener=listener,
+                                 forwardMark=forwardMark,
+                                 backwardMark=backwardMark,
+                                 style=style)
 
 
     def removeReliableListener(self, listener):
@@ -676,7 +745,6 @@ class SetStore(juice.Command):
     arguments = [('storepath', juice.Path())]
 
 
-
 class SuspendProcessor(juice.Command):
     """
     Prevent a particular reliable listener from receiving any notifications
@@ -698,6 +766,16 @@ class ResumeProcessor(juice.Command):
     arguments = [('storepath', juice.Path()),
                  ('storeid', juice.Integer())]
 
+
+
+class CallItemMethod(juice.Command):
+    """
+    Invoke a particular method of a particular item.
+    """
+    commandName = 'Call-Item-Method'
+    arguments = [('storepath', juice.Path()),
+                 ('storeid', juice.Integer()),
+                 ('method', juice.String())]
 
 
 class BatchProcessingControllerService(service.Service):
@@ -736,6 +814,20 @@ class BatchProcessingControllerService(service.Service):
         return d
 
 
+    def call(self, itemMethod):
+        """
+        Invoke the given bound item method in the batch process.
+
+        Return a Deferred which fires when the method has been invoked.
+        """
+        item = itemMethod.im_self
+        method = itemMethod.im_func.func_name
+        return self.batchController.getProcess().addCallback(
+            CallItemMethod(storepath=item.store.dbdir,
+                           storeid=item.storeID,
+                           method=method).do)
+
+
     def suspend(self, storepath, storeID):
         return self.batchController.getProcess().addCallback(
             SuspendProcessor(storepath=storepath, storeid=storeID).do)
@@ -759,6 +851,10 @@ class _SubStoreBatchChannel(object):
     def __init__(self, substore):
         self.storepath = substore.dbdir
         self.service = iaxiom.IBatchService(substore.parent)
+
+
+    def call(self, itemMethod):
+        return self.service.call(itemMethod)
 
 
     def suspend(self, storeID):
@@ -810,19 +906,37 @@ class BatchProcessingProtocol(JuiceChild):
     command_RESUME_PROCESSOR.command = ResumeProcessor
 
 
+    def command_CALL_ITEM_METHOD(self, storepath, storeid, method):
+        return self.subStores[storepath.path].call(storeid, method).addCallback(lambda ign: {})
+    command_CALL_ITEM_METHOD.command = CallItemMethod
+
+
     def _pollSubStores(self):
         from axiom import store, substore
-        paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
-        for removed in set(self.subStores) - paths:
-            self.subStores[removed].disownServiceParent()
-            del self.subStores[removed]
-            if VERBOSE:
-                log.msg("Removed SubStore " + removed)
-        for added in paths - set(self.subStores):
-            self.subStores[added] = BatchProcessingService(store.Store(added, debug=False), style=iaxiom.REMOTE)
-            self.subStores[added].setServiceParent(self.service)
-            if VERBOSE:
-                log.msg("Added SubStore " + added)
+
+        # Any service which has encountered an error will have logged it and
+        # then stopped.  Prune those here, so that they are noticed as missing
+        # below and re-added.
+        for path, svc in self.subStores.items():
+            if not svc.running:
+                del self.subStores[path]
+
+        try:
+            paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
+        except:
+            # Generally, database is locked.
+            log.err()
+        else:
+            for removed in set(self.subStores) - paths:
+                self.subStores[removed].disownServiceParent()
+                del self.subStores[removed]
+                if VERBOSE:
+                    log.msg("Removed SubStore " + removed)
+            for added in paths - set(self.subStores):
+                self.subStores[added] = BatchProcessingService(store.Store(added, debug=False), style=iaxiom.REMOTE)
+                self.subStores[added].setServiceParent(self.service)
+                if VERBOSE:
+                    log.msg("Added SubStore " + added)
 
 
 
@@ -846,6 +960,10 @@ class BatchProcessingService(service.Service):
         item = self.store.getItemByID(storeID)
         self.suspended.remove(item)
         return item.resume()
+
+
+    def call(self, storeID, methodName):
+        return defer.maybeDeferred(getattr(self.store.getItemByID(storeID), methodName))
 
 
     def deferLater(self, n):

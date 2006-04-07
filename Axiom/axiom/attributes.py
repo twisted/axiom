@@ -641,6 +641,8 @@ class boolean(SQLAttribute):
             return True
         elif dbval == 0:
             return False
+        elif self.allowNone and dbval is None:
+            return None
         else:
             raise ValueError(
                 "attribute [%s.%s = boolean()] "
