@@ -1,6 +1,7 @@
 
 from twisted.trial import unittest
 from twisted.python import log, failure
+from twisted.application import service
 
 from axiom import iaxiom, store, item, attributes, batch, substore
 
@@ -285,6 +286,94 @@ class BatchTestCase(unittest.TestCase):
         self.assertEquals(list(proc.getReliableListeners()), [listener])
 
 
+    def testSuperfluousItemAddition(self):
+        """
+        Test the addItem method for work which would have been done already,
+        and so for which addItem should therefore be a no-op.
+        """
+        processedItems = []
+        def listener(item):
+            processedItems.append(item.information)
+
+        proc = self.procType(store=self.store)
+        listener = WorkListener(store=self.store, listener=listener)
+
+        # Create a couple items so there will be backwards work to do.
+        one = TestWorkUnit(store=self.store, information=0)
+        two = TestWorkUnit(store=self.store, information=1)
+
+        rellist = proc.addReliableListener(listener)
+
+        # Create a couple more items so there will be some forwards work to do.
+        three = TestWorkUnit(store=self.store, information=2)
+        four = TestWorkUnit(store=self.store, information=3)
+
+        # There are only two regions at this point - work behind and work
+        # ahead; no work has been done yet, so there's no region in between.
+        # Add items behind and ahead of the point; these should not result in
+        # any explicit tracking items, since they would have been processed in
+        # due course anyway.
+        rellist.addItem(two)
+        rellist.addItem(three)
+
+        for i in range(100):
+            if not proc.step():
+                break
+        else:
+            self.fail("Processing loop took too long")
+
+        self.assertEquals(processedItems, [2, 3, 1, 0])
+
+
+    def testReprocessItemAddition(self):
+        """
+        Test the addItem method for work which is within the bounds of work
+        already done, and so which would not have been processed without the
+        addItem call.
+        """
+        processedItems = []
+        def listener(item):
+            processedItems.append(item.information)
+
+        proc = self.procType(store=self.store)
+        listener = WorkListener(store=self.store, listener=listener)
+        rellist = proc.addReliableListener(listener)
+
+        one = TestWorkUnit(store=self.store, information=0)
+        two = TestWorkUnit(store=self.store, information=1)
+        three = TestWorkUnit(store=self.store, information=2)
+
+        for i in range(100):
+            if not proc.step():
+                break
+        else:
+            self.fail("Processing loop took too long")
+
+        self.assertEquals(processedItems, range(3))
+
+        # Now that we have processed some items, re-add one of those items to
+        # be re-processed and make sure it actually does get passed to the
+        # listener again.
+        processedItems = []
+
+        rellist.addItem(two)
+
+        for i in xrange(100):
+            if not proc.step():
+                break
+        else:
+            self.fail("Processing loop took too long")
+
+        self.assertEquals(processedItems, [1])
+
+
+class BatchCallTestItem(item.Item):
+    called = attributes.boolean(default=False)
+
+    def callIt(self):
+        self.called = True
+
+
 class RemoteTestCase(unittest.TestCase):
     def testBatchService(self):
         """
@@ -307,3 +396,19 @@ class RemoteTestCase(unittest.TestCase):
         def started(ign):
             return svc.stopService()
         return svc.startService().addCallback(started)
+
+
+    def testCalling(self):
+        """
+        Test invoking a method on an item in the batch process.
+        """
+        dbdir = self.mktemp()
+        s = store.Store(dbdir)
+        ss = substore.SubStore.createNew(s, 'substore')
+        service.IService(s).startService()
+        d = iaxiom.IBatchService(ss).call(BatchCallTestItem(store=ss.open()).callIt)
+        def called(ign):
+            self.failUnless(ss.open().findUnique(BatchCallTestItem).called, "Was not called")
+            return service.IService(s).stopService()
+        return d.addCallback(called)
+
