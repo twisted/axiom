@@ -559,7 +559,7 @@ class Store(Empowered):
 
         self.attachedToParent = True
         self.databaseName = self.parent._attachChild(self)
-        self.cursor = self.parent.connection
+        self.connection = self.parent.connection
         self.cursor = self.parent.cursor
 
 #     def detachFromParent(self):
