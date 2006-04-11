@@ -326,7 +326,7 @@ class Item(Empowered, slotmachine._Strict):
         L = [self.__name__]
         L.append('(')
         A = []
-        for nam, atr in self.getSchema():
+        for nam, atr in sorted(self.getSchema()):
             try:
                 V = atr.reprFor(self)
             except:
@@ -338,7 +338,7 @@ class Item(Empowered, slotmachine._Strict):
         A.append('storeID=' + str(self.storeID))
         L.append(', '.join(A))
         L.append(')')
-        L.append('@' + hex(unsignedID(self)))
+        L.append('@0x%X' % unsignedID(self))
         return ''.join(L)
 
 

@@ -855,6 +855,9 @@ class reference(integer):
             _cascadingDeletes.setdefault(reftype, []).append(self)
 
     def reprFor(self, oself):
+        obj = getattr(oself, self.underlying, None)
+        if obj is not None:
+            return 'reference(%d)' % (obj.storeID,)
         sid = getattr(oself, self.dbunderlying, None)
         if sid is None:
             return 'None'
