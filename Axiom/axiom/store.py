@@ -1062,6 +1062,14 @@ class Store(Empowered):
 
     def getTypeID(self, tableClass):
         """
+        Retrieve the typeID associated with a particular table in the
+        in-database schema for this Store.  A typeID is an opaque integer
+        representing the Item subclass, and the associated table in this
+        Store's SQLite database.
+
+        @param tableClass: a subclass of Item
+
+        @return: an integer
         """
         key = (tableClass.typeName,
                tableClass.schemaVersion)
@@ -1076,7 +1084,20 @@ class Store(Empowered):
 
         if key in self.typenameAndVersionToID:
             return self.typenameAndVersionToID[key]
+        return self.transact(self._actualTableCreation, tableClass, key)
 
+    def _actualTableCreation(self, tableClass, key):
+        """
+        In the event that an Item subclass which has never before been added to
+        the schema of our SQLite database, create the table, update the schema,
+        and return the typeID.  This is internal to the implementation of
+        getTypeID.  It must be run in a transaction.
+
+        @param tableClass: an Item subclass
+        @param key: a 2-tuple of the tableClass's typeName and schemaVersion
+
+        @return: a typeID
+        """
         sqlstr = []
         sqlarg = []
         indexes = set()
