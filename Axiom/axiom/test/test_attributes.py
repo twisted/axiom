@@ -6,7 +6,7 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import Comparable, integer, ieee754_double, ConstraintError, timestamp
+from axiom.attributes import Comparable, integer, ieee754_double, ConstraintError, timestamp, textlist
 
 import random
 
@@ -112,3 +112,15 @@ class StructuredDefaultTestCase(TestCase):
         self.failUnless(
             (Time().asDatetime() - s.getItemByID(sid).creationDate.asDatetime()).seconds <
             10)
+
+
+class TaggedListyThing(Item):
+    strlist = textlist()
+
+class StringListTestCase(TestCase):
+    def testSimpleListOfStrings(self):
+        s = Store()
+        SOME_VALUE = ['abc', 'def, ghi', 'jkl']
+        tlt = TaggedListyThing(store=s, strlist=SOME_VALUE)
+        self.assertEquals(tlt.strlist, SOME_VALUE)
+

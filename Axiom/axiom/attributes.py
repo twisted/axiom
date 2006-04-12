@@ -747,6 +747,23 @@ class text(SQLAttribute):
         def outfilter(self, dbval, oself):
             return dbval
 
+class textlist(text):
+    delimiter = u'\u001f'
+
+    def outfilter(self, dbval, oself):
+        unicodeString = super(textlist, self).outfilter(dbval, oself)
+        if unicodeString is None:
+            return None
+        return unicodeString.split(self.delimiter)
+
+    def infilter(self, pyval, oself, store):
+        if pyval is None:
+            return None
+        for innerVal in pyval:
+            assert self.delimiter not in innerVal
+        result = self.delimiter.join(pyval)
+        return super(textlist, self).infilter(result, oself, store)
+
 class path(text):
     """
     Attribute representing a pathname in the filesystem.  If 'relative=True',
