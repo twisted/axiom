@@ -58,7 +58,7 @@ class List(Item):
             else:
                 index = 0
         return index
-    
+
     def __getitem__(self, index):
         index = self._fixIndex(index)
         return self._getListItem(index)._value
@@ -101,7 +101,7 @@ class List(Item):
 
     def __contains__(self, value):
         return bool(self.count(value))
-    
+
     def append(self, value):
         """
         @type value: L{axiom.item.Item}
@@ -154,7 +154,7 @@ class List(Item):
             li._index = length
             length += 1
         self.length = length
-        
+
     def sort(self, *args):
         # We want to sort by value, not sort by _ListItem.  We could
         # accomplish this by having _ListItem.__cmp__ do something

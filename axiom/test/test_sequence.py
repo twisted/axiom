@@ -51,7 +51,7 @@ class TestSequenceOfItems(SequenceTestCase):
                           List,
                           [alien1, alien2, alien3],
                           store=self.store)
-                          
+
     def test_appendAndGetItem(self):
         seq = List(store=self.store)
         seq.append(self.i0)
@@ -99,7 +99,7 @@ class TestSequenceOfItems(SequenceTestCase):
         self.assertEquals(seq[1], self.i1)
         seq[1] = self.i2
         self.assertEquals(seq[1], self.i2)
-    
+
     def test_delItem(self):
         seq = List(store=self.store)
         seq.append(self.i1)
@@ -268,7 +268,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
                                   self.i5,
                                   self.i6])
     test_sliceAssignmentStep.todo = "Slices are not supported yet"
-        
+
     def test_deleteSliceStep(self):
         seq = List(store=self.store)
         seq.append(self.i0)
@@ -333,7 +333,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
         self.assertEquals(seq.count(self.i1), 1)
         self.assertEquals(seq.count(self.i2), 2)
         self.assertEquals(seq.count(self.i3), 0)
-        
+
     def test_index(self):
         seq = List(store=self.store)
         seq.append(self.i0)
@@ -353,7 +353,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
         self.assertRaises(ValueError, seq.index, self.i1, 3)
         self.assertRaises(ValueError, seq.index, self.i0, 1, 1)
         # TODO: support negative slice boundaries
-        
+
     def test_insert(self):
         seq = List(store=self.store)
         seq.append(self.i0)
@@ -395,9 +395,9 @@ class TestMutableSequenceOperations(SequenceTestCase):
         self.assertIdentical(seq.pop(-2), self.i2)
         self.assertContents(seq, [self.i1,
                                   self.i3])
-        
+
         self.assertRaises(IndexError, seq.pop, 13)
-        
+
     def test_remove(self):
         seq = List(store=self.store)
         seq.append(self.i0)
@@ -432,7 +432,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
                                   self.i1,
                                   self.i3,
                                   self.i0])
-        
+
         self.assertRaises(ValueError, seq.remove, self.i4)
 
     def test_reverse(self):
@@ -454,9 +454,9 @@ class TestMutableSequenceOperations(SequenceTestCase):
 
     '''
     s.sort([cmp[, key[, reverse]]])
-    
+
     From http://docs.python.org/lib/typesseq-mutable.html
-    
+
     The sort() method takes optional arguments for controlling the comparisons.
 
     cmp specifies a custom comparison function of two arguments (list
@@ -491,7 +491,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
             seq.append(self.i1)
             seq.append(self.i4)
             seq.append(self.i2)
-        
+
         seq_randomize()
         seq.sort()
         self.assertContents(seq, [self.i0,
@@ -549,7 +549,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
         self.assertEquals(seq.count(self.i1), 1)
         self.assertEquals(seq.count(self.i2), 2)
         self.assertEquals(seq.count(self.i3), 3)
-    
+
     def test_contains(self):
         seq = List(store=self.store)
         seq.append(self.i1)
@@ -567,7 +567,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
         self.failUnless(self.i2 in seq2)
         self.failIf(self.i1 in seq2)
         self.failIf(self.i2 in seq1)
-        
+
     def test_multidelitem(self):
         seq1 = List(store=self.store)
         seq2 = List(store=self.store)
