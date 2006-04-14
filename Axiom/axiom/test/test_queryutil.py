@@ -1,6 +1,5 @@
 
 import random
-import operator
 
 from twisted.trial.unittest import TestCase
 

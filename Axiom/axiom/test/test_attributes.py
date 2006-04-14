@@ -6,7 +6,7 @@ from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import Comparable, integer, ieee754_double, ConstraintError, timestamp, textlist
+from axiom.attributes import Comparable, integer, ieee754_double, timestamp, textlist
 
 import random
 
