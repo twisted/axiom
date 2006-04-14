@@ -360,7 +360,7 @@ class WildcardQueries(QueryingTestCase):
             D.one.like(D.two),
             '(item_d_v1.one LIKE (item_d_v1.two))')
         self.assertEquals(self.query(D, D.one.like(D.two)), [])
-        
+
     def testOneColumnAndStrings(self):
         self.assertQuery(
             D.one.like('%', D.id, '%one'),
