@@ -57,6 +57,19 @@ class TestItem(unittest.TestCase):
         st = store.Store()
         self.assertRaises(item.CantInstantiateItem, item.Item, store=st)
 
+
+    def testPersistentValues(self):
+        st = store.Store()
+        pi = itemtest.PlainItem(store=st, plain=u'hello')
+        self.assertEqual(pi.persistentValues(), {'plain': u'hello'})
+
+
+    def testPersistentValuesWithoutValue(self):
+        st = store.Store()
+        pi = itemtest.PlainItem(store=st)
+        self.assertEqual(pi.persistentValues(), {'plain': None})
+
+
     def testCreateItemWithNoAttrs(self):
         st = store.Store()
         self.assertRaises(store.NoEmptyItems, NoAttrsItem, store=st)
@@ -120,4 +133,3 @@ class TestItem(unittest.TestCase):
         i.deleteFromStore()
         j = itemtest.PlainItem(store=st)
         self.failIfEqual(oldStoreID, j.storeID)
-        print oldStoreID, j.storeID

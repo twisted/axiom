@@ -16,6 +16,8 @@ from axiom import upgrade, iaxiom
 
 from zope.interface import implements, Interface, Attribute
 
+ANY_PROTOCOL = u'*'
+
 def dflip(x):
     warnings.warn("Don't use dflip no more", stacklevel=2)
     return x
@@ -121,6 +123,7 @@ class LoginAccount(Item):
                                 # substantial portion of the cost.
     disabled = integer()
 
+
     def __conform__(self, interface):
         """
         For convenience, forward adaptation to my 'avatars' attribute.
@@ -182,6 +185,35 @@ class LoginAccount(Item):
 
     def deleteLoginMethods(self):
         self.store.query(LoginMethod, LoginMethod.account == self).deleteFromStore()
+
+
+    def addLoginMethod(self, localpart, domain, protocol=ANY_PROTOCOL, verified=False, internal=False):
+        """
+        Add a login method to this account, propogating up or down as necessary
+        to site store or user store to maintain consistency.
+        """
+        # Out takes you west or something
+        if self.store.parent is None:
+            # West takes you in
+            otherStore = self.avatars.open()
+            peer = otherStore.findUnique(LoginAccount)
+        else:
+            # In takes you east
+            otherStore = self.store.parent
+            subStoreItem = self.store.parent.getItemByID(self.store.idInParent)
+            peer = otherStore.findUnique(LoginAccount,
+                                         LoginAccount.avatars == subStoreItem)
+
+        # Up and down take you home
+        for store, account in [(otherStore, peer), (self.store, self)]:
+            store.findOrCreate(LoginMethod,
+                               account=account,
+                               localpart=localpart,
+                               domain=domain,
+                               protocol=protocol,
+                               verified=verified,
+                               internal=internal)
+
 
 
 def insertUserStore(siteStore, userStorePath):
@@ -351,6 +383,8 @@ class LoginBase:
         """
         Create a user account, add it to this LoginBase, and return it.
 
+        This method must be called within a transaction in my store.
+
         @param username: the user's name.
 
         @param domain: the domain part of the user's name [XXX TODO: this
@@ -361,11 +395,14 @@ class LoginBase:
 
         @param password: A shared secret.
 
-        @param avatars: (Optional).  An object which, if passed, will be used
+        @param avatars: (Optional).  A SubStore which, if passed, will be used
         by cred as the target of all adaptations for this user.  By default, I
         will create a SubStore, and plugins can be installed on that substore
         using the powerUp method to provide implementations of cred client
         interfaces.
+
+        @raise DuplicateUniqueItem: if the 'avatars' argument already contains
+        a LoginAccount.
 
         @return: an instance of a LoginAccount, with all attributes filled out
         as they are passed in, stored in my store.
@@ -383,19 +420,31 @@ class LoginBase:
             raise DuplicateUser(username, domain)
         if avatars is None:
             avatars = self.makeAvatars(domain, username)
+
+        subStore = avatars.open()
+
+        # create this unconditionally; as the docstring says, we must be run
+        # within a transaction, so if something goes wrong in the substore
+        # transaction this item's creation will be reverted...
         la = LoginAccount(store=self.store,
                           password=password,
                           avatars=avatars,
                           disabled=disabled)
 
-        lm = LoginMethod(store=self.store,
-                         localpart=username,
-                         domain=domain,
-                         protocol=protocol,
-                         internal=internal,
-                         verified=verified,
-                         account=la)
+        def createSubStoreAccountObjects():
 
+            LoginAccount(store=subStore,
+                         password=password,
+                         disabled=disabled,
+                         avatars=subStore)
+
+            la.addLoginMethod(localpart=username,
+                              domain=domain,
+                              protocol=protocol,
+                              internal=internal,
+                              verified=verified)
+
+        subStore.transact(createSubStoreAccountObjects)
         return la
 
     def logoutFactory(self, obj):
@@ -472,3 +521,17 @@ def getAccountNames(store, protocol=None):
                                        AND(LoginAccount.avatars == subStore,
                                            LoginMethod.account == LoginAccount.storeID)):
             yield (meth.localpart, meth.domain)
+
+
+def getDomainNames(store):
+    """
+    Retrieve a list of all local domain names represented in the given store.
+    """
+    domains = set()
+    domains.update(store.query(
+            LoginMethod,
+            AND(LoginMethod.internal == True,
+                LoginMethod.domain != None)).getColumn("domain").distinct())
+    return sorted(domains)
+
+
