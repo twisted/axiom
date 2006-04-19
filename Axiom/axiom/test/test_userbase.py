@@ -9,10 +9,11 @@ from twisted.python.filepath import FilePath
 
 from axiom.store import Store
 from axiom.substore import SubStore
-from axiom.userbase import LoginSystem, getAccountNames, extractUserStore, insertUserStore
+from axiom import userbase
 from axiom.item import Item
 from axiom.attributes import integer
 from axiom.scripts import axiomatic
+from axiom import errors
 
 
 class IGarbage(Interface):
@@ -36,7 +37,7 @@ class UserBaseTest(unittest.TestCase):
     def logInAndCheck(self, username, domain='localhost'):
         s = Store(self.mktemp())
         def _speedup():
-            l = LoginSystem(store=s)
+            l = userbase.LoginSystem(store=s)
             l.installOn(s)
             s.checkpoint()
             p = Portal(IRealm(s),
@@ -94,26 +95,158 @@ class CommandTestCase(unittest.TestCase):
         return p.login(UsernamePassword('alice@localhost', SECRET), None, lambda orig, default: orig
                        ).addCallback(cb)
 
+def pvals(m):
+    d = m.persistentValues()
+    d.pop('account')
+    return d
+
+
 class AccountTestCase(unittest.TestCase):
     def testAccountNames(self):
         dbdir = self.mktemp()
         s = Store(dbdir)
-        ls = LoginSystem(store=s)
+        ls = userbase.LoginSystem(store=s)
         ls.installOn(s)
         acc = ls.addAccount('username', 'dom.ain', 'password')
         ss = acc.avatars.open()
 
         self.assertEquals(
-            list(getAccountNames(ss)),
+            list(userbase.getAccountNames(ss)),
             [('username', 'dom.ain')])
 
-        secAcc = ls.addAccount('nameuser', 'ain.dom', 'wordpass', acc.avatars)
+        acc.addLoginMethod(u'nameuser', u'ain.dom')
 
-        names = list(getAccountNames(ss))
+        names = list(userbase.getAccountNames(ss))
         names.sort()
         self.assertEquals(
             names,
             [('nameuser', 'ain.dom'), ('username', 'dom.ain')])
+
+    def testAvatarStoreState(self):
+        """
+        You can only pass an 'avatars' argument if it doesn't already have an
+        account in it.  Some accounts want to have their stores in slightly odd
+        places (like offering.py) but you can't have two accounts added which
+        both point to the same store.
+        """
+        dbdir = self.mktemp()
+        s = Store(dbdir)
+        ls = userbase.LoginSystem(store=s)
+        ls.installOn(s)
+        acc = ls.addAccount('alice', 'dom.ain', 'password')
+
+        # this is allowed, if weird
+        unrelatedAccount = ls.addAccount(
+            'elseice', 'dom.ain', 'password',
+            avatars=SubStore.createNew(s, ('crazy', 'what')))
+
+        # this is not allowed.
+        self.assertRaises(errors.DuplicateUniqueItem,
+                          ls.addAccount,
+                          'bob', 'ain.dom', 'xpassword',
+                          avatars=acc.avatars)
+
+        # Make sure that our stupid call to addAccount did not corrupt
+        # anything, because we are stupid
+        self.assertEquals(acc.avatars.open().query(userbase.LoginAccount).count(), 1)
+
+
+    def testParallelLoginMethods(self):
+        dbdir = self.mktemp()
+        s = Store(dbdir)
+        ls = userbase.LoginSystem(store=s)
+        acc = ls.addAccount(u'username', u'example.com', u'password')
+        ss = acc.avatars.open()
+
+        loginMethods = s.query(userbase.LoginMethod)
+        subStoreLoginMethods = ss.query(userbase.LoginMethod)
+
+        self.assertEquals(loginMethods.count(), 1)
+        self.assertEquals(
+            [pvals(m) for m in loginMethods],
+            [pvals(m) for m in subStoreLoginMethods])
+
+
+    def testSiteLoginMethodCreator(self):
+        dbdir = self.mktemp()
+        s = Store(dbdir)
+        ls = userbase.LoginSystem(store=s)
+        acc = ls.addAccount(u'username', u'example.com', u'password')
+
+        # Do everything twice to make sure repeated calls don't corrupt state
+        # somehow
+        for i in [0, 1]:
+            acc.addLoginMethod(
+                localpart=u'anothername',
+                domain=u'example.org',
+                verified=True,
+                protocol=u'test',
+                internal=False)
+
+            loginMethods = s.query(
+                userbase.LoginMethod, sort=userbase.LoginMethod.storeID.ascending)
+
+            subStoreLoginMethods = acc.avatars.open().query(
+                userbase.LoginMethod, sort=userbase.LoginMethod.storeID.ascending)
+
+            self.assertEquals(loginMethods.count(), 2)
+
+            self.assertEquals(
+                [pvals(m) for m in loginMethods],
+                [pvals(m) for m in subStoreLoginMethods])
+
+
+    def testUserLoginMethodCreator(self):
+        dbdir = self.mktemp()
+        s = Store(dbdir)
+        ls = userbase.LoginSystem(store=s)
+        acc = ls.addAccount(u'username', u'example.com', u'password')
+        ss = acc.avatars.open()
+        subStoreLoginAccount = ss.findUnique(userbase.LoginAccount)
+
+        # Do everything twice to make sure repeated calls don't corrupt state
+        # somehow
+        for i in [0, 1]:
+            subStoreLoginAccount.addLoginMethod(
+                localpart=u'anothername',
+                domain=u'example.org',
+                verified=True,
+                protocol=u'test',
+                internal=False)
+
+            loginMethods = s.query(
+                userbase.LoginMethod, sort=userbase.LoginMethod.storeID.ascending)
+
+            subStoreLoginMethods = ss.query(
+                userbase.LoginMethod, sort=userbase.LoginMethod.storeID.ascending)
+
+            self.assertEquals(loginMethods.count(), 2)
+
+            self.assertEquals(
+                [pvals(m) for m in loginMethods],
+                [pvals(m) for m in subStoreLoginMethods])
+
+
+    def testDomainNames(self):
+        s = Store()
+        acc = s
+        for localpart, domain, internal in [
+            (u'local', u'example.com', True),
+            (u'local', u'example.net', True),
+            (u'remote', u'example.org', False),
+            (u'another', u'example.com', True),
+            (u'brokenguy', None, True)]:
+            userbase.LoginMethod(
+                store=s,
+                localpart=localpart,
+                domain=domain,
+                verified=True,
+                account=s,
+                protocol=u'test',
+                internal=internal)
+        self.assertEquals(userbase.getDomainNames(s), [u"example.com", u"example.net"])
+
+
 
 class ThingThatMovesAround(Item):
     typeName = 'test_thing_that_moves_around'
@@ -128,7 +261,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
     def setUp(self):
         self.dbdir = self.mktemp()
         self.store = Store(self.dbdir)
-        self.ls = LoginSystem(store=self.store)
+        self.ls = userbase.LoginSystem(store=self.store)
 
         self.account = self.ls.addAccount(u'testuser', u'localhost', u'PASSWORD')
 
@@ -140,7 +273,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.destdir = FilePath(self.mktemp())
 
     def testExtraction(self):
-        extractUserStore(self.account, self.destdir)
+        userbase.extractUserStore(self.account, self.destdir)
         self.assertEquals(
             self.ls.accountByAddress(u'testuser', u'localhost'),
             None)
@@ -155,7 +288,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         if _deleteDomainDirectory:
             self.store.filesdir.child('account').child('localhost').remove()
 
-        insertUserStore(self.store, self.destdir)
+        userbase.insertUserStore(self.store, self.destdir)
         insertedStore = self.ls.accountByAddress(u'testuser', u'localhost').avatars.open()
         self.assertEquals(
             insertedStore.findUnique(ThingThatMovesAround).superValue,

@@ -428,6 +428,15 @@ class Item(Empowered, slotmachine._Strict):
 
     getSchema = classmethod(getSchema)
 
+
+    def persistentValues(self):
+        """
+        Return a dictionary of all attributes which will be/have been/are being
+        stored in the database.
+        """
+        return dict((k, getattr(self, k)) for (k, attr) in self.getSchema())
+
+
     def touch(self):
         # xxx what
         if self.store is None or self.store.transaction is None:
