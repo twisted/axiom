@@ -17,7 +17,7 @@ from epsilon import extime, process, cooperator, modal
 
 from vertex import juice
 
-from axiom import iaxiom, item, attributes
+from axiom import iaxiom, errors as eaxiom, item, attributes
 
 VERBOSE = False
 
@@ -923,8 +923,12 @@ class BatchProcessingProtocol(JuiceChild):
 
         try:
             paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
-        except:
+        except eaxiom.SQLError, e:
             # Generally, database is locked.
+            log.msg("SubStore query failed with SQLError: %r" % (e,))
+        except:
+            # WTF?
+            log.msg("SubStore query failed with bad error:")
             log.err()
         else:
             for removed in set(self.subStores) - paths:
@@ -933,10 +937,19 @@ class BatchProcessingProtocol(JuiceChild):
                 if VERBOSE:
                     log.msg("Removed SubStore " + removed)
             for added in paths - set(self.subStores):
-                self.subStores[added] = BatchProcessingService(store.Store(added, debug=False), style=iaxiom.REMOTE)
-                self.subStores[added].setServiceParent(self.service)
-                if VERBOSE:
-                    log.msg("Added SubStore " + added)
+                try:
+                    s = store.Store(added, debug=False)
+                except eaxiom.SQLError, e:
+                    # Generally, database is locked.
+                    log.msg("Opening sub-Store failed with SQLError: %r" % (e,))
+                except:
+                    log.msg("Opening sub-Store failed with bad error:")
+                    log.err()
+                else:
+                    self.subStores[added] = BatchProcessingService(s, style=iaxiom.REMOTE)
+                    self.subStores[added].setServiceParent(self.service)
+                    if VERBOSE:
+                        log.msg("Added SubStore " + added)
 
 
 
@@ -988,7 +1001,14 @@ class BatchProcessingService(service.Service):
                 item = items.pop()
                 if VERBOSE:
                     log.msg("Stepping processor %r (suspended is %r)" % (item, self.suspended))
-                more = more or item.store.transact(item.step, style=self.style, skip=self.suspended)
+                try:
+                    itemHasMore = item.store.transact(item.step, style=self.style, skip=self.suspended)
+                except _ProcessingFailure, e:
+                    log.msg("%r failed while processing %r:" % (e.reliableListener, e.workUnit))
+                    log.err(e.failure)
+                else:
+                    if itemHasMore:
+                        more = True
                 yield None
             yield self.deferLater([10.0, 0.1][more])
 
