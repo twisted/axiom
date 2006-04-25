@@ -530,12 +530,22 @@ class ProcessController(object):
     # non-None value in every state except stopped.
     connector = None
 
-    def __init__(self, name, juice, tacPath, onProcessStartup=None, onProcessTermination=None):
+    def __init__(self, name, juice, tacPath,
+                 onProcessStartup=None,
+                 onProcessTermination=None,
+                 logPath=None,
+                 pidPath=None):
         self.name = name
         self.juice = juice
         self.tacPath = tacPath
         self.onProcessStartup = onProcessStartup
         self.onProcessTermination = onProcessTermination
+        if logPath is None:
+            logPath = name + '.log'
+        if pidPath is None:
+            pidPath = name + '.pid'
+        self.logPath = logPath
+        self.pidPath = pidPath
 
     def _startProcess(self):
         executable = sys.executable
@@ -554,10 +564,10 @@ class ProcessController(object):
         args = [
             sys.executable,
             twistd,
-            '--logfile=%s.log' % (self.name,)]
+            '--logfile=%s' % (self.logPath,)]
 
         if not runtime.platform.isWindows():
-            args.append('--pidfile=%s.pid' % (self.name,))
+            args.append('--pidfile=%s' % (self.pidPath,))
 
         args.extend(['-noy',
                      self.tacPath])
@@ -793,9 +803,18 @@ class BatchProcessingControllerService(service.Service):
         service.Service.startService(self)
         tacPath = util.sibpath(__file__, "batch.tac")
         proto = BatchProcessingProtocol()
+        rundir = self.store.dbdir.child("run")
+        logdir = rundir.child("logs")
+        for d in rundir, logdir:
+            try:
+                d.createDirectory()
+            except OSError:
+                pass
         self.batchController = ProcessController(
             "batch", proto, tacPath,
-            self._setStore, self._restartProcess)
+            self._setStore, self._restartProcess,
+            logdir.child("batch.log").path,
+            rundir.child("batch.pid").path)
         return self.batchController.getProcess()
 
 
