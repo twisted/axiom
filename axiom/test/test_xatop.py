@@ -12,19 +12,6 @@ from axiom import attributes, item, store, errors
 from pysqlite2.dbapi2 import sqlite_version_info
 
 
-class StoreTests(unittest.TestCase):
-    def testCreation(self):
-        dbdir = self.mktemp()
-        s = store.Store(dbdir)
-        s.close()
-
-    def testReCreation(self):
-        dbdir = self.mktemp()
-        s = store.Store(dbdir)
-        s.close()
-        s = store.Store(dbdir)
-        s.close()
-
 class RevertException(Exception):
     pass
 
@@ -53,6 +40,36 @@ class TestItem(item.Item):
             assert isinstance(self.other, TestItem), repr(self.other)
             assert self.other != self, repr(self.other)
             self.checked = True
+
+
+
+class StoreTests(unittest.TestCase):
+    def testCreation(self):
+        dbdir = self.mktemp()
+        s = store.Store(dbdir)
+        s.close()
+
+
+    def testReCreation(self):
+        dbdir = self.mktemp()
+        s = store.Store(dbdir)
+        s.close()
+        s = store.Store(dbdir)
+        s.close()
+
+
+    def testTableQueryCaching(self):
+        """
+        Ensure that the identity of the string returned by the
+        mostly-private getTableQuery method is the same when it is invoked
+        for the same type and version, rather than a newly constructed
+        string.
+        """
+        s = store.Store()
+        self.assertIdentical(
+            s.getTableQuery(TestItem.typeName, 1),
+            s.getTableQuery(TestItem.typeName, 1))
+
 
 
 class FailurePathTests(unittest.TestCase):
