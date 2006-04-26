@@ -1163,7 +1163,7 @@ class Store(Empowered):
         return typeID
 
     def getTableQuery(self, typename, version):
-        if typename not in self.tableQueries:
+        if (typename, version) not in self.tableQueries:
             query = 'SELECT * FROM %s WHERE oid = ?' % (
                 TABLE_NAME(self, typename, version), )
             self.tableQueries[typename, version] = query
