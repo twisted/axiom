@@ -190,12 +190,12 @@ class BaseQuery:
             # me, but I don't know my SQL syntax standards well enough to be
             # sure -glyph
             if not isinstance(self.limit, (int, long)):
-                raise errors.SQLError("limit must be an integer: %r" % (self.limit,))
+                raise errors.SQLError("LIMIT ?", (self.limit,), "limit must be an integer")
             limitClause.append('LIMIT')
             limitClause.append(str(self.limit))
             if self.offset is not None:
                 if not isinstance(self.offset, (int, long)):
-                    raise errors.SQLError("offset must be an integer: %r" % (self.offset,))
+                    raise errors.SQLError("OFFSET ?", (self.offset,), "offset must be an integer")
                 limitClause.append('OFFSET')
                 limitClause.append(str(self.offset))
         else:
