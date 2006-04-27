@@ -135,6 +135,28 @@ class SchedTest(unittest.TestCase):
 
         return d
 
+
+    def testUnscheduling(self):
+        """
+        Test the unscheduleFirst method of the scheduler.
+        """
+        now = Time()
+        d = Deferred()
+        sch = IScheduler(self.store)
+        t1 = TestEvent(testCase=self, name=u't1', store=self.store, maxRunCount=0)
+        t2 = TestEvent(testCase=self, name=u't2', store=self.store, maxRunCount=1, runAgain=None, winner=True, deferred=d)
+
+        # Make sure the inmemory attributes hang around
+        self.ts = [t1, t2]
+
+        sch.schedule(t1, now + timedelta(milliseconds=100))
+        sch.schedule(t2, now + timedelta(milliseconds=200))
+        sch.unscheduleFirst(t1)
+
+        return d
+
+
+
 class TopStoreSchedTest(SchedTest):
 
     def testBasicScheduledError(self):
