@@ -638,6 +638,8 @@ class ProcessController(object):
         def childProcessTerminated(self, reason):
             self.mode = 'stopped'
             self.process = self.connector = None
+            if self.onProcessTermination is not None:
+                self.onProcessTermination()
 
 
     class stopping(modal.mode):
@@ -667,7 +669,10 @@ class ProcessController(object):
             self.mode = 'ready'
             return self.stopProcess()
 
-        childProcessTerminated = _childProcTerminated
+        def childProcessTerminated(self, reason):
+            _childProcTerminated(self, reason)
+            if self.onProcessTermination is not None:
+                self.onProcessTermination()
 
 
 
@@ -823,7 +828,7 @@ class BatchProcessingControllerService(service.Service):
 
 
     def _restartProcess(self):
-        self.batchController.getProcess()
+        reactor.callLater(1.0, self.batchController.getProcess)
 
 
     def stopService(self):
@@ -895,12 +900,20 @@ def storeBatchServiceSpecialCase(st, pups):
 class BatchProcessingProtocol(JuiceChild):
     siteStore = None
 
-    def __init__(self, service=None):
-        juice.Juice.__init__(self, False)
+    def __init__(self, service=None, issueGreeting=False):
+        juice.Juice.__init__(self, issueGreeting)
         self.storepaths = []
-        self.service = service
         if service is not None:
-            self.service.cooperator = cooperator.Cooperator()
+            service.cooperator = cooperator.Cooperator()
+        self.service = service
+
+
+    def connectionLost(self, reason):
+        # In the child process, we are a server.  In the child process, we
+        # don't want to keep running after we can't talk to the client anymore.
+        if self.isServer:
+            reactor.stop()
+
 
     def command_SET_STORE(self, storepath):
         from axiom import store

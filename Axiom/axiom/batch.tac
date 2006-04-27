@@ -17,4 +17,4 @@ from axiom import batch
 application = service.Application("Batch Processing App")
 svc = service.MultiService()
 svc.setServiceParent(application)
-stdio.StandardIO(batch.BatchProcessingProtocol(svc))
+stdio.StandardIO(batch.BatchProcessingProtocol(svc, True))
