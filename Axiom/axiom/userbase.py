@@ -507,19 +507,12 @@ def getAccountNames(store, protocol=None):
     @return: A generator of two-tuples of (username, domain) which
     refer to the given store.
     """
-    if store.parent is None:
-        raise ValueError("Orphan store has no account names")
-    subStore = store.parent.getItemByID(store.idInParent)
     if protocol:
-        for meth in store.parent.query(LoginMethod,
-                                       AND(LoginAccount.avatars == subStore,
-                                           LoginMethod.account == LoginAccount.storeID,
-                                           LoginMethod.protocol == protocol)):
+        for meth in store.query(LoginMethod,
+                                LoginMethod.protocol == protocol):
             yield (meth.localpart, meth.domain)
     else:
-        for meth in store.parent.query(LoginMethod,
-                                       AND(LoginAccount.avatars == subStore,
-                                           LoginMethod.account == LoginAccount.storeID)):
+        for meth in store.query(LoginMethod):
             yield (meth.localpart, meth.domain)
 
 
