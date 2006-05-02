@@ -15,7 +15,7 @@ from twisted.python import log
 from axiom import errors, iaxiom
 
 class Connection(object):
-    def __init__(self, dbfname, timeout=10.0, isolationLevel=None):
+    def __init__(self, dbfname, timeout=None, isolationLevel=None):
         self._connection = dbapi2.connect(dbfname,
                                           timeout=0,
                                           isolation_level=isolationLevel)
@@ -41,6 +41,7 @@ class Cursor(object):
     def execute(self, sql, args=()):
         try:
             try:
+                blockedTime = 0.0
                 t = time.time()
                 try:
                     # SQLite3 uses something like exponential backoff when
@@ -70,14 +71,17 @@ class Cursor(object):
                         except dbapi2.OperationalError, e:
                             if e.args[0] == 'database is locked':
                                 now = time.time()
-                                if now - t > self.timeout:
-                                    raise
+                                if self.timeout is not None:
+                                    if (now - t) > timeout:
+                                        raise
                                 time.sleep(0.1)
+                                blockedTime = time.time() - t
                             else:
                                 raise
                 finally:
                     log.msg(interface=iaxiom.IStatEvent,
-                            stat_cursor_execute_time=time.time() - t)
+                            stat_cursor_execute_time=time.time() - t,
+                            stat_cursor_blocked_time=blockedTime)
             except dbapi2.OperationalError, e:
                 if e.args[0] == 'database schema has changed':
                     return self._cursor.execute(sql, args)
