@@ -40,6 +40,13 @@ class SQLError(RuntimeError):
 
 
 
+class UnknownItemType(Exception):
+    """
+    Can't load an item: it's of a type that I don't see anywhere in Python.
+    """
+
+
+
 class SQLWarning(Warning):
     """
     Axiom internally generated some CREATE TABLE SQL that ... probably wasn't bad

@@ -190,12 +190,12 @@ class BaseQuery:
             # me, but I don't know my SQL syntax standards well enough to be
             # sure -glyph
             if not isinstance(self.limit, (int, long)):
-                raise errors.SQLError("LIMIT ?", (self.limit,), "limit must be an integer")
+                raise TypeError("limit must be an integer: %r" % (self.limit,))
             limitClause.append('LIMIT')
             limitClause.append(str(self.limit))
             if self.offset is not None:
                 if not isinstance(self.offset, (int, long)):
-                    raise errors.SQLError("OFFSET ?", (self.offset,), "offset must be an integer")
+                    raise TypeError("offset must be an integer: %r" % (self.offset,))
                 limitClause.append('OFFSET')
                 limitClause.append(str(self.offset))
         else:
@@ -1209,7 +1209,7 @@ class Store(Empowered):
                     # If there is STILL no inkling of it anywhere, we are
                     # almost certainly boned.  Let's tell the user in a
                     # structured way, at least.
-                    raise errors.SQLError(
+                    raise errors.UnknownItemType(
                         "cannot load unknown schema/version pair: %r %r - id: %r" %
                         (typename, version, storeID))
 
