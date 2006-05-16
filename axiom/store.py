@@ -604,6 +604,11 @@ class Store(Empowered):
         for cls in typesToCheck:
             self.checkTypeSchemaConsistency(cls)
 
+        # Schema is consistent!  Now, if I forgot to create any indexes last
+        # time I saw this table, do it now...
+        for cls in typesToCheck:
+            self._createIndexesFor(cls)
+
         cantUpgradeErrors = []
         for oldVersion in self._oldTypesRemaining:
             # We have to be able to get from oldVersion.schemaVersion to
@@ -1100,7 +1105,6 @@ class Store(Empowered):
         """
         sqlstr = []
         sqlarg = []
-        indexes = set()
 
         # needs to be calculated including version
         tableName = tableClass.getTableName(self)
@@ -1112,12 +1116,6 @@ class Store(Empowered):
             sqlarg.append("\n%s %s" %
                           (atr.columnName, atr.sqltype))
 
-            if atr.indexed:
-                indexes.add(((atr.columnName,), (atr.attrname,)))
-            for compound in atr.compoundIndexes:
-                indexes.add((tuple(inatr.columnName for inatr in compound),
-                             tuple(inatr.attrname for inatr in compound)))
-
         if len(sqlarg) == 0:
             # XXX should be raised way earlier, in the class definition or something
             raise NoEmptyItems("%r did not define any attributes" % (tableClass,))
@@ -1127,18 +1125,7 @@ class Store(Empowered):
 
         self.createSQL(''.join(sqlstr))
 
-        # _ZOMFG_ SQL is such a piece of _shit_: you can't fully qualify the
-        # table name in CREATE INDEX statements because the _INDEX_ is fully
-        # qualified!
-
-        indexColumnPrefix = '.'.join(tableClass.getTableName(self).split(".")[1:])
-
-        for (indexColumns, indexAttrs) in indexes:
-            csql = ('CREATE INDEX %s ON %s(%s)' %
-                    (tableClass.indexNameOf(self, '_'.join(indexAttrs)),
-                     indexColumnPrefix,
-                     ', '.join(indexColumns)))
-            self.createSQL(csql)
+        self._createIndexesFor(tableClass)
 
         typeID = self.executeSchemaSQL(_schema.CREATE_TYPE,
                                        [tableClass.typeName,
@@ -1161,6 +1148,33 @@ class Store(Empowered):
             self.tablesCreatedThisTransaction.append(tableClass)
 
         return typeID
+
+    def _createIndexesFor(self, tableClass):
+        indexes = set()
+        for nam, atr in tableClass.getSchema():
+            if atr.indexed:
+                indexes.add(((atr.columnName,), (atr.attrname,)))
+            for compound in atr.compoundIndexes:
+                indexes.add((tuple(inatr.columnName for inatr in compound),
+                             tuple(inatr.attrname for inatr in compound)))
+
+        # _ZOMFG_ SQL is such a piece of _shit_: you can't fully qualify the
+        # table name in CREATE INDEX statements because the _INDEX_ is fully
+        # qualified!
+
+        indexColumnPrefix = '.'.join(tableClass.getTableName(self).split(".")[1:])
+
+        for (indexColumns, indexAttrs) in indexes:
+            csql = ('CREATE INDEX %s ON %s(%s)' %
+                    (tableClass.indexNameOf(self, '_'.join(indexAttrs)),
+                     indexColumnPrefix,
+                     ', '.join(indexColumns)))
+            try:
+                self.createSQL(csql)
+            except errors.SQLError, sqle:
+                # Ignore duplicate indexes.
+                if "already exists" not in str(sqle):
+                    raise
 
     def getTableQuery(self, typename, version):
         if (typename, version) not in self.tableQueries:
