@@ -1,14 +1,18 @@
 # -*- test-case-name: axiom.test.test_attributes -*-
 
+import random
+from decimal import Decimal
+
 from epsilon.extime import Time
 
 from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import Comparable, integer, ieee754_double, timestamp, textlist
 
-import random
+from axiom.attributes import Comparable, integer, timestamp, textlist
+
+from axiom.attributes import ieee754_double, point1decimal, money
 
 class Number(Item):
     typeName = 'test_number'
@@ -24,6 +28,95 @@ class IEEE754DoubleTest(TestCase):
         Number(store=s, value=7.1)
         n = s.findFirst(Number)
         self.assertEquals(n.value, 7.1)
+
+    def testFPSumsAreBrokenSoDontUseThem(self):
+        s = Store()
+        for x in range(10):
+            Number(store=s,
+                   value=0.1)
+        self.assertNotEquals(s.query(Number).getColumn("value").sum(),
+                             1.0)
+
+        # This isn't really a unit test.  It's documentation.
+        self.assertEquals(s.query(Number).getColumn("value").sum(),
+                          0.99999999999999989)
+
+
+
+class DecimalDoodad(Item):
+    integral = point1decimal(default=0, allowNone=False)
+    otherMoney = money(allowNone=True)
+    extraintegral = integer()
+    money = money(default=0)
+
+class FixedPointDecimalTest(TestCase):
+    def testSum(self):
+        s = Store()
+        for x in range(10):
+            DecimalDoodad(store=s,
+                          money=Decimal("0.10"))
+        self.assertEquals(s.query(DecimalDoodad).getColumn("money").sum(),
+                          1)
+
+    def testRoundTrip(self):
+        s = Store()
+        DecimalDoodad(store=s, integral=19947,
+                      money=Decimal("4.3"),
+                      otherMoney=Decimal("-17.94"))
+        self.assertEquals(s.findFirst(DecimalDoodad).integral, 19947)
+        self.assertEquals(s.findFirst(DecimalDoodad).money, Decimal("4.3"))
+        self.assertEquals(s.findFirst(DecimalDoodad).otherMoney, Decimal("-17.9400"))
+
+    def testComparisons(self):
+        s = Store()
+        DecimalDoodad(store=s,
+                      money=Decimal("19947.000000"),
+                      otherMoney=19947)
+        self.assertEquals(
+            s.query(DecimalDoodad,
+                    DecimalDoodad.money == DecimalDoodad.otherMoney).count(),
+            1)
+        self.assertEquals(
+            s.query(DecimalDoodad,
+                    DecimalDoodad.money != DecimalDoodad.otherMoney).count(),
+            0)
+        self.assertEquals(
+            s.query(DecimalDoodad,
+                    DecimalDoodad.money == 19947).count(),
+            1)
+        self.assertEquals(
+            s.query(DecimalDoodad,
+                    DecimalDoodad.money == Decimal("19947")).count(),
+            1)
+
+
+    def testDisallowedComparisons(self):
+        # These tests should go away; it's (mostly) possible to support
+        # comparison of different precisions:
+
+        # sqlite> select 1/3;
+        # 0
+        # sqlite> select 3/1;
+        # 3
+        # sqlite> select 3/2;
+        # 1
+
+
+        s = Store()
+        DecimalDoodad(store=s,
+                      integral=1,
+                      money=1)
+
+        self.assertRaises(TypeError,
+                          lambda : s.query(
+                DecimalDoodad,
+                DecimalDoodad.integral == DecimalDoodad.money))
+
+        self.assertRaises(TypeError,
+                          lambda : s.query(
+                DecimalDoodad,
+                DecimalDoodad.integral == DecimalDoodad.extraintegral))
+
 
 class SpecialStoreIDAttributeTest(TestCase):
 

@@ -1,9 +1,11 @@
 # -*- test-case-name: axiom.test.test_attributes -*-
 
+import os
+
+from decimal import Decimal
+
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
-
-import os
 
 from zope.interface import implements
 
@@ -963,3 +965,119 @@ class ieee754_double(SQLAttribute):
 
     def outfilter(self, dbval, oself):
         return dbval
+
+
+
+class AbstractFixedPointDecimal(integer):
+    """
+    Attribute representing a number with a specified number of decimal
+    places.
+
+    This is stored in SQLite as a binary integer multiplied by (10**N) where N
+    is the number of decimal places required by Python.  Therefore, in-database
+    multiplication, division, or queries which compare to integers or
+    fixedpointdecimals with a different number of decimal places, will not
+    work.  Also, you cannot store, or sum to, fixed point decimals greater than
+    (2**63)/(10**N).
+
+    While L{ieee754_double} is handy for representing various floating-point
+    numbers, such as scientific measurements, this class (and the associated
+    Python decimal class) is more appropriate for arithmetic on sums of money.
+
+    For more information on Python's Decimal class:
+
+        http://www.python.org/doc/current/lib/module-decimal.html
+
+    and on general computerized Decimal math in general:
+
+        http://www2.hursley.ibm.com/decimal/decarith.html
+
+    This is currently a private helper superclass because we cannot store
+    additional metadata about column types; maybe we should fix that.
+
+    @cvar decimalPlaces: the number of points of decimal precision allowed by
+    the storage and retrieval of this class.  *Points beyond this number
+    will be silently truncated to values passed into the database*, so be
+    sure to select a value appropriate to your application!
+    """
+
+    def __init__(self, **kw):
+        integer.__init__(self, **kw)
+        self.exponent = (10 ** self.decimalPlaces)
+
+
+    def infilter(self, pyval, oself, store):
+        if pyval is None:
+            return None
+        elif isinstance(pyval, Decimal):
+            return super(AbstractFixedPointDecimal, self).infilter(
+                int(pyval._rescale(-(self.decimalPlaces)) * self.exponent),
+                oself, store)
+        elif isinstance(pyval, (int, long)):
+            return super(AbstractFixedPointDecimal, self).infilter(
+                pyval * self.exponent, oself, store)
+        else:
+            raise TypeError(
+                "attribute [%s.%s = AbstractFixedPointDecimal(...)] must be "
+                "Decimal instance; not %r" % (
+                self.classname, self.attrname, type(pyval).__name__))
+
+
+    def outfilter(self, dbval, oself):
+        if dbval is None:
+            return None
+        return Decimal(int(dbval)) / self.exponent
+
+
+    def compare(self, other, sqlop):
+        if isinstance(other, Comparable):
+            if isinstance(other, AbstractFixedPointDecimal):
+                if other.decimalPlaces == self.decimalPlaces:
+                    # fall through to default behavior at bottom
+                    pass
+                else:
+                    raise TypeError(
+                        "Can't compare Decimals of varying precisions: "
+                        "(%s.%s %s %s.%s)" % (
+                            self.classname, self.attrname,
+                            sqlop,
+                            other.classname, other.attrname
+                            ))
+            else:
+                raise TypeError(
+                    "Can't compare Decimals to other things: "
+                    "(%s.%s %s %s.%s)" % (
+                        self.classname, self.attrname,
+                        sqlop,
+                        other.classname, other.attrname
+                        ))
+        return super(AbstractFixedPointDecimal, self).compare(other, sqlop)
+
+class point1decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 1
+class point2decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 2
+class point3decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 3
+class point4decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 4
+class point5decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 5
+class point6decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 6
+class point7decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 7
+class point8decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 8
+class point9decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 9
+class point10decimal(AbstractFixedPointDecimal):
+    decimalPlaces = 10
+
+class money(point4decimal):
+    """
+    I am a 4-point precision fixed-point decimal number column type; suggested
+    for representing a quantity of money.
+
+    (This does not, however, include features such as currency.)
+    """
