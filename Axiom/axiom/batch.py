@@ -4,14 +4,20 @@
 Utilities for performing repetitive tasks over potentially large sets
 of data over an extended period of time.
 """
-
+MANHOLE_PORT = 6022
 import weakref, datetime, os, sys
 
 from zope.interface import implements
 
 from twisted.python import reflect, failure, log, procutils, util, runtime
-from twisted.application import service
 from twisted.internet import task, defer, reactor, error, protocol
+from twisted.application import internet, service
+from twisted.cred import checkers, portal
+
+from twisted.conch.manhole import ColoredManhole
+from twisted.conch.insults import insults
+from twisted.conch.manhole_ssh import ConchFactory,  TerminalUser, TerminalSession
+from twisted.conch import interfaces as iconch
 
 from epsilon import extime, process, cooperator, modal
 
@@ -924,7 +930,20 @@ class BatchProcessingProtocol(JuiceChild):
         self.subStores = {}
         self.pollCall = task.LoopingCall(self._pollSubStores)
         self.pollCall.start(10.0)
+
+        rlm = portal.IRealm(self.siteStore, None)
+        if rlm is not None:
+            #don't wanna freak out if there's no userbase installed
+            chk = checkers.ICredentialsChecker(self.siteStore, None)
+            ptl = portal.Portal(rlm, [chk])
+            f = ConchFactory(ptl)
+            try:
+                csvc = internet.TCPServer(MANHOLE_PORT, f)
+                csvc.setServiceParent(self.service)
+            except error.CannotListenError:
+                pass
         return {}
+
     command_SET_STORE.command = SetStore
 
 
@@ -1076,3 +1095,32 @@ class BatchProcessingService(service.Service):
     def stopService(self):
         service.Service.stopService(self)
         self.store.close()
+
+class BatchManholePowerup(item.Item, item.InstallableMixin,
+                          TerminalUser, TerminalSession):
+
+    #inheritance is a design pattern!@#
+
+    installedOn = attributes.reference()
+    original = attributes.inmemory()
+    transportFactory = attributes.inmemory()
+    chainedProtocolFactory = attributes.inmemory()
+    channelLookup = attributes.inmemory()
+    subsystemLookup = attributes.inmemory()
+    width = attributes.inmemory()
+    height = attributes.inmemory()
+    conn = attributes.inmemory()
+
+    def activate(self):
+        TerminalSession.__init__(self, self.installedOn)
+        TerminalUser.__init__(self, self.installedOn, None)
+
+    def chainedProtocolFactory(self):
+        return insults.ServerProtocol(
+            ColoredManhole,
+            None)
+
+    def installOn(self, other):
+        item.InstallableMixin.installOn(self, other)
+        other.powerUp(self, iconch.IConchUser)
+        other.powerUp(self, iconch.ISession)
