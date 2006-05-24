@@ -48,6 +48,11 @@ class _ProcessingFailure(Exception):
         self.workUnit = workUnit
         self.failure = failure
 
+        # Get rid of all references this failure is holding so that it doesn't
+        # cause any crazy object leaks.  See also the comment in
+        # BatchProcessingService.step's except suite.
+        self.failure.cleanFailure()
+
 
 
 class _ForwardProcessingFailure(_ProcessingFailure):
@@ -1057,6 +1062,15 @@ class BatchProcessingService(service.Service):
                 except _ProcessingFailure, e:
                     log.msg("%r failed while processing %r:" % (e.reliableListener, e.workUnit))
                     log.err(e.failure)
+
+                    # _Fuck_.  /Fuck/.  If user-code in or below (*fuck*)
+                    # item.step creates a Failure on any future iteration
+                    # (-Fuck-) of this loop, it will get a reference to this
+                    # exception instance, since it's in locals and Failures
+                    # extract and save locals (Aaarrrrggg).  Get rid of this so
+                    # that doesn't happen.  See also the definition of
+                    # _ProcessingFailure.__init__.
+                    e = None
                 else:
                     if itemHasMore:
                         more = True
