@@ -16,7 +16,10 @@ from twisted.cred import checkers, portal
 
 from twisted.conch.manhole import ColoredManhole
 from twisted.conch.insults import insults
-from twisted.conch.manhole_ssh import ConchFactory,  TerminalUser, TerminalSession
+try:
+    from twisted.conch import manhole_ssh
+except ImportError:
+    manhole_ssh = None
 from twisted.conch import interfaces as iconch
 
 from epsilon import extime, process, cooperator, modal
@@ -936,17 +939,18 @@ class BatchProcessingProtocol(JuiceChild):
         self.pollCall = task.LoopingCall(self._pollSubStores)
         self.pollCall.start(10.0)
 
-        rlm = portal.IRealm(self.siteStore, None)
-        if rlm is not None:
-            #don't wanna freak out if there's no userbase installed
-            chk = checkers.ICredentialsChecker(self.siteStore, None)
-            ptl = portal.Portal(rlm, [chk])
-            f = ConchFactory(ptl)
-            try:
-                csvc = internet.TCPServer(MANHOLE_PORT, f)
-                csvc.setServiceParent(self.service)
-            except error.CannotListenError:
-                pass
+        if manhole_ssh is not None:
+            rlm = portal.IRealm(self.siteStore, None)
+            if rlm is not None:
+                #don't wanna freak out if there's no userbase installed
+                chk = checkers.ICredentialsChecker(self.siteStore, None)
+                ptl = portal.Portal(rlm, [chk])
+                f = manhole_ssh.ConchFactory(ptl)
+                try:
+                    csvc = internet.TCPServer(MANHOLE_PORT, f)
+                    csvc.setServiceParent(self.service)
+                except error.CannotListenError:
+                    pass
         return {}
 
     command_SET_STORE.command = SetStore
@@ -1110,9 +1114,14 @@ class BatchProcessingService(service.Service):
         service.Service.stopService(self)
         self.store.close()
 
-class BatchManholePowerup(item.Item, item.InstallableMixin,
-                          TerminalUser, TerminalSession):
 
+
+if manhole_ssh is not None:
+    bases = (manhole_ssh.TerminalUser, manhole_ssh.TerminalSession)
+else:
+    bases = ()
+
+class BatchManholePowerup(item.Item, item.InstallableMixin):
     #inheritance is a design pattern!@#
 
     installedOn = attributes.reference()
@@ -1125,16 +1134,23 @@ class BatchManholePowerup(item.Item, item.InstallableMixin,
     height = attributes.inmemory()
     conn = attributes.inmemory()
 
+    def installOn(self, other):
+        item.InstallableMixin.installOn(self, other)
+        other.powerUp(self, iconch.IConchUser)
+        other.powerUp(self, iconch.ISession)
+
+
     def activate(self):
-        TerminalSession.__init__(self, self.installedOn)
-        TerminalUser.__init__(self, self.installedOn, None)
+        if manhole_ssh is not None:
+            manhole_ssh.TerminalSession.__init__(self, self.installedOn)
+            manhole_ssh.TerminalUser.__init__(self, self.installedOn, None)
+
 
     def chainedProtocolFactory(self):
         return insults.ServerProtocol(
             ColoredManhole,
             None)
 
-    def installOn(self, other):
-        item.InstallableMixin.installOn(self, other)
-        other.powerUp(self, iconch.IConchUser)
-        other.powerUp(self, iconch.ISession)
+
+# I don't even know what to say here. -exarkun
+BatchManholePowerup.__bases__ += bases
