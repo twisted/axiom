@@ -19,7 +19,9 @@ from twisted.conch.insults import insults
 from twisted.conch.manhole_ssh import ConchFactory,  TerminalUser, TerminalSession
 from twisted.conch import interfaces as iconch
 
-from epsilon import extime, process, cooperator, modal, juice
+from epsilon import extime, process, cooperator, modal
+
+from vertex import juice
 
 from axiom import iaxiom, errors as eaxiom, item, attributes
 
