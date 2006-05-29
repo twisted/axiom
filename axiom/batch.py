@@ -22,9 +22,7 @@ except ImportError:
     manhole_ssh = None
 from twisted.conch import interfaces as iconch
 
-from epsilon import extime, process, cooperator, modal
-
-from vertex import juice
+from epsilon import extime, process, cooperator, modal, juice
 
 from axiom import iaxiom, errors as eaxiom, item, attributes
 
