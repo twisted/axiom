@@ -133,3 +133,15 @@ class TestItem(unittest.TestCase):
         i.deleteFromStore()
         j = itemtest.PlainItem(store=st)
         self.failIfEqual(oldStoreID, j.storeID)
+
+    def testDeleteThenLoad(self):
+        st = store.Store()
+        i = itemtest.PlainItem(store=st)
+        oldStoreID = i.storeID
+        self.assertEquals(st.getItemByID(oldStoreID, default=1234),
+                          i)
+        i.deleteFromStore()
+        self.assertEquals(st.getItemByID(oldStoreID+100, default=1234),
+                          1234)
+        self.assertEquals(st.getItemByID(oldStoreID, default=1234),
+                          1234)
