@@ -11,6 +11,16 @@ from twisted.application.service import IService
 from axiom.store import Store
 
 def saveStub(funcobj, revision):
+    """
+    Create a stub database and populate it using the given function.
+
+    @param funcobj: A one-argument callable which will be invoked with an Axiom
+    Store instance and should add to it the old state which will be used to
+    test an upgrade.
+
+    @param revision: An SVN revision of trunk at which it was possible it is
+    possible for funcobj to create the necessary state.
+    """
     # You may notice certain files don't pass the second argument.  They don't
     # work any more.  Please feel free to update them with the revision number
     # they were created at.
@@ -27,6 +37,8 @@ def saveStub(funcobj, revision):
     tarball.add(os.path.basename(dbfn))
     tarball.close()
     shutil.rmtree(dbfn)
+
+
 
 class StubbedTest(unittest.TestCase):
     def setUp(self):
