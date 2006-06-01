@@ -504,7 +504,8 @@ class Item(Empowered, slotmachine._Strict):
             # the end of the table.
             if self.__deletingObject:
                 # Mark this object as dead.
-                self.store.executeSchemaSQL(_schema.CHANGE_TYPE, [self.storeID, -1])
+                self.store.executeSchemaSQL(_schema.CHANGE_TYPE,
+                                            [-1, self.storeID])
 
                 # Can't do this any more:
                 # self.store.executeSchemaSQL(_schema.DELETE_OBJECT, [self.storeID])
