@@ -1292,7 +1292,12 @@ class Store(Empowered):
         if self.debug:
             print '**', sql, '--', ', '.join(map(str, args))
         self.cursor.execute(sql, args)
+        before = time.time()
         result = list(self.cursor)
+        after = time.time()
+        if after - before > 2.0:
+            log.msg('Extremely long list(cursor): %s' % (after - before,))
+            log.msg(sql)
         if self.debug:
             print '  lastrow:', self.cursor.lastRowID()
             print '  result:', result
