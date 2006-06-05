@@ -41,7 +41,8 @@ class _NoWorkUnits(Exception):
 
 class _ProcessingFailure(Exception):
     """
-    Raised when processItem raises any exception.
+    Raised when processItem raises any exception.  This is never raised
+    directly, but instances of the three subclasses are.
     """
     def __init__(self, reliableListener, workUnit, failure):
         Exception.__init__(self)
@@ -55,12 +56,30 @@ class _ProcessingFailure(Exception):
         self.failure.cleanFailure()
 
 
+    def mark(self):
+        """
+        Mark the unit of work as failed in the database and update the listener
+        so as to skip it next time.
+        """
+        self.reliableListener.lastRun = extime.Time()
+        BatchProcessingError(
+            store=self.reliableListener.store,
+            processor=self.reliableListener.processor,
+            listener=self.reliableListener.listener,
+            item=self.workUnit,
+            error=self.failure.getErrorMessage())
+
+
 
 class _ForwardProcessingFailure(_ProcessingFailure):
     """
     An error occurred in a reliable listener while processing items forward
     from the mark.
     """
+
+    def mark(self):
+        _ProcessingFailure.mark(self)
+        self.reliableListener.forwardMark = self.workUnit.storeID
 
 
 
@@ -69,6 +88,9 @@ class _BackwardProcessingFailure(_ProcessingFailure):
     An error occurred in a reliable listener while processing items backwards
     from the mark.
     """
+    def mark(self):
+        _ProcessingFailure.mark(self)
+        self.reliableListener.backwardMark = self.workUnit.storeID
 
 
 
@@ -286,24 +308,9 @@ class _BatchProcessorMixin:
 
     def timedEventErrorHandler(self, timedEvent, failureObj):
         failureObj.trap(_ProcessingFailure)
-        workUnit = failureObj.value.workUnit
-        listener = failureObj.value.reliableListener
-        processingFailure = failureObj.value.failure
-
         log.msg("Batch processing failure")
-        log.err(processingFailure)
-        BatchProcessingError(
-            store=self.store,
-            processor=listener.processor,
-            listener=listener.listener,
-            item=workUnit,
-            error=processingFailure.getErrorMessage())
-
-        if failureObj.check(_ForwardProcessingFailure):
-            listener.forwardMark = workUnit.storeID
-        elif failureObj.check(_BackwardProcessingFailure):
-            listener.backwardMark = workUnit.storeID
-
+        log.err(failureObj.value.failure)
+        failureObj.value.mark()
         return extime.Time() + datetime.timedelta(milliseconds=self.busyInterval)
 
 
@@ -1047,15 +1054,33 @@ class BatchProcessingService(service.Service):
         return self.store.powerupsFor(iaxiom.IBatchProcessor)
 
 
+    def processWhileRunning(self):
+        """
+        Run tasks until stopService is called.
+        """
+        task = self.step()
+        for result, more in task:
+            yield result
+            if not self.running:
+                break
+            if more:
+                delay = 0.1
+            else:
+                delay = 10.0
+            yield self.deferLater(delay)
+
+
     def step(self):
-        while self.running:
+        while True:
             items = list(self.items())
 
             if VERBOSE:
                 log.msg("Found %d processors for %s" % (len(items), self.store))
 
+            ran = False
             more = False
-            while items and self.running:
+            while items:
+                ran = True
                 item = items.pop()
                 if VERBOSE:
                     log.msg("Stepping processor %r (suspended is %r)" % (item, self.suspended))
@@ -1064,6 +1089,7 @@ class BatchProcessingService(service.Service):
                 except _ProcessingFailure, e:
                     log.msg("%r failed while processing %r:" % (e.reliableListener, e.workUnit))
                     log.err(e.failure)
+                    e.mark()
 
                     # _Fuck_.  /Fuck/.  If user-code in or below (*fuck*)
                     # item.step creates a Failure on any future iteration
@@ -1076,36 +1102,14 @@ class BatchProcessingService(service.Service):
                 else:
                     if itemHasMore:
                         more = True
-                yield None
-            yield self.deferLater([10.0, 0.1][more])
-
-
-    def ensafen(self, iterator, onError):
-        """
-        Create an iterator which yields the same elements C{iterator} would
-        have produced, but catch any exceptions it raises (except for
-        C{StopIteration}) and invoke C{onError} to handle them.
-        """
-        while True:
-            try:
-                yield iterator.next()
-            except StopIteration:
-                break
-            except:
-                f = failure.Failure()
-                onError(f)
-
-
-    def _desist(self, err):
-        log.msg("Batch processor for %r encountered an error" % (self.store,))
-        log.err(err)
-        self.disownServiceParent()
-        raise StopIteration
+                yield None, more
+            if not ran:
+                yield None, more
 
 
     def startService(self):
         service.Service.startService(self)
-        self.parent.cooperator.coiterate(self.ensafen(self.step(), self._desist))
+        self.parent.cooperator.coiterate(self.processWhileRunning())
 
 
     def stopService(self):

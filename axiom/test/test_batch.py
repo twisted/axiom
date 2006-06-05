@@ -374,6 +374,55 @@ class BatchCallTestItem(item.Item):
         self.called = True
 
 
+
+class BrokenException(Exception):
+    """
+    Exception always raised by L{BrokenReliableListener.processItem}.
+    """
+
+
+
+class BatchWorkItem(item.Item):
+    """
+    Item class which will be delivered as work units for testing error handling
+    around reliable listeners.
+    """
+    value = attributes.text(default=u"unprocessed")
+
+
+
+BatchWorkSource = batch.processor(BatchWorkItem)
+
+
+
+class BrokenReliableListener(item.Item):
+    """
+    A listener for batch work which always raises an exception from its
+    processItem method.  Used to test that errors from processItem are properly
+    handled.
+    """
+
+    anAttribute = attributes.integer()
+
+    def processItem(self, item):
+        raise BrokenException("Broken Reliable Listener is working as expected.")
+
+
+
+class WorkingReliableListener(item.Item):
+    """
+    A listener for batch work which actually works.  Used to test that even if
+    a broken reliable listener is around, working ones continue to receive new
+    items to process.
+    """
+
+    anAttribute = attributes.integer()
+
+    def processItem(self, item):
+        item.value = u"processed"
+
+
+
 class RemoteTestCase(unittest.TestCase):
     def testBatchService(self):
         """
@@ -411,4 +460,43 @@ class RemoteTestCase(unittest.TestCase):
             self.failUnless(ss.open().findUnique(BatchCallTestItem).called, "Was not called")
             return service.IService(s).stopService()
         return d.addCallback(called)
+
+
+    def testProcessingServiceStepsOverErrors(self):
+        """
+        If any processor raises an unexpected exception, the work unit which
+        was being processed should be marked as having had an error and
+        processing should move on to the next item.  Make sure that this
+        actually happens when L{BatchProcessingService} is handling those
+        errors.
+        """
+        BATCH_WORK_UNITS = 3
+
+        dbdir = self.mktemp()
+        st = store.Store(dbdir)
+        source = BatchWorkSource(store=st)
+        for i in range(BATCH_WORK_UNITS):
+            BatchWorkItem(store=st)
+
+        source.addReliableListener(BrokenReliableListener(store=st), iaxiom.REMOTE)
+        source.addReliableListener(WorkingReliableListener(store=st), iaxiom.REMOTE)
+
+        svc = batch.BatchProcessingService(st, iaxiom.REMOTE)
+
+        task = svc.step()
+
+        # Loop 6 (BATCH_WORK_UNITS * 2) times - three items times two
+        # listeners, it should not take any more than six iterations to
+        # completely process all work.
+        for i in xrange(BATCH_WORK_UNITS * 2):
+            task.next()
+
+
+        self.assertEquals(
+            len(log.flushErrors(BrokenException)),
+            BATCH_WORK_UNITS)
+
+        self.assertEquals(
+            st.query(BatchWorkItem, BatchWorkItem.value == u"processed").count(),
+            BATCH_WORK_UNITS)
 
