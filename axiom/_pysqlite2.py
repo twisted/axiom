@@ -79,8 +79,12 @@ class Cursor(object):
                             else:
                                 raise
                 finally:
+                    txntime = time.time() - t
+                    if txntime - blockedTime > 2.0:
+                        log.msg('Extremely long execute: %s' % (txntime - blockedTime,))
+                        log.msg(sql)
                     log.msg(interface=iaxiom.IStatEvent,
-                            stat_cursor_execute_time=time.time() - t,
+                            stat_cursor_execute_time=txntime,
                             stat_cursor_blocked_time=blockedTime)
             except dbapi2.OperationalError, e:
                 if e.args[0] == 'database schema has changed':
