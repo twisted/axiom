@@ -498,7 +498,8 @@ class Item(Empowered, slotmachine._Strict):
                 # don't issue duplicate SQL and crap; we were created, then
                 # destroyed immediately.
                 return
-            self.store.executeSQL(self._baseDeleteSQL(self.store), [self.storeID])
+            self.store.executeSQL(self._baseDeleteSQL(self.store),
+                                  [self.storeID])
             # re-using OIDs plays havoc with the cache, and with other things
             # as well.  We need to make sure that we leave a placeholder row at
             # the end of the table.
@@ -507,15 +508,16 @@ class Item(Empowered, slotmachine._Strict):
                 self.store.executeSchemaSQL(_schema.CHANGE_TYPE,
                                             [-1, self.storeID])
 
-                # Can't do this any more:
-                # self.store.executeSchemaSQL(_schema.DELETE_OBJECT, [self.storeID])
+                # I want to do this to reclaim the space, but I can't because
+                # the ID allocation algorithm depends on the fact that old
+                # objects aren't recycled:
+
+                # self.store.executeSchemaSQL(_schema.DELETE_OBJECT,
+                #                             [self.storeID])
 
                 # TODO: need to measure the performance impact of this, then do
                 # it to make sure things are in fact deleted:
                 # self.store.executeSchemaSQL(_schema.APP_VACUUM)
-
-            else:
-                assert self.__legacy__
 
             # we're done...
             if self.store.autocommit:
