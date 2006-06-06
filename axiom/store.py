@@ -2302,6 +2302,17 @@ class Store(Empowered):
             # for the moment we're going to assume no inheritance
             attrs = self.querySQL(T._baseSelectSQL(self), [storeID])
             if len(attrs) == 0:
+                # there was an oid allocation row with a type set to a valid
+                # type, but no accompanying data row.
+
+                # there are cases where items will be deleted but their oid
+                # allocation rows won't be.  normally this should set the type
+                # to -1 but upgraders or old bugs may have left the database
+                # in a state where it's still set.
+
+                # do cleanup if we're not in a read-only transaction (haha
+                # there is no such thing as a read-only transaction)
+                self.executeSchemaSQL(_schema.CHANGE_TYPE, [-1, storeID])
                 if default is _noItem:
                     raise errors.ItemNotFound(
                         'No results for known-to-be-good object')
