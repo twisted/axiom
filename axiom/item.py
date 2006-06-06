@@ -632,31 +632,27 @@ class Item(Empowered, slotmachine._Strict):
 
     indexNameOf = classmethod(indexNameOf)
 
-    _cachedInsertSQL = None
-
     def _baseInsertSQL(cls, st):
-        if cls._cachedInsertSQL is None:
+        if cls not in st.typeToInsertSQLCache:
             attrs = list(cls.getSchema())
             qs = ', '.join((['?']*(len(attrs)+1)))
-            cls._cachedInsertSQL = (
+            st.typeToInsertSQLCache[cls] = (
                 'INSERT INTO '+
                 cls.getTableName(st) + ' (' + ', '.join(
                     ['oid'] +
                     [a[1].columnName for a in attrs]) +
                 ') VALUES (' + qs + ')')
-        return cls._cachedInsertSQL
+        return st.typeToInsertSQLCache[cls]
 
     _baseInsertSQL = classmethod(_baseInsertSQL)
 
-    _cachedDeleteSQL = None
-
     def _baseDeleteSQL(cls, st):
-         if cls._cachedDeleteSQL is None:
-            stmt = ' '.join(['DELETE FROM',
-                             cls.getTableName(st),
-                             'WHERE oid = ? '
-                             ])
-            return stmt
+        if cls not in st.typeToDeleteSQLCache:
+            st.typeToDeleteSQLCache[cls] = ' '.join(['DELETE FROM',
+                                                     cls.getTableName(st),
+                                                     'WHERE oid = ? '
+                                                     ])
+        return st.typeToDeleteSQLCache[cls]
 
     _baseDeleteSQL = classmethod(_baseDeleteSQL)
 

@@ -14,7 +14,9 @@ class ExplosiveItem(Item):
     def yourHeadAsplode(self):
         1 / 0
 
-class TestCrossStoreTransactions(TestCase):
+
+class CrossStoreTest(TestCase):
+
     def setUp(self):
         self.spath = self.mktemp() + ".axiom"
         self.store = Store(self.spath)
@@ -24,6 +26,9 @@ class TestCrossStoreTransactions(TestCase):
         self.substore = self.substoreitem.open()
         # Not available yet.
         self.substore.attachToParent()
+
+
+class TestCrossStoreTransactions(CrossStoreTest):
 
     def testCrossStoreTransactionality(self):
         def createTwoSubStoreThings():
@@ -43,4 +48,20 @@ class TestCrossStoreTransactions(TestCase):
             self.substore.query(ExplosiveItem).count(),
             0)
 
+class TestCrossStoreInsert(CrossStoreTest):
 
+    def testCrossStoreInsert(self):
+        def populate(s, n):
+            for i in xrange(n):
+                ExplosiveItem(store=s)
+
+        self.store.transact(populate, self.store, 2)
+        self.store.transact(populate, self.substore, 3)
+
+        self.failUnlessEqual(
+            self.store.query(ExplosiveItem).count(),
+            2)
+
+        self.failUnlessEqual(
+            self.substore.query(ExplosiveItem).count(),
+            3)
