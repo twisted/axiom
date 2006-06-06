@@ -145,3 +145,24 @@ class TestItem(unittest.TestCase):
                           1234)
         self.assertEquals(st.getItemByID(oldStoreID, default=1234),
                           1234)
+
+    def testFixDangling(self):
+        st = store.Store()
+        i = itemtest.PlainItem(store=st)
+        oldStoreID = i.storeID
+        self.assertEquals(st.getItemByID(oldStoreID, default=1234),
+                          i)
+
+        # this magic keyword argument actually simulates an old bug, but rather
+        # than carry around a legacy database, we'll just call an internal API,
+        # because this is actually used by upgraders as well (e.g. a subtly
+        # buggy upgrader could leave the DB in the same state as this old bug)
+
+        i.deleteFromStore(deleteObject=False)
+
+        self.assertEquals(st.getItemByID(oldStoreID+100, default=1234),
+                          1234)
+
+        self.assertEquals(st.getItemByID(oldStoreID, default=1234),
+                          1234)
+
