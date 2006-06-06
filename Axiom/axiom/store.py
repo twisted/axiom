@@ -468,6 +468,8 @@ class Store(Empowered):
         self.typenameAndVersionToID = {} # map database-persistent typename and
                                          # version to an oid in the types table
 
+        self.typeToInsertSQLCache = {}
+        self.typeToDeleteSQLCache = {}
 
         self._oldTypesRemaining = [] # a list of old types which have not been
                                      # fully upgraded in this database.
@@ -999,7 +1001,10 @@ class Store(Empowered):
     def _setupTxnState(self):
         self.executedThisTransaction = []
         self.tablesCreatedThisTransaction = []
-        self.transaction = set()
+        if self.attachedToParent:
+            self.transaction = self.parent.transaction
+        else:
+            self.transaction = set()
         self.autocommit = False
         for sub in self._attachedChildren.values():
             sub._setupTxnState()
@@ -1032,6 +1037,7 @@ class Store(Empowered):
     def _inMemoryRollback(self):
         for item in self.transaction:
             item.revert()
+        self.transaction.clear()
         for tableClass in self.tablesCreatedThisTransaction:
             del self.typenameAndVersionToID[tableClass.typeName,
                                             tableClass.schemaVersion]
