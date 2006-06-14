@@ -1,6 +1,44 @@
-x.x.x (YYYY-MM-DD):
+0.5.0 (2006-06-12):
+  Highlights:
+  - Fixed several bugs, including several potential data-corruption issues.
+    All users are recommended to upgrade, but back up your data and test your
+    upgrade first!
+  - There is now a 'money' attribute type which uses fixed-precision math in
+    the database specifically designed for dealing with the types of issues
+    associated with database-persistent financial data.
+  - Some simple relational constraints (the equivalent of ON DELETE CASCADE)
+    have been implemented using the 'whenDeleted' keyword argument.
+  - Indexes which are created in your code will now automatically be added to
+    opened databases without requiring an upgrader or a change to your Item's
+    schemaVersion.
+  - You can now use 'declareLegacyItem' to declare legacy schemas to record the
+    schema of older versions of your software -- this enables upgrading of more
+    than one step per release of your application code.
+  - You can now create multi-column indexes using attributes.compoundIndex.
+  ---
   - Made Item.typeName and Item.schemaVersion optional in most cases.
   - Added axiom.batch for reliably operating on large groups of items.
+  - Removed all usages of util.wait from tests
+  - added 'queryutil.contains' utility query method, for testing when a value
+    is between two attributes.
+  - Added 'negate' argument to oneOf, allowing for issing SQL 'NOT IN' queries.
+  - Improved reliability of the scheduler.  Errors are now logged in a
+    structured manner.
+  - Added helper classes for writing axiomatic plug-in commands; see
+    documentation for axiomatic.scripts.axiomatic.AxiomaticCommand and
+    AxiomaticSubCommand.
+  - AttributeQuery now provides .min() and .max() methods which return the
+    obvious thing.
+  - Transactions are more managed more conservatively; BEGIN IMMEDIATE
+    TRANSACTION is used at the beginning of each transact() call, to guarantee
+    that concurrent access is safe, if sometimes slightly slower.
+  - SQL generation has been deferred to query time, which means that there is a
+    more complete API for manipulating Query objects.
+  - repr() of various objects has been improved for easier debugging.
+  - Axiom now emits various log events which you can observe if you wish to
+    analyze query statistics in real-time.  These events don't go to the text log by
+    default: Mantissa, for example, uses them to display a pie chart of the
+    most expensive queries on a running system.
 
 0.4.0 (2005-12-20):
   - Fixed sum() in the case of a table with no rows.
