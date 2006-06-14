@@ -1102,7 +1102,7 @@ class BatchProcessingService(service.Service):
                 else:
                     if itemHasMore:
                         more = True
-                yield None, more
+                yield None, bool(more or items)
             if not ran:
                 yield None, more
 
