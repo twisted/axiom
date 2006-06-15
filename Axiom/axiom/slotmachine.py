@@ -165,30 +165,3 @@ class SchemaMachine(_Strict):
 
 class SlotMachine(_Strict):
     __metaclass__ = _SlotMetaMachine
-
-
-class _structlike(list):
-    __names__ = []
-    __slots__ = []
-
-    def _name2slot(self, name):
-        return self.__names__.index(name)
-
-    def __init__(self, *args, **kw):
-        super(_structlike, self).__init__(args)
-        self.extend([None] * (len(self.__names__) - len(args)))
-        for k, v in kw.iteritems():
-            self[self._name2slot(k)] = v
-
-    def __getattr__(self, attr):
-        try:
-            return self[self._name2slot(attr)]
-        except (IndexError, ValueError):
-            raise AttributeError(attr)
-
-    def __setattr__(self, attr, value):
-        try:
-            self[self._name2slot(attr)] = value
-        except ValueError:
-            raise AttributeError(attr)
-
