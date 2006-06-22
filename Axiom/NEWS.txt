@@ -1,3 +1,8 @@
+0.5.1 (2006-06-16):
+  - axiom.slotmachine._structlike removed in favor of the implementation in
+    Epsilon, epsilon.structlike.record.
+  - The batch process has been adjusted to do more work per iteration. 
+
 0.5.0 (2006-06-12):
   Highlights:
   - Fixed several bugs, including several potential data-corruption issues.
