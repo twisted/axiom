@@ -20,6 +20,20 @@ def registerUpgrader(upgrader, typeName, oldVersion, newVersion):
     assert newVersion - oldVersion == 1, "read the doc string"
     _upgradeRegistry[typeName, oldVersion, newVersion] = upgrader
 
+def registerAttributeCopyingUpgrader(itemType, fromVersion, toVersion):
+    """
+    Register an upgprader for C{itemType}, from C{fromVersion} to C{toVersion},
+    which will copy all attributes from the legacy item to the new item.
+
+    @param itemType: L{axiom.item.Item} subclass
+    @return: None
+    """
+    def upgrader(old):
+        return old.upgradeVersion(itemType.typeName, fromVersion, toVersion,
+                                  **dict((str(name), getattr(old, name))
+                                            for (name, _) in old.getSchema()))
+    registerUpgrader(upgrader, itemType.typeName, fromVersion, toVersion)
+
 def upgradeAllTheWay(o, typeName, version):
     while True:
         try:
