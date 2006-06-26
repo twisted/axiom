@@ -36,7 +36,7 @@ Connection = namedAny(backendName)
 
 from axiom.item import \
     _typeNameToMostRecentClass, declareLegacyItem,\
-    _legacyTypes, TABLE_NAME, Empowered, serviceSpecialCase
+    _legacyTypes, Empowered, serviceSpecialCase, _StoreIDComparer
 
 IN_MEMORY_DATABASE = ':memory:'
 
@@ -171,17 +171,9 @@ class BaseQuery:
             tables = set()
             args = []
         tables.add(self.tableClass)
-        # If any of these tables don't exist we can't early out as we do below
-        # in _runQuery, because the table in question might be present in some
-        # deeply nested negative clause which would work just fine and return
-        # results even if there were no items in the table that the condition
-        # referred to; instead, we must make sure that all tables involved
-        # before we actually run the query exist.
-        for t in tables:
-            self.store.getTypeID(t) # getTypeID is what currently does table
-                                    # creation / testing, but we don't actually
-                                    # care about the result.
-        fromClause = ', '.join([table.getTableName(self.store) for table in tables])
+        
+        # The calls to store.getTableName() will create the tables if needed
+        fromClause = ', '.join([self.store.getTableName(table) for table in tables])
         limitClause = []
         if self.limit is not None:
             # XXX LIMIT and OFFSET used to be using ?, but they started
@@ -261,9 +253,9 @@ class ItemQuery(BaseQuery):
         BaseQuery.__init__(self, *a, **k)
         tc = self.tableClass
         self._queryTarget = (
-            tc.getTableName(self.store) + '.oid, ' + (
+            self.store.getColumnName(tc.storeID) + ', ' + (
                 ', '.join(
-                    [attrobj.getColumnName(self.store)
+                    [self.store.getColumnName(attrobj)
                      for name, attrobj in self.tableClass.getSchema()
                      ])))
 
@@ -281,10 +273,9 @@ class ItemQuery(BaseQuery):
                               attr,
                               raw)
     def count(self):
-        self.store.getTypeID(self.tableClass)
         rslt = self._runQuery(
             'SELECT',
-            'COUNT(' + self.tableClass.getTableName(self.store) + '.oid'
+            'COUNT(' + self.store.getColumnName(self.tableClass.storeID)
             + ')')
         assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
         return rslt[0][0] or 0
@@ -319,7 +310,7 @@ class AttributeQuery(BaseQuery):
                            offset, sort)
         self.attribute = attribute
         self.raw = raw
-        self._queryTarget = attribute.getColumnName(self.store)
+        self._queryTarget = self.store.getColumnName(attribute)
 
     # XXX: Each implementation of 'outfilter' needs to be changed to deal
     # with self being 'None' in these cases.  most of the ones we're likely
@@ -469,7 +460,11 @@ class Store(Empowered):
                                          # version to an oid in the types table
 
         self.typeToInsertSQLCache = {}
+        self.typeToSelectSQLCache = {}
         self.typeToDeleteSQLCache = {}
+
+        self.typeToTableNameCache = {}
+        self.attrToColumnNameCache = {}
 
         self._oldTypesRemaining = [] # a list of old types which have not been
                                      # fully upgraded in this database.
@@ -1041,6 +1036,19 @@ class Store(Empowered):
         for tableClass in self.tablesCreatedThisTransaction:
             del self.typenameAndVersionToID[tableClass.typeName,
                                             tableClass.schemaVersion]
+            # Clear all cache related to this table
+            for cache in (self.typeToInsertSQLCache,
+                          self.typeToDeleteSQLCache,
+                          self.typeToSelectSQLCache,
+                          self.typeToTableNameCache) :
+                if tableClass in cache:
+                    del cache[tableClass]
+            if tableClass.storeID in self.attrToColumnNameCache:
+                del self.attrToColumnNameCache[tableClass.storeID]
+            for name, attr in tableClass.getSchema():
+                if attr in self.attrToColumnNameCache:
+                    del self.attrToColumnNameCache[attr]
+            
         for sub in self._attachedChildren.values():
             sub._inMemoryRollback()
 
@@ -1069,6 +1077,70 @@ class Store(Empowered):
     def avgms(self, l):
         return 'count: %d avg: %dus' % (len(l),
                                         int( (sum(l)/len(l)) * 1000000.),)
+
+    def _indexNameOf(self, tableClass, attrname):
+        return "%s.axiomidx_%s_v%d_%s" % (self.databaseName,
+                                          tableClass.typeName,
+                                          tableClass.schemaVersion,
+                                          '_'.join(attrname))
+
+    def _tableNameFor(self, typename, version):
+        return "%s.item_%s_v%d" % (self.databaseName, typename, version)
+
+    def getTableName(self, tableClass):
+        """
+        Retreive the fully qualified name of the table holding items
+        of a particular class in this store.  If the table does not
+        exist in the database, it will be created as a side-effect.
+
+        @param tableClass: an Item subclass
+
+        @return: a string
+        """
+        if tableClass not in self.typeToTableNameCache:
+            self.typeToTableNameCache[tableClass] = self._tableNameFor(tableClass.typeName, tableClass.schemaVersion)
+            # make sure the table exists
+            self.getTypeID(tableClass)
+        return self.typeToTableNameCache[tableClass]
+
+    def getShortColumnName(self, attribute):
+        """
+        Retreive the column name for a particular attribute in this
+        store.  The attribute must be bound to an Item subclass (its
+        type must be valid). If the underlying table does not exist in
+        the database, it will be created as a side-effect.
+
+        @param tableClass: an Item subclass
+
+        @return: a string
+
+        XXX: The current implementation does not really match the
+        description, which is actually more restrictive. But it will
+        be true soon, so I guess it is ok for now.  The reason is
+        that this method is used during table creation.
+        """
+        if isinstance(attribute, _StoreIDComparer):
+            return 'oid'
+        return '[' + attribute.attrname + ']'
+
+
+    def getColumnName(self, attribute):
+        """
+        Retreive the fully qualified column name for a particular
+        attribute in this store.  The attribute must be bound to an
+        Item subclass (its type must be valid). If the underlying
+        table does not exist in the database, it will be created as a
+        side-effect.
+
+        @param tableClass: an Item subclass
+
+        @return: a string
+        """
+        if attribute not in self.attrToColumnNameCache:
+            self.attrToColumnNameCache[attribute] = '.'.join(
+                (self.getTableName(attribute.type),
+                 self.getShortColumnName(attribute)))
+        return self.attrToColumnNameCache[attribute]
 
 
     def getTypeID(self, tableClass):
@@ -1113,14 +1185,14 @@ class Store(Empowered):
         sqlarg = []
 
         # needs to be calculated including version
-        tableName = tableClass.getTableName(self)
+        tableName = self._tableNameFor(tableClass.typeName, tableClass.schemaVersion)
 
         sqlstr.append("CREATE TABLE %s (" % tableName)
 
         for nam, atr in tableClass.getSchema():
             # it's a stored attribute
             sqlarg.append("\n%s %s" %
-                          (atr.columnName, atr.sqltype))
+                          (self.getShortColumnName(atr), atr.sqltype))
 
         if len(sqlarg) == 0:
             # XXX should be raised way earlier, in the class definition or something
@@ -1131,12 +1203,17 @@ class Store(Empowered):
 
         self.createSQL(''.join(sqlstr))
 
-        self._createIndexesFor(tableClass)
-
         typeID = self.executeSchemaSQL(_schema.CREATE_TYPE,
                                        [tableClass.typeName,
                                         tableClass.__module__,
                                         tableClass.schemaVersion])
+
+        self.typenameAndVersionToID[key] = typeID
+        
+        if self.tablesCreatedThisTransaction is not None:
+            self.tablesCreatedThisTransaction.append(tableClass)
+
+        self._createIndexesFor(tableClass)
 
         for n, (name, storedAttribute) in enumerate(tableClass.getSchema()):
             self.executeSchemaSQL(
@@ -1148,31 +1225,26 @@ class Store(Empowered):
             # when we figure out a good way to do user-defined attributes or we
             # start parameterizing references.
 
-        self.typenameAndVersionToID[key] = typeID
-
-        if self.tablesCreatedThisTransaction is not None:
-            self.tablesCreatedThisTransaction.append(tableClass)
-
         return typeID
 
     def _createIndexesFor(self, tableClass):
         indexes = set()
         for nam, atr in tableClass.getSchema():
             if atr.indexed:
-                indexes.add(((atr.columnName,), (atr.attrname,)))
+                indexes.add(((self.getShortColumnName(atr),), (atr.attrname,)))
             for compound in atr.compoundIndexes:
-                indexes.add((tuple(inatr.columnName for inatr in compound),
+                indexes.add((tuple(self.getShortColumnName(inatr) for inatr in compound),
                              tuple(inatr.attrname for inatr in compound)))
 
         # _ZOMFG_ SQL is such a piece of _shit_: you can't fully qualify the
         # table name in CREATE INDEX statements because the _INDEX_ is fully
         # qualified!
 
-        indexColumnPrefix = '.'.join(tableClass.getTableName(self).split(".")[1:])
+        indexColumnPrefix = '.'.join(self.getTableName(tableClass).split(".")[1:])
 
         for (indexColumns, indexAttrs) in indexes:
             csql = ('CREATE INDEX %s ON %s(%s)' %
-                    (tableClass.indexNameOf(self, '_'.join(indexAttrs)),
+                    (self._indexNameOf(tableClass, indexAttrs),
                      indexColumnPrefix,
                      ', '.join(indexColumns)))
             try:
@@ -1185,7 +1257,7 @@ class Store(Empowered):
     def getTableQuery(self, typename, version):
         if (typename, version) not in self.tableQueries:
             query = 'SELECT * FROM %s WHERE oid = ?' % (
-                TABLE_NAME(self, typename, version), )
+                self._tableNameFor(typename, version), )
             self.tableQueries[typename, version] = query
         return self.tableQueries[typename, version]
 

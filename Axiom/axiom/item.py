@@ -74,12 +74,6 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         _typeNameToMostRecentClass[T.typeName] = T
         return T
 
-def TABLE_NAME(st, typename, version):
-    return "%s.item_%s_v%d" % (st.databaseName, typename, version)
-
-def INDEX_NAME(st, typename, version, attrname):
-    return "%s.axiomidx_%s_v%d_%s" % (st.databaseName, typename, version, attrname)
-
 def noop():
     pass
 
@@ -87,13 +81,9 @@ class _StoreIDComparer(Comparable):
     """
     See Comparable's docstring for the explanation of the requirements of my implementation.
     """
-    columnName = 'oid'
 
     def __init__(self, type):
         self.type = type
-
-    def getColumnName(self, st):
-        return self.type.getTableName(st) + '.oid'
 
     # attributes required by ColumnComparer
     def infilter(self, pyval, oself, store):
@@ -115,7 +105,11 @@ class _SpecialStoreIDAttribute(slotmachine.SetOnce):
     """
     def __get__(self, oself, type=None):
         if type is not None and oself is None:
-            return _StoreIDComparer(type)
+            if type._storeIDComparer is None:
+                # Reuse the same instance so that the store can use it
+                # as a key for various caching, like any other attributes.
+                type._storeIDComparer = _StoreIDComparer(type)
+            return type._storeIDComparer
         return super(_SpecialStoreIDAttribute, self).__get__(oself, type)
 
 
@@ -272,6 +266,7 @@ class Item(Empowered, slotmachine._Strict):
                                   # part of an upgrade)
 
     storeID = _SpecialStoreIDAttribute(default=None)
+    _storeIDComparer = None
     _axiom_service = inmemory()
 
     def _currentlyValidAsReferentFor(self, store):
@@ -451,8 +446,7 @@ class Item(Empowered, slotmachine._Strict):
             return
         self.__dirty__.clear()
         dbattrs = self.store.querySQL(
-            self.store.getTableQuery(self.typeName,
-                                     self.schemaVersion),
+            self._baseSelectSQL(self.store),
             [self.storeID])[0]
 
         for data, (name, atr) in zip(dbattrs, self.getSchema()):
@@ -621,16 +615,17 @@ class Item(Empowered, slotmachine._Strict):
 
     ###### SQL generation ######
 
-    def getTableName(cls, st):
-        return TABLE_NAME(st, cls.typeName, cls.schemaVersion)
+    def _baseSelectSQL(cls, st):
+        if cls not in st.typeToSelectSQLCache:
+            st.typeToSelectSQLCache[cls] = ' '.join(['SELECT * FROM',
+                                                     st.getTableName(cls),
+                                                     'WHERE',
+                                                     st.getShortColumnName(cls.storeID),
+                                                     '= ?'
+                                                     ])
+        return st.typeToSelectSQLCache[cls]
 
-    getTableName = classmethod(getTableName)
-
-    def indexNameOf(cls, st, attrsnames):
-        "private to store"
-        return INDEX_NAME(st, cls.typeName, cls.schemaVersion, attrsnames)
-
-    indexNameOf = classmethod(indexNameOf)
+    _baseSelectSQL = classmethod(_baseSelectSQL)
 
     def _baseInsertSQL(cls, st):
         if cls not in st.typeToInsertSQLCache:
@@ -638,9 +633,9 @@ class Item(Empowered, slotmachine._Strict):
             qs = ', '.join((['?']*(len(attrs)+1)))
             st.typeToInsertSQLCache[cls] = (
                 'INSERT INTO '+
-                cls.getTableName(st) + ' (' + ', '.join(
-                    ['oid'] +
-                    [a[1].columnName for a in attrs]) +
+                st.getTableName(cls) + ' (' + ', '.join(
+                    [ st.getShortColumnName(cls.storeID) ] +
+                    [ st.getShortColumnName(a[1]) for a in attrs]) +
                 ') VALUES (' + qs + ')')
         return st.typeToInsertSQLCache[cls]
 
@@ -649,8 +644,10 @@ class Item(Empowered, slotmachine._Strict):
     def _baseDeleteSQL(cls, st):
         if cls not in st.typeToDeleteSQLCache:
             st.typeToDeleteSQLCache[cls] = ' '.join(['DELETE FROM',
-                                                     cls.getTableName(st),
-                                                     'WHERE oid = ? '
+                                                     st.getTableName(cls),
+                                                     'WHERE',
+                                                     st.getShortColumnName(cls.storeID),
+                                                     '= ? '
                                                      ])
         return st.typeToDeleteSQLCache[cls]
 
@@ -667,13 +664,13 @@ class Item(Empowered, slotmachine._Strict):
         dirtyColumns = []
         dirtyValues = []
         for dirtyAttrName, (dirtyAttribute, dirtyValue) in dirty:
-            dirtyColumns.append(dirtyAttribute.columnName)
+            dirtyColumns.append(self.store.getShortColumnName(dirtyAttribute))
             dirtyValues.append(dirtyValue)
         stmt = ' '.join([
-            'UPDATE', self.getTableName(self.store), 'SET',
+            'UPDATE', self.store.getTableName(self), 'SET',
              ', '.join(['%s = ?'] * len(dirty)) %
               tuple(dirtyColumns),
-              'WHERE oid = ?'])
+            'WHERE ', self.store.getShortColumnName(type(self).storeID), ' = ?'])
         dirtyValues.append(self.storeID)
         return stmt, dirtyValues
 

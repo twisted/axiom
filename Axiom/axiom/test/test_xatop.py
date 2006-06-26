@@ -70,6 +70,46 @@ class StoreTests(unittest.TestCase):
             s.getTableQuery(TestItem.typeName, 1),
             s.getTableQuery(TestItem.typeName, 1))
 
+        
+    def testTypeToDatabaseNames(self):
+        # The real purpose of this test is to have the new get*Name
+        # methods explicitely called somewhere in the test suite. The
+        # effect itself does not actually matter much. These functions
+        # are proven right by the fact that item creation, querying
+        # and update are working.
+
+        # I think the following should be ok for anything that vaguely
+        # ressembles SQL.
+
+        s = store.Store()
+        tn = s.getTableName(TestItem)
+
+        assert tn.startswith(s.databaseName)
+
+        cn = s.getColumnName(TestItem.foo)
+        scn = s.getShortColumnName(TestItem.foo)
+
+        assert len(tn) < len(cn)
+        assert len(scn) < len(cn)
+        assert cn.endswith(scn)
+        assert cn.startswith(tn)
+
+        icn = s.getColumnName(TestItem.storeID)
+        sicn = s.getShortColumnName(TestItem.storeID)
+
+        assert len(tn) < len(icn)
+        assert len(sicn) < len(icn)
+        assert icn.endswith(sicn)
+        assert icn.startswith(tn)
+
+
+    def testStoreIDComparerIdentity(self):
+        # We really want this to hold, because the storeID object is
+        # used like a regular attribute as a key for various caching
+        # within store.
+        a0 = TestItem.storeID
+        a1 = TestItem.storeID
+        assert a0 is a1
 
 
 class FailurePathTests(unittest.TestCase):
