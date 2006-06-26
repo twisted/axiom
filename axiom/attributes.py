@@ -161,7 +161,7 @@ class SimpleOrdering:
         """
         'Internal' API.  Called by CompoundOrdering.
         """
-        return '%s %s' % (self.attribute.getColumnName(store),
+        return '%s %s' % (store.getColumnName(self.attribute),
                           self.direction)
 
     def orderSQL(self, store):
@@ -277,9 +277,6 @@ class SQLAttribute(inmemory, Comparable):
             raise ValueError("You may specify only one of default "
                              "or defaultFactory, not both")
 
-    def getColumnName(self, st):
-        return self.type.getTableName(st) + '.' + self.columnName
-
     def computeDefault(self):
         if self.defaultFactory is not None:
             return self.defaultFactory()
@@ -330,7 +327,6 @@ class SQLAttribute(inmemory, Comparable):
         self.modname = modname
         self.classname = classname
         self.attrname = attrname
-        self.columnName = '['+attrname+']'
         self.underlying = self.prefix + attrname
         self.dbunderlying = self.dbprefix + attrname
         yield self.underlying
@@ -427,9 +423,9 @@ class TwoAttributeComparison:
         self.rightAttribute = rightAttribute
 
     def getQuery(self, store):
-        sql = ('(%s %s %s)' % (self.leftAttribute.getColumnName(store),
+        sql = ('(%s %s %s)' % (store.getColumnName(self.leftAttribute),
                                self.operationString,
-                               self.rightAttribute.getColumnName(store)))
+                               store.getColumnName(self.rightAttribute)) )
         return sql
 
     def getInvolvedTables(self):
@@ -447,7 +443,7 @@ class AttributeValueComparison:
         self.value = value
 
     def getQuery(self, store):
-        return ('(%s %s ?)' % (self.attribute.getColumnName(store),
+        return ('(%s %s ?)' % (store.getColumnName(self.attribute),
                                self.operationString))
 
     def getArgs(self, store):
@@ -472,7 +468,7 @@ class NullComparison:
             op = 'NOT'
         else:
             op = 'IS'
-        return ('(%s %s NULL)' % (self.attribute.getColumnName(store),
+        return ('(%s %s NULL)' % (store.getColumnName(self.attribute),
                                   op))
 
     def getArgs(self, store):
@@ -510,7 +506,7 @@ class LikeColumn(LikeFragment):
         self.attribute = attribute
 
     def getLikeQuery(self, st):
-        return self.attribute.getColumnName(st)
+        return st.getColumnName(self.attribute)
 
     def getLikeTables(self):
         return [self.attribute.type]
@@ -538,7 +534,7 @@ class LikeComparison:
         else:
             op = 'LIKE'
         sqlParts = [lf.getLikeQuery(store) for lf in self.likeParts]
-        sql = '(%s %s (%s))' % (self.attribute.getColumnName(store),
+        sql = '(%s %s (%s))' % (store.getColumnName(self.attribute),
                                 op, ' || '.join(sqlParts))
         return sql
 
@@ -602,7 +598,7 @@ class SequenceComparison:
 
     def getQuery(self, store):
         return '%s %sIN (%s)' % (
-            self.attribute.getColumnName(store),
+            store.getColumnName(self.attribute),
             self.negate and 'NOT ' or '',
             ', '.join(['?'] * len(self.seq)))
 
