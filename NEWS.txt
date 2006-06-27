@@ -1,3 +1,6 @@
+0.5.3 (2006-06-27):
+  - A bug causing the table name cache to grow too large was fixed.
+
 0.5.2 (2006-06-26):
   - Type names are now determined on a per-store basis, rather than cached
     globally on the Item.
