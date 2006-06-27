@@ -1,3 +1,7 @@
+0.5.2 (2006-06-26):
+  - Type names are now determined on a per-store basis, rather than cached
+    globally on the Item.
+  
 0.5.1 (2006-06-16):
   - axiom.slotmachine._structlike removed in favor of the implementation in
     Epsilon, epsilon.structlike.record.
