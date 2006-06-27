@@ -667,7 +667,7 @@ class Item(Empowered, slotmachine._Strict):
             dirtyColumns.append(self.store.getShortColumnName(dirtyAttribute))
             dirtyValues.append(dirtyValue)
         stmt = ' '.join([
-            'UPDATE', self.store.getTableName(self), 'SET',
+            'UPDATE', self.store.getTableName(self.__class__), 'SET',
              ', '.join(['%s = ?'] * len(dirty)) %
               tuple(dirtyColumns),
             'WHERE ', self.store.getShortColumnName(type(self).storeID), ' = ?'])

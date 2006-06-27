@@ -70,7 +70,7 @@ class StoreTests(unittest.TestCase):
             s.getTableQuery(TestItem.typeName, 1),
             s.getTableQuery(TestItem.typeName, 1))
 
-        
+
     def testTypeToDatabaseNames(self):
         # The real purpose of this test is to have the new get*Name
         # methods explicitely called somewhere in the test suite. The
@@ -102,7 +102,24 @@ class StoreTests(unittest.TestCase):
         assert icn.endswith(sicn)
         assert icn.startswith(tn)
 
+    def testGetTableName(self):
+        """
+        Item instances were getting into the table name cache.
+        Make sure only classes are accepted.
+        """
+        s = store.Store()
+        self.assertRaises(errors.ItemClassesOnly, s.getTableName, TestItem(store=s))
 
+    def testTableNameCacheDoesntGrow(self):
+        """
+        Make sure the table name cache doesn't grow out of control anymore.
+        """
+        s = store.Store()
+        tn = s.getTableName(TestItem)
+        x = len(s.typeToTableNameCache)
+        for i in range(10):
+            s.getTableName(TestItem)
+        self.assertEquals(x, len(s.typeToTableNameCache))
     def testStoreIDComparerIdentity(self):
         # We really want this to hold, because the storeID object is
         # used like a regular attribute as a key for various caching
