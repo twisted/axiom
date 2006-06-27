@@ -67,3 +67,7 @@ class ItemNotFound(KeyError):
     """
     Did not find even 1 of an item which was supposed to exist.
     """
+class ItemClassesOnly(TypeError):
+    """
+    An object was passed to a method that wasn't a subclass of Item.
+    """
