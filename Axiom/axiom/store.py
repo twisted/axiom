@@ -8,6 +8,7 @@ import os
 import itertools
 import warnings
 import sys
+import errno
 
 from zope.interface import implements
 
@@ -92,8 +93,10 @@ class AtomicFile(file):
             return defer.fail()
         return defer.succeed(self.finalpath)
 
+
     def abort(self):
         os.unlink(self.name)
+
 
 _noItem = object()              # tag for optional argument to getItemByID
                                 # default
