@@ -17,9 +17,15 @@ from twisted.python import log
 from axiom import errors, iaxiom
 
 class Connection(object):
-    def __init__(self, dbfname, timeout=10.0):
-        self._connection = apsw.Connection(dbfname)
-        self._connection.setbusytimeout(int(timeout * 1000))
+    def __init__(self, connection, timeout=None):
+        self._connection = connection
+        if timeout is not None:
+            self._connection.setbusytimeout(int(timeout * 1000))
+
+
+    def fromDatabaseName(cls, dbFilename, timeout=None):
+        return cls(apsw.Connection(dbfname), timeout)
+    fromDatabaseName = classmethod(fromDatabaseName)
 
 
     def cursor(self):
@@ -43,7 +49,7 @@ class Connection(object):
 class Cursor(object):
     def __init__(self, connection):
         self._connection = connection
-        self._cursor = connection.cursor()
+        self._cursor = connection._connection.cursor()
 
 
     def __iter__(self):

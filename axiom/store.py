@@ -647,7 +647,7 @@ class Store(Empowered):
 
 
     def _initdb(self, dbfname):
-        self.connection = Connection(dbfname)
+        self.connection = Connection.fromDatabaseName(dbfname)
         self.cursor = self.connection.cursor()
 
 

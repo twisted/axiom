@@ -8,6 +8,7 @@ from twisted.python import log
 
 from axiom import store, item
 from axiom.test import itemtest, itemtestmain
+from axiom.attributes import text, inmemory
 
 class ProcessFailed(Exception):
     pass
@@ -48,14 +49,65 @@ class ProcessOutputCollector(protocol.ProcessProtocol, policies.TimeoutMixin):
             self.onCompletion.callback(self.output)
 
 
+
 class NoAttrsItem(item.Item):
     typeName = 'noattrsitem'
     schemaVersion = 1
+
+
+
+class TransactedMethodItem(item.Item):
+    """
+    Helper class for testing the L{axiom.item.transacted} decorator.
+    """
+    value = text()
+    calledWith = inmemory()
+
+    def method(self, a, b, c):
+        self.value = u"changed"
+        self.calledWith = [a, b, c]
+        raise Exception("TransactedMethodItem.method test exception")
+    method.attribute = 'value'
+    method = item.transacted(method)
+
+
 
 class TestItem(unittest.TestCase):
     def testCreateItem(self):
         st = store.Store()
         self.assertRaises(item.CantInstantiateItem, item.Item, store=st)
+
+
+    def testTransactedTransacts(self):
+        """
+        Test that a method wrapped in C{axiom.item.transacted} is automatically
+        run in a transaction.
+        """
+        s = store.Store()
+        i = TransactedMethodItem(store=s, value=u"unchanged")
+        exc = self.assertRaises(Exception, i.method, 'a', 'b', 'c')
+        self.assertEquals(exc.args, ("TransactedMethodItem.method test exception",))
+        self.assertEquals(i.value, u"unchanged")
+
+
+    def testTransactedPassedArguments(self):
+        """
+        Test that position and keyword arguments are passed through
+        L{axiom.item.transacted}-wrapped methods correctly.
+        """
+        s = store.Store()
+        i = TransactedMethodItem(store=s)
+        exc = self.assertRaises(Exception, i.method, 'a', b='b', c='c')
+        self.assertEquals(exc.args, ("TransactedMethodItem.method test exception",))
+        self.assertEquals(i.calledWith, ['a', 'b', 'c'])
+
+
+    def testTransactedPreservesAttributes(self):
+        """
+        Test that the original function attributes are available on a
+        L{axiom.item.transacted}-wrapped function.
+        """
+        self.assertEquals(TransactedMethodItem.method.attribute, 'value')
 
 
     def testPersistentValues(self):

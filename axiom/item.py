@@ -6,6 +6,7 @@ from inspect import getabsfile
 from twisted.python import log
 from twisted.python.reflect import qual, namedAny
 from twisted.python.util import unsignedID
+from twisted.python.util import mergeFunctionMetadata
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema, iaxiom
@@ -230,11 +231,20 @@ class Empowered(object):
                                           pc.powerup == powerup)).getColumn('interface'):
             yield namedAny(iface)
 
-def transacted(callable):
-    def _(item, *a, **kw):
-        return item.store.transact(callable, item, *a, **kw)
-    _.func_name = callable.func_name
-    return _
+
+def transacted(func):
+    """
+    Return a callable which will invoke C{func} in a transaction using the
+    C{store} attribute of the first parameter passed to it.  Typically this is
+    used to create Item methods which are automatically run in a transaction.
+
+    The attributes of the returned callable will resemble those of C{func} as
+    closely as L{twisted.python.util.mergeFunctionMetadata} can make them.
+    """
+    def transactionified(item, *a, **kw):
+        return item.store.transact(func, item, *a, **kw)
+    return mergeFunctionMetadata(func, transactionified)
+
 
 class Item(Empowered, slotmachine._Strict):
     # Python-Special Attributes

@@ -1,4 +1,4 @@
-# -*- test-case-name: axiom.test -*-
+# -*- test-case-name: axiom.test.test_pysqlite2 -*-
 
 """
 PySQLite2 Connection and Cursor wrappers.
@@ -15,11 +15,14 @@ from twisted.python import log
 from axiom import errors, iaxiom
 
 class Connection(object):
-    def __init__(self, dbfname, timeout=None, isolationLevel=None):
-        self._connection = dbapi2.connect(dbfname,
-                                          timeout=0,
-                                          isolation_level=isolationLevel)
+    def __init__(self, connection, timeout=None):
+        self._connection = connection
         self._timeout = timeout
+
+
+    def fromDatabaseName(cls, dbFilename, timeout=None, isolationLevel=None):
+        return cls(dbapi2.connect(dbFilename, timeout=0, isolation_level=isolationLevel))
+    fromDatabaseName = classmethod(fromDatabaseName)
 
 
     def cursor(self):
@@ -38,11 +41,28 @@ class Cursor(object):
         return iter(self._cursor)
 
 
+    def time(self):
+        """
+        Return the current wallclock time as a float representing seconds
+        from an fixed but arbitrary point.
+        """
+        return time.time()
+
+
+    def sleep(self, seconds):
+        """
+        Block for the given number of seconds.
+
+        @type seconds: C{float}
+        """
+        time.sleep(seconds)
+
+
     def execute(self, sql, args=()):
         try:
             try:
                 blockedTime = 0.0
-                t = time.time()
+                t = self.time()
                 try:
                     # SQLite3 uses something like exponential backoff when
                     # trying to acquire a database lock.  This means that even
@@ -70,16 +90,16 @@ class Cursor(object):
                             return self._cursor.execute(sql, args)
                         except dbapi2.OperationalError, e:
                             if e.args[0] == 'database is locked':
-                                now = time.time()
+                                now = self.time()
                                 if self.timeout is not None:
-                                    if (now - t) > timeout:
-                                        raise
-                                time.sleep(0.1)
-                                blockedTime = time.time() - t
+                                    if (now - t) > self.timeout:
+                                        raise errors.TimeoutError(sql, self.timeout, e)
+                                self.sleep(0.1)
+                                blockedTime = self.time() - t
                             else:
                                 raise
                 finally:
-                    txntime = time.time() - t
+                    txntime = self.time() - t
                     if txntime - blockedTime > 2.0:
                         log.msg('Extremely long execute: %s' % (txntime - blockedTime,))
                         log.msg(sql)
