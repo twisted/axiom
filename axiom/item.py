@@ -292,6 +292,16 @@ class Item(Empowered, slotmachine._Strict):
         return True
     # return (self.store is store and not self.__deletingObject)
 
+    def _schemaPrepareInsert(self, store):
+        """
+        Prepare each attribute in my schema for insertion into a given store,
+        either by upgrade or by creation.  This makes sure all references point
+        to this store and all relative paths point to this store's files
+        directory.
+        """
+        for name, atr in self.getSchema():
+            atr.prepareInsert(self, store)
+
     def store():
         def get(self):
             return self.__store
@@ -299,9 +309,7 @@ class Item(Empowered, slotmachine._Strict):
             if self.__store is not None:
                 raise AttributeError(
                     "Store already set - can't move between stores")
-            # make damn sure all of our references point to this store:
-            for name, atr in self.getSchema():
-                atr.prepareInsert(self, store)
+            self._schemaPrepareInsert(store)
             self.__store = store
             oid = self.storeID = self.store.executeSchemaSQL(
                 _schema.CREATE_OBJECT, [self.store.getTypeID(type(self))])
@@ -373,8 +381,14 @@ class Item(Empowered, slotmachine._Strict):
 
         if tostore != None:
             if to__justUpgraded:
+
+                # we can't just set the store, because that allocates an ID.
+                # we do still need to do all the attribute prep, make sure
+                # references refer to this store, paths are adjusted to point
+                # to this store's static offset, etc.
+
+                self._schemaPrepareInsert(tostore)
                 self.__store = tostore
-                # skip all the interesting just-created stuff, like ID allocation.
                 if tostore.autocommit:
                     self.checkpoint()
             else:

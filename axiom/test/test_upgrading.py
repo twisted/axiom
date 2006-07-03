@@ -5,47 +5,76 @@ from axiom import store, upgrade, item, errors
 
 from twisted.application.service import IService
 
-tntmrc = store._typeNameToMostRecentClass
-upgreg = upgrade._upgradeRegistry
-legtyp = item._legacyTypes
+def axiomInvalidate(itemClass):
+    """
+    Remove the registered item class from the Axiom module system's memory,
+    including: the item's current schema, legacy schema declarations, and
+    upgraders.
 
-def choose(module=None):
-    # This has an unfortunate amount of knowledge of the implementation.  TODO:
-    # add an API that can be used both for this test, and for general-purpose
-    # run-time module reloading.
-    tnames = [oldapp.Player.typeName,
-              oldapp.Sword.typeName,
-              'test_app_inv']
-    for tn in tnames:
-        #print '------'
-        #pprint( tntmrc )
-        tntmrc.pop(tn, None)
-        for (tnam, schever) in legtyp.keys():
-            if tnam == tn:
-                legtyp.pop((tnam, schever))
+    This makes it possible, for example, to reload a module without Axiom
+    complaining about it.
 
-    for k in upgreg.keys():
-        if k[0] in tnames:
-            #print 'ridding', k
-            upgreg.pop(k)
+    This API is still in a test module because it is _NOT YET SAFE_ for using
+    while databases are open; it does not interact with open databases' caches,
+    for example.
 
-    if module is not None:
-        reload(module)
+    @param itemClass: an Item subclass that you no longer wish to use.
+    """
+    store._typeNameToMostRecentClass.pop(itemClass.typeName, None)
+
+    for (tnam, schever) in item._legacyTypes.keys():
+        if tnam == itemClass.typeName:
+            item._legacyTypes.pop((tnam, schever))
+
+    for k in upgrade._upgradeRegistry.keys():
+        if k[0] == itemClass.typeName:
+            upgrade._upgradeRegistry.pop(k)
+
+def axiomInvalidateModule(moduleObject):
+    """
+    Call L{axiomInvalidate} on all Item subclasses defined in a module.
+    """
+    for v in moduleObject.__dict__.values():
+        if isinstance(v, item.MetaItem):
+            axiomInvalidate(v)
 
 from axiom.test import oldapp
 
-choose()
+axiomInvalidateModule(oldapp)
 
 from axiom.test import toonewapp
 
-choose()
+axiomInvalidateModule(toonewapp)
 
 from axiom.test import morenewapp
 
-choose()
+axiomInvalidateModule(morenewapp)
 
 from axiom.test import newapp
 
+from axiom.test import oldpath
+
+axiomInvalidateModule(oldpath)
+
+from axiom.test import newpath
+
+axiomInvalidateModule(newpath)
+
+
+def choose(module=None):
+    """
+    Choose among the various "adventurer" modules for upgrade tests.
+
+    @param module: the module object which should next be treated as "current".
+    """
+
+    axiomInvalidateModule(oldapp)
+    axiomInvalidateModule(toonewapp)
+    axiomInvalidateModule(morenewapp)
+    axiomInvalidateModule(newapp)
+
+    if module is not None:
+        reload(module)
 
 class SchemaUpgradeTest(unittest.TestCase):
     def setUp(self):
@@ -86,7 +115,9 @@ class SchemaUpgradeTest(unittest.TestCase):
     def _testTwoObjectUpgrade(self):
         choose(oldapp)
         s = self.openStore()
-        assert tntmrc[oldapp.Player.typeName] is oldapp.Player
+        self.assertIdentical(
+            store._typeNameToMostRecentClass[oldapp.Player.typeName],
+            oldapp.Player)
 
         sword = oldapp.Sword(
             store=s,
@@ -212,3 +243,27 @@ class SubStoreCompat(SchemaUpgradeTest):
         svc = IService(self.currentTopStore)
         svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
         svc.startService()
+
+class PathUpgrade(SchemaUpgradeTest):
+    def testUpgradePath(self):
+        """
+        Verify that you can upgrade a path attribute in the simplest possible
+        way.
+        """
+        axiomInvalidateModule(newpath)
+        reload(oldpath)
+        self.openStore()
+        nfp = self.currentStore.newFilePath("pathname")
+        oldpath.Path(store=self.currentStore,
+                     thePath=nfp)
+        self.closeStore()
+        axiomInvalidateModule(oldpath)
+        reload(newpath)
+        self.openStore()
+        def checkPathEquivalence(n):
+            self.assertEquals(
+                self.currentStore.findUnique(newpath.Path).thePath.path,
+                nfp.path)
+        self.startStoreService()
+        return self.currentStore.whenFullyUpgraded().addCallback(
+            checkPathEquivalence)
