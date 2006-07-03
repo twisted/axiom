@@ -2,11 +2,18 @@
 Test cases for APSW-specific parts of the backend.
 """
 
-from apsw import LockedError
+try:
+    from apsw import LockedError
+except ImportError:
+    LockedError = None
 
 from twisted.trial.unittest import TestCase
 
-from axiom._apsw import Connection
+try:
+    from axiom._apsw import Connection
+except ImportError:
+    Connection = None
+
 from axiom.test.cursortest import ConnectionTestCaseMixin, StubConnection
 
 class APSWStubConnection(StubConnection):
