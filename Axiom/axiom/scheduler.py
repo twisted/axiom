@@ -142,15 +142,14 @@ class SchedulerMixin:
 
     def schedule(self, runnable, when):
         TimedEvent(store=self.store, time=when, runnable=runnable)
-        self._transientSchedule(when, Time())
-
+        self._transientSchedule(when, self.now())
 
     def reschedule(self, runnable, fromWhen, toWhen):
         for evt in self.store.query(TimedEvent,
                                     AND(TimedEvent.time == fromWhen,
                                         TimedEvent.runnable == runnable)):
             evt.time = toWhen
-            self._transientSchedule(toWhen, Time())
+            self._transientSchedule(toWhen, self.now())
             break
         else:
             raise ValueError("%r is not scheduled to run at %r" % (runnable, fromWhen))
