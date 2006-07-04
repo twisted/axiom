@@ -263,7 +263,9 @@ class ItemQuery(BaseQuery):
                      ])))
 
     def _massageData(self, row):
-        return self.store._loadedItem(self.tableClass, row[0], row[1:])
+        result = self.store._loadedItem(self.tableClass, row[0], row[1:])
+        assert result.store is not None, "result %r has funky store" % (result,)
+        return result
 
     def getColumn(self, attributeName, raw=False):
         attr = getattr(self.tableClass, attributeName)
