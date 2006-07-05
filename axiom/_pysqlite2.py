@@ -103,6 +103,7 @@ class Cursor(object):
                     if txntime - blockedTime > 2.0:
                         log.msg('Extremely long execute: %s' % (txntime - blockedTime,))
                         log.msg(sql)
+                        # import traceback; traceback.print_stack()
                     log.msg(interface=iaxiom.IStatEvent,
                             stat_cursor_execute_time=txntime,
                             stat_cursor_blocked_time=blockedTime)

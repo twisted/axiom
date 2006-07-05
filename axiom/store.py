@@ -1387,16 +1387,26 @@ class Store(Empowered):
         if after - before > 2.0:
             log.msg('Extremely long list(cursor): %s' % (after - before,))
             log.msg(sql)
+            # import traceback; traceback.print_stack()
         if self.debug:
             print '  lastrow:', self.cursor.lastRowID()
             print '  result:', result
         return result
 
+
     def createSQL(self, sql, args=()):
-        """ For use with auto-committing statements such as CREATE TABLE or CREATE
+        """
+        For use with auto-committing statements such as CREATE TABLE or CREATE
         INDEX.
         """
+        before = time.time()
         self._execSQL(sql, args)
+        after = time.time()
+        if after - before > 2.0:
+            log.msg('Extremely long CREATE: %s' % (after - before,))
+            log.msg(sql)
+            # import traceback; traceback.print_stack()
+
 
     def _execSQL(self, sql, args):
         sql = self._normalizeSQL(sql)

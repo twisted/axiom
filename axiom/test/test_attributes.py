@@ -6,11 +6,12 @@ from decimal import Decimal
 from epsilon.extime import Time
 
 from twisted.trial.unittest import TestCase
+from twisted.python.reflect import qual
 
 from axiom.store import Store
-from axiom.item import Item
+from axiom.item import Item, normalize
 
-from axiom.attributes import Comparable, integer, timestamp, textlist
+from axiom.attributes import Comparable, SQLAttribute, integer, timestamp, textlist
 
 from axiom.attributes import ieee754_double, point1decimal, money
 
@@ -207,8 +208,11 @@ class StructuredDefaultTestCase(TestCase):
             10)
 
 
+
 class TaggedListyThing(Item):
     strlist = textlist()
+
+
 
 class StringListTestCase(TestCase):
     def testSimpleListOfStrings(self):
@@ -217,3 +221,76 @@ class StringListTestCase(TestCase):
         tlt = TaggedListyThing(store=s, strlist=SOME_VALUE)
         self.assertEquals(tlt.strlist, SOME_VALUE)
 
+
+
+class SQLAttributeDummyClass(Item):
+    """
+    Dummy class which L{SQLAttributeTestCase} will poke at to assert various
+    behaviors.
+    """
+    dummyAttribute = SQLAttribute()
+
+
+
+class SQLAttributeTestCase(TestCase):
+    """
+    Tests for behaviors of the L{axiom.attributes.SQLAttribute} class.
+    """
+
+    def test_attributeName(self):
+        """
+        Test that an L{SQLAttribute} knows its own local name.
+        """
+        self.assertEquals(
+            SQLAttributeDummyClass.dummyAttribute.attrname,
+            'dummyAttribute')
+
+
+    def test_fullyQualifiedName(self):
+        """
+        Test that the L{SQLAttribute.fullyQualifiedName} method correctly
+        returns the fully qualified Python name of the attribute: that is, the
+        fully qualified Python name of the type it is defined on (plus a dot)
+        plus the name of the attribute.
+        """
+        self.assertEquals(
+            SQLAttributeDummyClass.dummyAttribute.fullyQualifiedName(),
+            'axiom.test.test_attributes.SQLAttributeDummyClass.dummyAttribute')
+
+
+    def test_typeAttribute(self):
+        """
+        Test that the C{type} attribute of an L{SQLAttribute} references the
+        class on which the attribute is defined.
+        """
+        self.assertIdentical(
+            SQLAttributeDummyClass,
+            SQLAttributeDummyClass.dummyAttribute.type)
+
+
+    def test_getShortColumnName(self):
+        """
+        Test that L{Store.getShortColumnName} returns something pretty close to
+        the name of the attribute.
+
+        XXX Testing this really well would require being able to parse a good
+        chunk of SQL.  I don't know how to do that yet. -exarkun
+        """
+        s = Store()
+        self.assertIn(
+            'dummyAttribute',
+            s.getShortColumnName(SQLAttributeDummyClass.dummyAttribute))
+
+
+    def test_getColumnName(self):
+        """
+        Test that L{Store.getColumnName} returns something made up of the
+        attribute's type's typeName and the attribute's name.
+        """
+        s = Store()
+        self.assertIn(
+            'dummyAttribute',
+            s.getColumnName(SQLAttributeDummyClass.dummyAttribute))
+        self.assertIn(
+            normalize(qual(SQLAttributeDummyClass)),
+            s.getColumnName(SQLAttributeDummyClass.dummyAttribute))
