@@ -1,4 +1,4 @@
-0.5.5 (2006-07-??):
+0.5.5 (2006-07-08):
   - SubStoreStartupService was removed; user stores' services are no longer
     incorrectly started when the Mantissa administrative powerup is installed.
   - IPowerupIndirector was added, allowing for installation of SubStore items
