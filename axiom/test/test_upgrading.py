@@ -80,9 +80,6 @@ class SchemaUpgradeTest(unittest.TestCase):
     def setUp(self):
         self.dbdir = self.mktemp()
 
-    def tearDown(self):
-        choose(oldapp)
-
     def openStore(self, dbg=False):
         self.currentStore = store.Store(self.dbdir, debug=dbg)
         return self.currentStore
@@ -95,6 +92,12 @@ class SchemaUpgradeTest(unittest.TestCase):
         svc = IService(self.currentStore)
         svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
         svc.startService()
+
+
+class SwordUpgradeTest(SchemaUpgradeTest):
+
+    def tearDown(self):
+        choose(oldapp)
 
     def testUnUpgradeableStore(self):
         self._testTwoObjectUpgrade()
@@ -217,7 +220,7 @@ class SchemaUpgradeTest(unittest.TestCase):
 
 from axiom.substore import SubStore
 
-class SubStoreCompat(SchemaUpgradeTest):
+class SubStoreCompat(SwordUpgradeTest):
     def setUp(self):
         self.topdbdir = self.mktemp()
         self.subStoreID = None
@@ -267,3 +270,89 @@ class PathUpgrade(SchemaUpgradeTest):
         self.startStoreService()
         return self.currentStore.whenFullyUpgraded().addCallback(
             checkPathEquivalence)
+
+
+from axiom.test import oldcirc
+axiomInvalidateModule(oldcirc)
+from axiom.test import newcirc
+axiomInvalidateModule(newcirc)
+
+
+from axiom.test import oldobsolete
+axiomInvalidateModule(oldobsolete)
+
+from axiom.test import newobsolete
+axiomInvalidateModule(newobsolete)
+
+from zope.interface import Interface
+
+class IObsolete(Interface):
+    """
+    Interface representing an undesirable feature.
+    """
+
+class DeletionTest(SchemaUpgradeTest):
+    def testCircular(self):
+        """
+        If you access an item, B, through a reference on another item, A, which
+        is deleted in the course of B's upgrade, you should still get a
+        reference to B.
+        """
+        reload(oldcirc)
+        self.openStore()
+        b = oldcirc.B(a=oldcirc.A(store=self.currentStore),
+                      store=self.currentStore)
+        b.a.b = b
+
+        self.closeStore()
+
+        axiomInvalidateModule(oldcirc)
+        reload(newcirc)
+
+        self.openStore()
+        origA = self.currentStore.findUnique(newcirc.A)
+        origB = origA.b
+        secondA = self.currentStore.findUnique(newcirc.A)
+        secondB = secondA.b
+        self.assertEquals(origB, secondB)
+        self.assertNotEqual(origA, secondA)
+
+    def testPowerupsFor(self):
+        """
+        Powerups deleted during upgrades should be omitted from the results of
+        powerupsFor.
+        """
+        reload(oldobsolete)
+        self.openStore()
+        o = oldobsolete.Obsolete(store=self.currentStore)
+        self.currentStore.powerUp(o, IObsolete)
+        # sanity check
+        self.assertEquals(IObsolete(self.currentStore), o)
+        self.closeStore()
+
+        axiomInvalidateModule(oldobsolete)
+        reload(newobsolete)
+        self.openStore()
+        self.assertEquals(list(self.currentStore.powerupsFor(IObsolete)), [])
+        self.closeStore()
+        axiomInvalidateModule(newobsolete)
+
+    def testPowerupsAdapt(self):
+        """
+        Powerups deleted during upgrades should be omitted from the results of
+        powerupsFor.
+        """
+        reload(oldobsolete)
+        self.openStore()
+        o = oldobsolete.Obsolete(store=self.currentStore)
+        self.currentStore.powerUp(o, IObsolete)
+        # sanity check
+        self.assertEquals(IObsolete(self.currentStore), o)
+        self.closeStore()
+
+        axiomInvalidateModule(oldobsolete)
+        reload(newobsolete)
+        self.openStore()
+        self.assertEquals(IObsolete(self.currentStore, None), None)
+        self.closeStore()
+        axiomInvalidateModule(newobsolete)

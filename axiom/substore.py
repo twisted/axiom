@@ -1,9 +1,16 @@
 # -*- test-case-name: axiom.test.test_substore -*-
 
+from zope.interface import implements
+
+from twisted.application import service
+
+from axiom.iaxiom import IPowerupIndirector
+
 from axiom.store import Store
 from axiom.item import Item, InstallableMixin
 from axiom.attributes import path, inmemory, reference
-from twisted.application import service
+
+from axiom.upgrade import registerUpgrader
 
 class SubStore(Item):
 
@@ -12,6 +19,8 @@ class SubStore(Item):
 
     storepath = path()
     substore = inmemory()
+
+    implements(IPowerupIndirector)
 
     def createNew(cls, store, pathSegments):
         """
@@ -43,28 +52,41 @@ class SubStore(Item):
             return s
 
     def __conform__(self, interface):
+        """
+        I adapt my store object to whatever interface I am adapted to.  This
+        allows for avatar adaptation in L{axiom.userbase} to work properly
+        without having to know explicitly that all 'avatars' objects are
+        SubStore instances, since it is valid to have non-SubStore avatars,
+        which are simply adaptable to the cred interfaces they represent.
+        """
         ifa = interface(self.open(debug=self.store.debug), None)
         return ifa
+
+    def indirect(self, interface):
+        """
+        Like __conform__, I adapt my store to whatever interface I am asked to
+        produce a powerup for.  This allows for app stores to be installed as
+        powerups for their site stores directly, rather than having an
+        additional item type for each interface that we might wish to adapt to.
+        """
+        return interface(self)
 
 
 
 class SubStoreStartupService(Item, service.Service, InstallableMixin):
+    """
+    This class no longer exists.  It is here simply to trigger an upgrade which
+    deletes it.  Ignore it, please.
+    """
     installedOn = reference()
     parent = inmemory()
     running = inmemory()
     name = inmemory()
 
-    def installOn(self, store):
-        super(SubStoreStartupService, self).installOn(store)
-        store.powerUp(self, service.IService)
-        if self.parent is None:
-            self.setServiceParent(store)
-            self.startService()
-    def startService(self):
-        super(SubStoreStartupService, self).startService()
-        for ss in self.store.query(SubStore):
-            svc = service.IService(ss, None)
-            if svc:
-                svc.setServiceParent(self)
-                if not svc.running:
-                    svc.startService()
+    schemaVersion = 2
+
+def eliminateSubStoreStartupService(subservice):
+    subservice.deleteFromStore()
+    return None
+
+registerUpgrader(eliminateSubStoreStartupService, SubStoreStartupService.typeName, 1, 2)

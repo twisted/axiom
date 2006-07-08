@@ -94,6 +94,22 @@ class IBeneficiary(Interface):
         be forwarded to a different implementation object, or deferred.
         """
 
+class IPowerupIndirector(Interface):
+    """
+    Implement this interface if you want to change what is returned from
+    powerupsFor for a particular interface.
+    """
+
+    def indirect(interface):
+        """
+        When an item which implements IPowerupIndirector is returned from a
+        powerupsFor query, this method will be called on it to give it the
+        opportunity to return something other than itself from powerupsFor.
+
+        @param interface: the interface passed to powerupsFor
+        @type interface: L{zope.interface.Interface}
+        """
+
 class IScheduler(Interface):
     """
     An interface for scheduling tasks.  Quite often the store will be adaptable
