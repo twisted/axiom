@@ -11,6 +11,8 @@ from twisted.application.service import IService, IServiceCollection, MultiServi
 
 from axiom import slotmachine, _schema, iaxiom
 
+from axiom.iaxiom import IPowerupIndirector
+
 from axiom.attributes import SQLAttribute, Comparable, inmemory, \
     reference, text, integer, AND, _cascadingDeletes
 
@@ -171,7 +173,16 @@ class Empowered(object):
 
         @param priority: An int; preferably either POWERUP_BEFORE,
         POWERUP_AFTER, or unspecified.
+
+        @raise TypeError: raises if interface is IPowerupIndirector You may not
+        install a powerup for IPowerupIndirector because that would be
+        nonsensical.
         """
+        if interface is IPowerupIndirector:
+            raise TypeError(
+                "You cannot install a powerup for IPowerupIndirector: " +
+                powerup)
+
         forc = self.store.findOrCreate(_PowerupConnector,
                                        item=self,
                                        interface=unicode(qual(interface)),
@@ -202,7 +213,12 @@ class Empowered(object):
         special rules.  The full list of such interfaces is present in the
         'aggregateInterfaces' class attribute.
         """
-        if not self.store:
+        if (self.store is None  # Don't bother doing a *query* if we're not
+                                # even stored in a store yet
+            or interface is IPowerupIndirector): # you can't do a query for
+                                                 # IPowerupIndirector, that
+                                                 # would just start an infinite
+                                                 # loop.
             return
         pups = self.powerupsFor(interface)
         agg = self.aggregateInterfaces
@@ -215,6 +231,10 @@ class Empowered(object):
         """
         Returns powerups installed using C{powerUp}, in order of descending
         priority.
+
+        Powerups found to have been deleted, either during the course of this
+        powerupsFor iteration, during an upgrader, or previously, will not be
+        returned.
         """
         name = unicode(qual(interface), 'ascii')
         for cable in self.store.query(
@@ -222,7 +242,16 @@ class Empowered(object):
             AND(_PowerupConnector.interface == name,
                 _PowerupConnector.item == self),
             sort=_PowerupConnector.priority.descending):
-            yield cable.powerup
+            pup = cable.powerup
+            if pup is None:
+                # this powerup was probably deleted during an upgrader.
+                cable.deleteFromStore()
+            else:
+                indirector = IPowerupIndirector(pup, None)
+                if indirector is not None:
+                    yield indirector.indirect(interface)
+                else:
+                    yield pup
 
     def interfacesFor(self, powerup):
         pc = _PowerupConnector
@@ -285,6 +314,10 @@ class Item(Empowered, slotmachine._Strict):
         deleted in this transaction, or objects which are not in the same store
         are not valid.  See attributes.reference.__get__.
         """
+        if store is None:
+            # If your store is None, you can refer to whoever you want.  I'm in
+            # a store but it doesn't matter that you're not.
+            return True
         if self.store is not store:
             return False
         if self.__deletingObject:

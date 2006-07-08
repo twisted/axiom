@@ -3,9 +3,10 @@ from twisted.trial import unittest
 
 from axiom.item import Item
 from axiom.store import Store
-from axiom.attributes import integer, inmemory
+from axiom.iaxiom import IPowerupIndirector
+from axiom.attributes import integer, inmemory, reference
 
-from zope.interface import Interface, Attribute
+from zope.interface import Interface, implements, Attribute
 
 
 class IValueHaver(Interface):
@@ -26,6 +27,23 @@ class SumContributor(Item):
     typeName = 'test_sum_contributor'
 
     value = integer()
+
+class MinusThree(object):
+    implements(IValueHaver)
+
+    def __init__(self, otherValueHaver):
+        self.value = otherValueHaver.value - 3
+
+class SubtractThree(Item):
+    schemaVersion = 1
+    typeName = 'test_powerup_indirection_subtractthree'
+    valueHaver = reference()
+
+    implements(IPowerupIndirector)
+
+    def indirect(self, iface):
+        assert iface is IValueHaver, repr(iface)
+        return MinusThree(self.valueHaver)
 
 
 class Summer(Item):
@@ -67,6 +85,7 @@ class PowerUpTest(unittest.TestCase):
 
         s.close()
 
+
     def testPowerupIdentity(self):
         s = Store()
         mm = Summer(store=s)
@@ -82,6 +101,37 @@ class PowerUpTest(unittest.TestCase):
         self.assertEquals(mm.doSum(), 6)
 
         s.close()
+
+
+    def testIndirectedPowerups(self):
+        """
+        Powerups which implement L{IPowerupIndirector} should not be returned
+        directly, the values that they return from indirect() should be
+        returned directly.
+        """
+        s = Store()
+        mm = Summer(store=s)
+        s.powerUp(
+            SubtractThree(
+                store=s, valueHaver=SumContributor(store=s, value=5)),
+            IValueHaver)
+        self.assertEquals(mm.doSum(), 2)
+        s.close()
+
+
+    def testNoIndirectedIndirection(self):
+        """
+        Because it is a special interface in the powerup system, you can't have
+        powerups for IPowerupIndirector; there's no sensible thing that could
+        mean other than an infinite loop. Let's make sure that both looking for
+        IPowerupIndirector and attempting to install a powerup for it will fail
+        appropriately.
+        """
+        s = Store()
+        s3 = SubtractThree(store=s)
+        self.assertRaises(TypeError, s.powerUp, s3, IPowerupIndirector)
+        self.assertEqual(list(s.powerupsFor(IPowerupIndirector)), [])
+
 
 
 from twisted.application.service import IService, Service

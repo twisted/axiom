@@ -1,10 +1,16 @@
+0.5.4 (2006-07-??):
+  - SubStoreStartupService was removed; user stores' services are no longer
+    incorrectly started when the Mantissa administrative powerup is installed.
+  - IPowerupIndirector was added, allowing for installation of SubStore items
+    as powerups on other items.
+
 0.5.3 (2006-06-27):
   - A bug causing the table name cache to grow too large was fixed.
 
 0.5.2 (2006-06-26):
   - Type names are now determined on a per-store basis, rather than cached
     globally on the Item.
-  
+
 0.5.1 (2006-06-16):
   - axiom.slotmachine._structlike removed in favor of the implementation in
     Epsilon, epsilon.structlike.record.
