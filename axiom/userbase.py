@@ -10,7 +10,7 @@ from twisted.python import log
 from epsilon.extime import Time
 
 from axiom.store import Store
-from axiom.item import Item
+from axiom.item import Item, declareLegacyItem
 from axiom.substore import SubStore
 from axiom.attributes import text, integer, reference, boolean, timestamp, AND
 from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
@@ -64,7 +64,7 @@ class Preauthenticated(object):
 
 class LoginMethod(Item):
     typeName = 'login_method'
-    schemaVersion = 2
+    schemaVersion = 3
 
     localpart = text(doc="""
     A local-part of my user's identifier.
@@ -91,7 +91,7 @@ class LoginMethod(Item):
     lastActivity = timestamp(doc="""
     The time when this login method was last used. Not set by Axiom,
     but can be updated by your application.
-    """, allowNone=False)
+    """)
 
 def upgradeLoginMethod1To2(old):
     return old.upgradeVersion(
@@ -103,7 +103,16 @@ def upgradeLoginMethod1To2(old):
             account=old.account,
             verified=old.verified)
 
+declareLegacyItem(LoginMethod.typeName,
+                  2, dict(localpart = text(),
+                          domain = text(),
+                          internal = boolean(),
+                          protocol = text(),
+                          account = reference(),
+                          verified = boolean()))
+
 upgrade.registerUpgrader(upgradeLoginMethod1To2, 'login_method', 1, 2)
+upgrade.registerAttributeCopyingUpgrader(LoginMethod, 2, 3)
 
 class LoginAccount(Item):
     """
@@ -188,7 +197,7 @@ class LoginAccount(Item):
                              protocol=siteMethod.protocol,
                              verified=siteMethod.verified,
                              account=la,
-                             lastActivity=Time())
+                             lastActivity=siteMethod.lastActivity)
         return la
 
     def deleteLoginMethods(self):
@@ -213,28 +222,16 @@ class LoginAccount(Item):
                                          LoginAccount.avatars == subStoreItem)
 
         # Up and down take you home
+        t = Time()
         for store, account in [(otherStore, peer), (self.store, self)]:
-            #can't use findOrCreate because we don't want to create a
-            #new LoginMethod just because the lastActivity timestamp
-            #might be different!
-            lm = store.findUnique(LoginMethod, AND(
-                LoginMethod.account==account,
-                LoginMethod.localpart==localpart,
-                LoginMethod.domain==domain,
-                LoginMethod.protocol==protocol,
-                LoginMethod.verified==verified,
-                LoginMethod.internal==internal), default=None)
-            if not lm:
-                LoginMethod(store=store,
-                            account=account,
-                            localpart=localpart,
-                            domain=domain,
-                            protocol=protocol,
-                            verified=verified,
-                            internal=internal,
-                            lastActivity=Time())
-
-
+            lm = store.findOrCreate(LoginMethod,
+                                    account=account,
+                                    localpart=localpart,
+                                    domain=domain,
+                                    protocol=protocol,
+                                    verified=verified,
+                                    internal=internal)
+            lm.lastActivity = t
 
 
 def insertUserStore(siteStore, userStorePath):
@@ -353,8 +350,7 @@ def upgradeLoginAccount1To2(oldAccount):
             internal=False,
             protocol=u'email',
             account=acc,
-            verified=True,
-            lastActivity=Time())
+            verified=True)
 
     make(newAccount.store, newAccount)
     ss = newAccount.avatars.open()
