@@ -7,10 +7,12 @@ from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
 from twisted.python import log
 
+from epsilon.extime import Time
+
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
-from axiom.attributes import text, integer, reference, boolean, AND
+from axiom.attributes import text, integer, reference, boolean, timestamp, AND
 from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
 from axiom import upgrade, iaxiom
 
@@ -85,6 +87,11 @@ class LoginMethod(Item):
     """, allowNone=False)
 
     verified = boolean(indexed=True, allowNone=False)
+
+    lastActivity = timestamp(doc="""
+    The time when this login method was last used. Not set by Axiom,
+    but can be updated by your application.
+    """, allowNone=False)
 
 def upgradeLoginMethod1To2(old):
     return old.upgradeVersion(
@@ -180,7 +187,8 @@ class LoginAccount(Item):
                              internal=siteMethod.internal,
                              protocol=siteMethod.protocol,
                              verified=siteMethod.verified,
-                             account=la)
+                             account=la,
+                             lastActivity=Time())
         return la
 
     def deleteLoginMethods(self):
@@ -206,13 +214,26 @@ class LoginAccount(Item):
 
         # Up and down take you home
         for store, account in [(otherStore, peer), (self.store, self)]:
-            store.findOrCreate(LoginMethod,
-                               account=account,
-                               localpart=localpart,
-                               domain=domain,
-                               protocol=protocol,
-                               verified=verified,
-                               internal=internal)
+            #can't use findOrCreate because we don't want to create a
+            #new LoginMethod just because the lastActivity timestamp
+            #might be different!
+            lm = store.findUnique(LoginMethod, AND(
+                LoginMethod.account==account,
+                LoginMethod.localpart==localpart,
+                LoginMethod.domain==domain,
+                LoginMethod.protocol==protocol,
+                LoginMethod.verified==verified,
+                LoginMethod.internal==internal), default=None)
+            if not lm:
+                LoginMethod(store=store,
+                            account=account,
+                            localpart=localpart,
+                            domain=domain,
+                            protocol=protocol,
+                            verified=verified,
+                            internal=internal,
+                            lastActivity=Time())
+
 
 
 
@@ -332,7 +353,8 @@ def upgradeLoginAccount1To2(oldAccount):
             internal=False,
             protocol=u'email',
             account=acc,
-            verified=True)
+            verified=True,
+            lastActivity=Time())
 
     make(newAccount.store, newAccount)
     ss = newAccount.avatars.open()
@@ -487,6 +509,14 @@ class LoginBase:
         except:
             self.failedLogins += 1
             raise
+
+    def updateLoginActivity(self, localpart, domain, protocol):
+        self.store.findFirst(LoginMethod,
+                             AND(
+                            LoginMethod.localpart==localpart,
+                            LoginMethod.domain==domain,
+                            LoginMethod.protocol==protocol)
+                             ).lastActivity == Time()
 
 class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
     schemaVersion = 1
