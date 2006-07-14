@@ -18,8 +18,8 @@ def saveStub(funcobj, revision):
     Store instance and should add to it the old state which will be used to
     test an upgrade.
 
-    @param revision: An SVN revision of trunk at which it was possible it is
-    possible for funcobj to create the necessary state.
+    @param revision: An SVN revision of trunk at which it is possible
+    for funcobj to create the necessary state.
     """
     # You may notice certain files don't pass the second argument.  They don't
     # work any more.  Please feel free to update them with the revision number
