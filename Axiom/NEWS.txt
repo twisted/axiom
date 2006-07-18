@@ -1,3 +1,7 @@
+0.5.6 (2006-07-18):
+  - userbase.LoginSystem now raises a new exception type when login is attempted
+    using a username with no domain part.
+
 0.5.5 (2006-07-08):
   - SubStoreStartupService was removed; user stores' services are no longer
     incorrectly started when the Mantissa administrative powerup is installed.
