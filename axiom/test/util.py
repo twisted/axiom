@@ -32,3 +32,19 @@ def getPristineStore(testCase, creator):
     basePath = _getBaseStorePath(testCase, creator)
     basePath.copyTo(FilePath(dbdir))
     return Store(dbdir)
+
+
+
+class CommandStubMixin:
+    """
+    Pretend to be the parent command for a subcommand.
+    """
+    def getStore(self):
+        # fake out "parent" implementation for stuff.
+        return self.store
+
+
+    def getSynopsis(self):
+        return '<CommandStubMixin>'
+
+    subCommand = property(lambda self: self.__class__.__name__)
