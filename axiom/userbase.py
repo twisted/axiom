@@ -470,28 +470,23 @@ class LoginBase:
 
         try:
             username, domain = credentials.username.split('@', 1)
-        except ValueError:
-            self.failedLogins += 1
-            raise NoSuchUser(credentials.username)
+            username = unicode(username)
+            domain = unicode(domain)
 
-        username = unicode(username)
-        domain = unicode(domain)
-
-        acct = self.accountByAddress(username, domain)
-        if acct is not None:
-            if IPreauthCredentials.providedBy(credentials):
-                return acct.storeID
-            else:
-                password = acct.password
-                if credentials.checkPassword(password):
+            acct = self.accountByAddress(username, domain)
+            if acct is not None:
+                if IPreauthCredentials.providedBy(credentials):
                     return acct.storeID
                 else:
-                    self.failedLogins += 1
-                    raise BadCredentials()
-
-        self.failedLogins += 1
-        raise NoSuchUser(credentials.username)
-
+                    password = acct.password
+                    if credentials.checkPassword(password):
+                        return acct.storeID
+                    else:
+                        raise BadCredentials()
+            raise NoSuchUser(credentials.username)
+        except:
+            self.failedLogins += 1
+            raise
 
 class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
     schemaVersion = 1
