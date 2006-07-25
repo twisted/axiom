@@ -16,7 +16,7 @@ from twisted.python import log
 from twisted.python.failure import Failure
 from twisted.python import filepath
 from twisted.internet import defer
-from twisted.python.reflect import namedAny
+from twisted.python.reflect import namedAny, qual
 from twisted.python.util import unsignedID
 from twisted.application.service import IService, IServiceCollection
 
@@ -633,8 +633,9 @@ class Store(Empowered):
                 if ((typeInQuestion, upgver, upgver+1)
                     not in upgrade._upgradeRegistry):
                     cantUpgradeErrors.append(
-                        "No upgrader present for %s from %d to %d" % (
-                            typeInQuestion, upgver, upgver+1))
+                        "No upgrader present for %s (%s) from %d to %d" % (
+                            typeInQuestion, qual(currentType), upgver,
+                            upgver + 1))
 
                 # Is there a type available for each upgrader version?
                 if upgver+1 != currentType.schemaVersion:

@@ -355,6 +355,7 @@ class Item(Empowered, slotmachine._Strict):
             else:
                 self.touch()
             self.activate()
+            self.stored()
         return get, set, """
 
         A reference to a Store; when set for the first time, inserts this object
@@ -517,6 +518,17 @@ class Item(Empowered, slotmachine._Strict):
         gone from the database; the transaction which deleted it has been
         committed.
         """
+
+
+    def stored(self):
+        """
+        User-definable callback that is invoked when an object is placed into a
+        Store for the very first time.
+
+        If an Item is created with a store, this will be invoked I{after}
+        C{activate}.
+        """
+
 
     def committed(self):
         """

@@ -156,6 +156,24 @@ class SchedTest(unittest.TestCase):
         return d
 
 
+    def test_inspection(self):
+        """
+        Test that the L{scheduledTimes} method returns an iterable of all the
+        times at which a particular item is scheduled to run.
+        """
+        now = Time()
+        off = timedelta(seconds=3)
+        sch = IScheduler(self.store)
+        runnable = TestEvent(store=self.store)
+        sch.schedule(runnable, now)
+        sch.schedule(runnable, now + off)
+        sch.schedule(runnable, now + off + off)
+
+        self.assertEquals(
+            list(sch.scheduledTimes(runnable)),
+            [now, now + off, now + off + off])
+
+
 
 class TopStoreSchedTest(SchedTest):
 

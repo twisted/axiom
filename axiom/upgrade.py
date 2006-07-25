@@ -18,6 +18,7 @@ def registerUpgrader(upgrader, typeName, oldVersion, newVersion):
     # ^ this makes the tests blow up so it's just disabled for now; perhaps we
     # should have a specific test mode
     assert newVersion - oldVersion == 1, "read the doc string"
+    assert isinstance(typeName, str), "read the doc string"
     _upgradeRegistry[typeName, oldVersion, newVersion] = upgrader
 
 def registerAttributeCopyingUpgrader(itemType, fromVersion, toVersion):

@@ -8,7 +8,7 @@ from twisted.python import log
 
 from axiom import store, item
 from axiom.test import itemtest, itemtestmain
-from axiom.attributes import text, inmemory
+from axiom.attributes import integer, text, inmemory
 
 class ProcessFailed(Exception):
     pass
@@ -72,10 +72,80 @@ class TransactedMethodItem(item.Item):
 
 
 
+class StoredNoticingItem(item.Item):
+    """
+    Test item which just remembers whether or not its C{stored} method has been
+    called.
+    """
+    storedCount = integer(doc="""
+    The number of times C{stored} has been called on this item.
+    """, default=0)
+
+    activatedCount = integer(doc="""
+    The number of times C{stored} has been called on this item.
+    """, default=0)
+
+    activated = inmemory(doc="""
+    A value set in the C{activate} callback and nowhere else.  Used to
+    determine the ordering of C{activate} and C{stored} calls.
+    """)
+
+    def activate(self):
+        self.activated = True
+
+
+    def stored(self):
+        self.storedCount += 1
+        self.activatedCount += getattr(self, 'activated', 0)
+
+
+
 class TestItem(unittest.TestCase):
     def testCreateItem(self):
         st = store.Store()
         self.assertRaises(item.CantInstantiateItem, item.Item, store=st)
+
+
+    def test_storedCallbackAfterActivateCallback(self):
+        """
+        Test that L{Item.stored} is only called after L{Item.activate} has been
+        called.
+        """
+        st = store.Store()
+        i = StoredNoticingItem(store=st)
+        self.assertEquals(i.activatedCount, 1)
+
+
+    def test_storedCallbackOnAttributeSet(self):
+        """
+        Test that L{Item.stored} is called when an item is actually added to a
+        store and not before.
+        """
+        st = store.Store()
+        i = StoredNoticingItem()
+        self.assertEquals(i.storedCount, 0)
+        i.store = st
+        self.assertEquals(i.storedCount, 1)
+
+
+    def test_storedCallbackOnItemCreation(self):
+        """
+        Test that L{Item.stored} is called when an item is created with a
+        store.
+        """
+        st = store.Store()
+        i = StoredNoticingItem(store=st)
+        self.assertEquals(i.storedCount, 1)
+
+
+    def test_storedCallbackNotOnLoad(self):
+        """
+        Test that pulling an item out of a store does not invoke its stored
+        callback again.
+        """
+        st = store.Store()
+        storeID = StoredNoticingItem(store=st).storeID
+        self.assertEquals(st.getItemByID(storeID).storedCount, 1)
 
 
     def testTransactedTransacts(self):

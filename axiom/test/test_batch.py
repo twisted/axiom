@@ -4,6 +4,7 @@ from twisted.python import log, failure
 from twisted.application import service
 
 from axiom import iaxiom, store, item, attributes, batch, substore
+from axiom.scheduler import Scheduler
 
 
 class TestWorkUnit(item.Item):
@@ -39,6 +40,8 @@ class BatchTestCase(unittest.TestCase):
     def setUp(self):
         self.procType = batch.processor(TestWorkUnit)
         self.store = store.Store()
+        self.scheduler = Scheduler(store=self.store)
+        self.scheduler.installOn(self.store)
 
 
     def testItemTypeCreation(self):
@@ -367,6 +370,113 @@ class BatchTestCase(unittest.TestCase):
         self.assertEquals(processedItems, [1])
 
 
+    def test_processorStartsUnscheduled(self):
+        """
+        Test that when a processor is first created, it is not scheduled to
+        perform any work.
+        """
+        proc = self.procType(store=self.store)
+        self.assertIdentical(proc.scheduled, None)
+        self.assertEquals(
+            list(self.scheduler.scheduledTimes(proc)),
+            [])
+
+
+    def test_itemAddedIgnoredWithoutListeners(self):
+        """
+        Test that if C{itemAdded} is called while the processor is idle but
+        there are no listeners, the processor does not schedule itself to do
+        any work.
+        """
+        proc = self.procType(store=self.store)
+        proc.itemAdded()
+        self.assertEqual(proc.scheduled, None)
+        self.assertEquals(
+            list(self.scheduler.scheduledTimes(proc)),
+            [])
+
+
+    def test_itemAddedSchedulesProcessor(self):
+        """
+        Test that if C{itemAdded} is called while the processor is idle and
+        there are listeners, the processor does schedules itself to do some
+        work.
+        """
+        proc = self.procType(store=self.store)
+        listener = WorkListener(store=self.store)
+        proc.addReliableListener(listener)
+
+        # Get rid of the scheduler state that addReliableListener call just
+        # created.
+        proc.scheduled = None
+        self.scheduler.unscheduleAll(proc)
+
+        proc.itemAdded()
+        self.failIfEqual(proc.scheduled, None)
+        self.assertEquals(
+            list(self.scheduler.scheduledTimes(proc)),
+            [proc.scheduled])
+
+
+    def test_addReliableListenerSchedulesProcessor(self):
+        """
+        Test that if C{addReliableListener} is called while the processor is
+        idle, the processor schedules itself to do some work.
+        """
+        proc = self.procType(store=self.store)
+        listener = WorkListener(store=self.store)
+        proc.addReliableListener(listener)
+        self.failIfEqual(proc.scheduled, None)
+        self.assertEquals(
+            list(self.scheduler.scheduledTimes(proc)),
+            [proc.scheduled])
+
+
+    def test_itemAddedWhileScheduled(self):
+        """
+        Test that if C{itemAdded} is called when the processor is already
+        scheduled to run, the processor remains scheduled to run at the same
+        time.
+        """
+        proc = self.procType(store=self.store)
+        listener = WorkListener(store=self.store)
+        proc.addReliableListener(listener)
+        when = proc.scheduled
+        proc.itemAdded()
+        self.assertEquals(proc.scheduled, when)
+        self.assertEquals(
+            list(self.scheduler.scheduledTimes(proc)),
+            [proc.scheduled])
+
+
+    def test_addReliableListenerWhileScheduled(self):
+        """
+        Test that if C{addReliableListener} is called when the processor is
+        already scheduled to run, the processor remains scheduled to run at the
+        same time.
+        """
+        proc = self.procType(store=self.store)
+        listenerA = WorkListener(store=self.store)
+        proc.addReliableListener(listenerA)
+        when = proc.scheduled
+        listenerB = WorkListener(store=self.store)
+        proc.addReliableListener(listenerB)
+        self.assertEquals(proc.scheduled, when)
+        self.assertEquals(
+            list(self.scheduler.scheduledTimes(proc)),
+            [proc.scheduled])
+
+
+    def test_processorIdlesWhenCaughtUp(self):
+        """
+        Test that the C{run} method of the processor returns C{None} when it
+        has done all the work it needs to do, thus unscheduling the processor.
+        """
+        proc = self.procType(store=self.store)
+        self.assertIdentical(proc.run(), None)
+
+
+
 class BatchCallTestItem(item.Item):
     called = attributes.boolean(default=False)
 
@@ -474,6 +584,7 @@ class RemoteTestCase(unittest.TestCase):
 
         dbdir = self.mktemp()
         st = store.Store(dbdir)
+        Scheduler(store=st).installOn(st)
         source = BatchWorkSource(store=st)
         for i in range(BATCH_WORK_UNITS):
             BatchWorkItem(store=st)
@@ -499,4 +610,3 @@ class RemoteTestCase(unittest.TestCase):
         self.assertEquals(
             st.query(BatchWorkItem, BatchWorkItem.value == u"processed").count(),
             BATCH_WORK_UNITS)
-
