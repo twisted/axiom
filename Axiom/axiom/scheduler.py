@@ -144,6 +144,7 @@ class SchedulerMixin:
         TimedEvent(store=self.store, time=when, runnable=runnable)
         self._transientSchedule(when, self.now())
 
+
     def reschedule(self, runnable, fromWhen, toWhen):
         for evt in self.store.query(TimedEvent,
                                     AND(TimedEvent.time == fromWhen,
@@ -170,6 +171,16 @@ class SchedulerMixin:
     def unscheduleAll(self, runnable):
         for evt in self.store.query(TimedEvent, TimedEvent.runnable == runnable):
             evt.deleteFromStore()
+
+
+    def scheduledTimes(self, runnable):
+        """
+        Return an iterable of the times at which the given item is scheduled to
+        run.
+        """
+        events = self.store.query(
+            TimedEvent, TimedEvent.runnable == runnable)
+        return events.getColumn("time")
 
 
 

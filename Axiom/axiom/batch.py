@@ -25,6 +25,8 @@ from twisted.conch import interfaces as iconch
 from epsilon import extime, process, cooperator, modal, juice
 
 from axiom import iaxiom, errors as eaxiom, item, attributes
+from axiom.scheduler import Scheduler, SubScheduler
+from axiom.upgrade import registerUpgrader
 
 VERBOSE = False
 
@@ -300,10 +302,21 @@ class _BatchProcessorMixin:
 
 
     def run(self):
+        """
+        Try to run one unit of work through one listener.  If there are more
+        listeners or more work, reschedule this item to be run again in
+        C{self.busyInterval} milliseconds, otherwise unschedule it.
+
+        @rtype: L{extime.Time} or C{None}
+        @return: The next time at which to run this item, used by the scheduler
+        for automatically rescheduling, or None if there is no more work to do.
+        """
         now = extime.Time()
         if self.step():
-            return now + datetime.timedelta(milliseconds=self.busyInterval)
-        return now + datetime.timedelta(milliseconds=self.idleInterval)
+            self.scheduled = now + datetime.timedelta(milliseconds=self.busyInterval)
+        else:
+            self.scheduled = None
+        return self.scheduled
 
 
     def timedEventErrorHandler(self, timedEvent, failureObj):
@@ -345,6 +358,10 @@ class _BatchProcessorMixin:
             forwardMark = 0
             backwardMark = 0
 
+        if self.scheduled is None:
+            self.scheduled = extime.Time()
+            iaxiom.IScheduler(self.store).schedule(self, self.scheduled)
+
         return _ReliableListener(store=self.store,
                                  processor=self,
                                  listener=listener,
@@ -384,20 +401,79 @@ class _BatchProcessorMixin:
             yield (failed.listener, failed.item)
 
 
+    def itemAdded(self):
+        """
+        Called to indicate that a new item of the type monitored by this batch
+        processor is being added to the database.
+
+        If this processor is not already scheduled to run, this will schedule
+        it.
+        """
+        localCount = self.store.query(
+            _ReliableListener,
+            attributes.AND(_ReliableListener.processor == self,
+                           _ReliableListener.style == iaxiom.LOCAL),
+            limit=1).count()
+
+        if localCount and self.scheduled is None:
+            self.scheduled = extime.Time()
+            iaxiom.IScheduler(self.store).schedule(self, self.scheduled)
+
+
+
+def upgradeProcessor1to2(oldProcessor):
+    """
+    Batch processors stopped polling at version 2, so they no longer needed the
+    idleInterval attribute.  They also gained a scheduled attribute which
+    tracks their interaction with the scheduler.  Since they stopped polling,
+    we also set them up as a timed event here to make sure that they don't
+    silently disappear, never to be seen again: running them with the scheduler
+    gives them a chance to figure out what's up and set up whatever other state
+    they need to continue to run.
+
+    Since this introduces a new dependency of all batch processors on a powerup
+    for the IScheduler, install a Scheduler or a SubScheduler if one is not
+    already present.
+    """
+    newProcessor = oldProcessor.upgradeVersion(
+        oldProcessor.typeName, 1, 2,
+        busyInterval=oldProcessor.busyInterval)
+    newProcessor.scheduled = extime.Time()
+
+    s = newProcessor.store
+    sch = iaxiom.IScheduler(s, None)
+    if sch is None:
+        if s.parent is None:
+            # Only site stores have no parents.
+            sch = Scheduler(store=s)
+        else:
+            # Substores get subschedulers.
+            sch = SubScheduler(store=s)
+        sch.installOn(s)
+
+    # And set it up to run.
+    sch.schedule(newProcessor, newProcessor.scheduled)
+    return newProcessor
+
+
 
 def processor(forType):
     """
-    Create an Axiom Item type which is suitable to use as a batch
-    processor for the given Axiom Item type.
+    Create an Axiom Item type which is suitable to use as a batch processor for
+    the given Axiom Item type.
+
+    Processors created this way depend on a L{iaxiom.IScheduler} powerup on the
+    on which store they are installed.
 
     @type forType: L{item.MetaItem}
-    @param forType: The Axiom Item type for which to create a batch
-    processor type.
+    @param forType: The Axiom Item type for which to create a batch processor
+    type.
 
     @rtype: L{item.MetaItem}
-    @return: An Axiom Item type suitable for use as a batch processor.
-    If such a type previously existed, it will be returned.
-    Otherwise, a new type is created.
+
+    @return: An Axiom Item type suitable for use as a batch processor.  If such
+    a type previously existed, it will be returned.  Otherwise, a new type is
+    created.
     """
     MILLI = 1000
     if forType not in _processors:
@@ -414,17 +490,27 @@ def processor(forType):
 
             '__repr__': lambda self: '<Batch of %s #%d>' % (reflect.qual(self.workUnitType), self.storeID),
 
+            'schemaVersion': 2,
+
             'workUnitType': forType,
 
+            'scheduled': attributes.timestamp(doc="""
+            The next time at which this processor is scheduled to run.
+            """, default=None),
+
             # MAGIC NUMBERS AREN'T THEY WONDERFUL?
-            'rate': attributes.integer(doc="", default=10),
-            'idleInterval': attributes.integer(doc="", default=60 * MILLI),
             'busyInterval': attributes.integer(doc="", default=MILLI / 10),
             }
         _processors[forType] = item.MetaItem(
             attrs['__name__'],
             (item.Item, _BatchProcessorMixin),
             attrs)
+
+        registerUpgrader(
+            upgradeProcessor1to2,
+            _processors[forType].typeName,
+            1, 2)
+
     return _processors[forType]
 
 
