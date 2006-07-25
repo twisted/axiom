@@ -29,6 +29,13 @@ class NoSuchUser(UnauthorizedLogin):
 
 
 
+class MissingDomainPart(NoSuchUser):
+    """
+    Raised when a login is attempted with a username which consists of only
+    a local part.  For example, "testuser" instead of "testuser@example.com".
+    """
+
+
 class DuplicateUser(Exception):
     pass
 
