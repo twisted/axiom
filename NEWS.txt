@@ -1,3 +1,7 @@
+x.x.x (yyyy-mm-dd):
+  - item.Item has a new method, stored, which will be called the first time an
+    item is added to a store, in the same transaction as it is added.
+
 0.5.6 (2006-07-18):
   - userbase.LoginSystem now raises a new exception type when login is attempted
     using a username with no domain part.
