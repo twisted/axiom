@@ -1,10 +1,13 @@
 
 from zope.interface import Interface, implements
+
 from twisted.trial import unittest
+from twisted.internet.defer import maybeDeferred
 
 from twisted.cred.portal import Portal, IRealm
 from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred.credentials import UsernamePassword
+
 from twisted.python.filepath import FilePath
 
 from axiom.store import Store
@@ -296,3 +299,43 @@ class SubStoreMigrationTestCase(unittest.TestCase):
 
     def testInsertionWithNoDomainDirectory(self):
         self.testInsertion(True)
+
+
+
+class RealmTestCase(unittest.TestCase):
+    """
+    Tests for the L{IRealm} implementation in L{axiom.userbase}.
+    """
+    def setUp(self):
+        self.store = Store()
+        self.realm = userbase.LoginSystem(store=self.store)
+        self.realm.installOn(self.store)
+
+
+    def test_powerup(self):
+        """
+        Test that L{LoginSystem} powers up the store for L{IRealm}.
+        """
+        self.assertIdentical(self.realm, IRealm(self.store))
+
+
+    def test_requestNonexistentAvatarId(self):
+        """
+        Test that trying to authenticate as a user who does not exist fails
+        with a L{NoSuchUser} exception.
+        """
+        d = maybeDeferred(
+            self.realm.requestAvatarId,
+            UsernamePassword(u'testuser@example.com', u'password'))
+        return self.assertFailure(d, errors.NoSuchUser)
+
+
+    def test_requestMalformedAvatarId(self):
+        """
+        Test that trying to authenticate as a user without specifying a
+        hostname fails with a L{NoSuchUser} exception.
+        """
+        d = maybeDeferred(
+            self.realm.requestAvatarId,
+            UsernamePassword(u'testuser', u'password'))
+        return self.assertFailure(d, errors.MissingDomainPart)

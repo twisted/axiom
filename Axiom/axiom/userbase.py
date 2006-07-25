@@ -11,7 +11,8 @@ from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
 from axiom.attributes import text, integer, reference, boolean, AND
-from axiom.errors import BadCredentials, NoSuchUser, DuplicateUser
+from axiom.errors import (
+    BadCredentials, NoSuchUser, DuplicateUser, MissingDomainPart)
 from axiom import upgrade, iaxiom
 
 from zope.interface import implements, Interface, Attribute
@@ -470,23 +471,28 @@ class LoginBase:
 
         try:
             username, domain = credentials.username.split('@', 1)
-            username = unicode(username)
-            domain = unicode(domain)
+        except ValueError:
+            self.failedLogins += 1
+            raise MissingDomainPart(credentials.username)
 
-            acct = self.accountByAddress(username, domain)
-            if acct is not None:
-                if IPreauthCredentials.providedBy(credentials):
+        username = unicode(username)
+        domain = unicode(domain)
+
+        acct = self.accountByAddress(username, domain)
+        if acct is not None:
+            if IPreauthCredentials.providedBy(credentials):
+                return acct.storeID
+            else:
+                password = acct.password
+                if credentials.checkPassword(password):
                     return acct.storeID
                 else:
-                    password = acct.password
-                    if credentials.checkPassword(password):
-                        return acct.storeID
-                    else:
-                        raise BadCredentials()
-            raise NoSuchUser(credentials.username)
-        except:
-            self.failedLogins += 1
-            raise
+                    self.failedLogins += 1
+                    raise BadCredentials()
+
+        self.failedLogins += 1
+        raise NoSuchUser(credentials.username)
+
 
 class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
     schemaVersion = 1
