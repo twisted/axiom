@@ -258,6 +258,8 @@ class _SubSchedulerParentHook(Item):
         if self.scheduledAt is not None:
             if when < self.scheduledAt:
                 sch.reschedule(self, self.scheduledAt, when)
+            else:
+                return
         else:
             sch.schedule(self, when)
         self.scheduledAt = when

@@ -221,3 +221,30 @@ class SubSchedTest(SchedTest):
 
         return self._doTestScheduler(substore)
 
+    def testSubSchedulerMultiple(self):
+        substoreItem = SubStore.createNew(self.store, ['scheduler_test'])
+        substore = substoreItem.open()
+        SubScheduler(store=substore).installOn(substore)
+
+        sched = IScheduler(substore)
+
+        res = []
+
+        d = Deferred()
+
+        class TheEvent(Item):
+            identifier = integer()
+
+            def run(self):
+                res.append(self.identifier)
+                if len(res) == 3:
+                    d.callback(None)
+
+        e = TheEvent(store=substore, identifier=1)
+        e2 = TheEvent(store=substore, identifier=2)
+
+        sched.schedule(e, Time())
+        sched.schedule(e2, Time() + timedelta(seconds=1))
+        sched.schedule(e, Time())
+
+        return d.addCallback(lambda ign: self.assertEquals(res, [1, 1, 2]))
