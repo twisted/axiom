@@ -101,6 +101,24 @@ class StoredNoticingItem(item.Item):
 
 
 class TestItem(unittest.TestCase):
+    def test_itemClassOrdering(self):
+        """
+        Test that L{Item} subclasses (not instances) sort by the Item's
+        typeName.
+        """
+        A = TransactedMethodItem
+        B = NoAttrsItem
+
+        self.failUnless(A < B)
+        self.failUnless(B >= A)
+        self.failIf(A >= B)
+        self.failIf(B <= A)
+        self.failUnless(A != B)
+        self.failUnless(B != A)
+        self.failIf(A == B)
+        self.failIf(B == A)
+
+
     def testCreateItem(self):
         st = store.Store()
         self.assertRaises(item.CantInstantiateItem, item.Item, store=st)

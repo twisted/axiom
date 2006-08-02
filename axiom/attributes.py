@@ -18,7 +18,7 @@ from axiom.slotmachine import Attribute as inmemory
 
 from axiom.errors import NoCrossStoreReferences
 
-from axiom.iaxiom import IComparison, IOrdering
+from axiom.iaxiom import IComparison, IOrdering, IColumn, IQuery
 
 USING_APSW = False
 
@@ -26,45 +26,18 @@ _NEEDS_FETCH = object()         # token indicating that a value was not found
 
 __metaclass__ = type
 
-class Comparable:
+
+class _ComparisonOperatorMuxer:
     """
-    Helper for a thing that can be compared like an SQLAttribute (or is in fact
-    an SQLAttribute).  Requires that 'self' have 'type' (Item-subclass) and
-    'columnName' (str) attributes, as well as an 'infilter' method in the
-    spirit of SQLAttribute, documented below.
+    Collapse comparison operations into calls to a single method with varying
+    arguments.
     """
-
-    def compare(self, other, sqlop):
-        # interim: maybe we want objects later?  right now strings should be fine
-        a = []
-        tables = [self.type]
-        if isinstance(other, Comparable):
-            return TwoAttributeComparison(self, sqlop, other)
-        elif other is None:
-            if sqlop == '=':
-                negate = False
-            elif sqlop == '!=':
-                negate = True
-            else:
-                raise TypeError(
-                    "None/NULL does not work with %s comparison" % (sqlop,))
-            return NullComparison(self, negate)
-        else:
-            # convert to constant usable in the database
-            return AttributeValueComparison(self, sqlop, other)
-
-    def oneOf(self, seq, negate=False):
+    def compare(self, other, op):
         """
-        Choose items whose attributes are in a fixed set.
-
-        X.oneOf([1, 2, 3])
-
-        Implemented with the SQL 'in' statement.
+        Override this in a subclass.
         """
-        return SequenceComparison(self, list(seq), negate)
+        raise NotImplementedError()
 
-    def notOneOf(self, seq):
-        return self.oneOf(seq, negate=True)
 
     def __eq__(self, other):
         return self.compare(other, '=')
@@ -90,23 +63,52 @@ class Comparable:
         return self.compare(other, '<=')
 
 
-    _likeOperators = ('LIKE', 'NOT LIKE')
-    def _like(self, negate, *others):
-        if not others:
-            raise ValueError, 'Must pass at least one expression to _like'
+def compare(left, right, op):
+    # interim: maybe we want objects later?  right now strings should be fine
+    a = []
+    if IColumn.providedBy(right):
+        return TwoAttributeComparison(left, op, right)
+    elif right is None:
+        if op == '=':
+            negate = False
+        elif op == '!=':
+            negate = True
+        else:
+            raise TypeError(
+                "None/NULL does not work with %s comparison" % (op,))
+        return NullComparison(left, negate)
+    else:
+        # convert to constant usable in the database
+        return AttributeValueComparison(left, op, right)
 
+
+
+class _MatchingOperationMuxer:
+    """
+    Collapse string matching operations into calls to a single method with
+    varying arguments.
+    """
+    def _like(self, negate, firstOther, *others):
+        others = (firstOther,) + others
         likeParts = []
 
+        allValues = True
         for other in others:
-            if isinstance(other, Comparable):
+            if IColumn.providedBy(other):
                 likeParts.append(LikeColumn(other))
+                allValues = False
             elif other is None:
                 # LIKE NULL is a silly condition, but it's allowed.
                 likeParts.append(LikeNull())
+                allValues = False
             else:
                 likeParts.append(LikeValue(other))
 
+        if allValues:
+            likeParts = [LikeValue(''.join(others))]
+
         return LikeComparison(self, negate, likeParts)
+
 
     def like(self, *others):
         return self._like(False, *others)
@@ -124,21 +126,58 @@ class Comparable:
         return self._like(False, '%', other)
 
 
-    # XXX TODO: improve error reporting
 
+_ASC = 'ASC'
+_DESC = 'DESC'
+
+class _OrderingMixin:
+    """
+    Provide the C{ascending} and C{descending} attributes to specify sort
+    direction.
+    """
     def _asc(self):
-        return SimpleOrdering(self, ASC)
+        return SimpleOrdering(self, _ASC)
 
     def _desc(self):
-        return SimpleOrdering(self, DESC)
+        return SimpleOrdering(self, _DESC)
 
-    descending = property(_desc)
-    ascending = property(_asc)
-    asc = ascending
-    desc = descending
+    desc = descending = property(_desc)
+    asc = ascending = property(_asc)
 
-ASC = 'ASC'
-DESC = 'DESC'
+
+
+class _ContainableMixin:
+    def oneOf(self, seq, negate=False):
+        """
+        Choose items whose attributes are in a fixed set.
+
+        X.oneOf([1, 2, 3])
+
+        Implemented with the SQL 'in' statement.
+        """
+        return SequenceComparison(self, seq, negate)
+
+
+    def notOneOf(self, seq):
+        return self.oneOf(seq, negate=True)
+
+
+
+class Comparable(_ContainableMixin, _ComparisonOperatorMuxer,
+                 _MatchingOperationMuxer, _OrderingMixin):
+    """
+    Helper for a thing that can be compared like an SQLAttribute (or is in fact
+    an SQLAttribute).  Requires that 'self' have 'type' (Item-subclass) and
+    'columnName' (str) attributes, as well as an 'infilter' method in the
+    spirit of SQLAttribute, documented below.
+    """
+
+    # XXX TODO: improve error reporting
+
+    def compare(self, other, sqlop):
+        return compare(self, other, sqlop)
+
+
 
 class SimpleOrdering:
     """
@@ -150,25 +189,32 @@ class SimpleOrdering:
     # maybe this will be a useful public API, for the query something
     # something.
 
-    isDescending = property(lambda self: self.direction == DESC)
-    isAscending = property(lambda self: self.direction == ASC)
+    isDescending = property(lambda self: self.direction == _DESC)
+    isAscending = property(lambda self: self.direction == _ASC)
 
     def __init__(self, attribute, direction=''):
         self.attribute = attribute
         self.direction = direction
 
+
+    def getInvolvedTables(self):
+        return set([self.attribute.type])
+
+
     def columnAndDirection(self, store):
         """
         'Internal' API.  Called by CompoundOrdering.
         """
-        return '%s %s' % (store.getColumnName(self.attribute),
+        return '%s %s' % (self.attribute.getColumnName(store),
                           self.direction)
+
 
     def orderSQL(self, store):
         """
         'External' API.  Called by Query objects in store.py.
         """
         return 'ORDER BY ' + self.columnAndDirection(store)
+
 
     def __add__(self, other):
         if isinstance(other, SimpleOrdering):
@@ -177,6 +223,7 @@ class SimpleOrdering:
             return CompoundOrdering([self] + list(other))
         else:
             return NotImplemented
+
 
     def __radd__(self, other):
         if isinstance(other, SimpleOrdering):
@@ -226,8 +273,18 @@ class CompoundOrdering:
         else:
             return NotImplemented
 
+
+    def getInvolvedTables(self):
+        s = set()
+        for ordering in self.simpleOrderings:
+            s.update(ordering.getInvolvedTables())
+        return s
+
+
     def orderSQL(self, store):
         return 'ORDER BY ' + (', '.join([o.columnAndDirection(store) for o in self.simpleOrderings]))
+
+
 
 class UnspecifiedOrdering:
     implements(IOrdering)
@@ -239,6 +296,11 @@ class UnspecifiedOrdering:
         return IOrdering(other, NotImplemented)
 
     __radd__ = __add__
+
+
+    def getInvolvedTables(self):
+        return set()
+
 
     def orderSQL(self, store):
         return ''
@@ -264,6 +326,8 @@ class SQLAttribute(inmemory, Comparable):
 
     @ivar default: The value used for this attribute, if no value is specified.
     """
+    implements(IColumn)
+
     sqltype = None
 
     def __init__(self, doc='', indexed=False, default=None, allowNone=True, defaultFactory=None):
@@ -282,8 +346,17 @@ class SQLAttribute(inmemory, Comparable):
             return self.defaultFactory()
         return self.default
 
+
     def reprFor(self, oself):
         return repr(self.__get__(oself))
+
+
+    def getShortColumnName(self, store):
+        return store.getShortColumnName(self)
+
+
+    def getColumnName(self, store):
+        return store.getColumnName(self)
 
 
     def prepareInsert(self, oself, store):
@@ -423,9 +496,9 @@ class TwoAttributeComparison:
         self.rightAttribute = rightAttribute
 
     def getQuery(self, store):
-        sql = ('(%s %s %s)' % (store.getColumnName(self.leftAttribute),
+        sql = ('(%s %s %s)' % (self.leftAttribute.getColumnName(store),
                                self.operationString,
-                               store.getColumnName(self.rightAttribute)) )
+                               self.rightAttribute.getColumnName(store)) )
         return sql
 
     def getInvolvedTables(self):
@@ -443,7 +516,7 @@ class AttributeValueComparison:
         self.value = value
 
     def getQuery(self, store):
-        return ('(%s %s ?)' % (store.getColumnName(self.attribute),
+        return ('(%s %s ?)' % (self.attribute.getColumnName(store),
                                self.operationString))
 
     def getArgs(self, store):
@@ -468,7 +541,7 @@ class NullComparison:
             op = 'NOT'
         else:
             op = 'IS'
-        return ('(%s %s NULL)' % (store.getColumnName(self.attribute),
+        return ('(%s %s NULL)' % (self.attribute.getColumnName(store),
                                   op))
 
     def getArgs(self, store):
@@ -506,7 +579,7 @@ class LikeColumn(LikeFragment):
         self.attribute = attribute
 
     def getLikeQuery(self, st):
-        return st.getColumnName(self.attribute)
+        return self.attribute.getColumnName(st)
 
     def getLikeTables(self):
         return [self.attribute.type]
@@ -534,7 +607,7 @@ class LikeComparison:
         else:
             op = 'LIKE'
         sqlParts = [lf.getLikeQuery(store) for lf in self.likeParts]
-        sql = '(%s %s (%s))' % (store.getColumnName(self.attribute),
+        sql = '(%s %s (%s))' % (self.attribute.getColumnName(store),
                                 op, ' || '.join(sqlParts))
         return sql
 
@@ -590,23 +663,100 @@ class AggregateComparison:
         return '%s(%s)' % (self.__class__.__name__,
                            ', '.join(map(repr, self.conditions)))
 
+
+
 class SequenceComparison:
-    def __init__(self, attribute, seq, negate):
+    implements(IComparison)
+
+    def __init__(self, attribute, container, negate):
         self.attribute = attribute
-        self.seq = seq
+        self.container = container
         self.negate = negate
 
+        if IColumn.providedBy(container):
+            self.containerClause = self._columnContainer
+            self.getArgs = self._columnArgs
+        elif IQuery.providedBy(container):
+            self.containerClause = self._queryContainer
+            self.getArgs = self._queryArgs
+        else:
+            self.containerClause = self._sequenceContainer
+            self.getArgs = self._sequenceArgs
+
+
+    def _columnContainer(self, store):
+        """
+        Return the fully qualified name of the column being examined so as
+        to push all of the containment testing into the database.
+        """
+        return self.container.getColumnName(store)
+
+
+    def _columnArgs(self, store):
+        """
+        The IColumn form of this has no arguments, just a column name
+        specified in the SQL, specified by _columnContainer.
+        """
+        return []
+
+
+    _subselectSQL = None
+    _subselectArgs = None
+    def _queryContainer(self, store):
+        """
+        Generate and cache the subselect SQL and its arguments.  Return the
+        subselect SQL.
+        """
+        if self._subselectSQL is None:
+            sql, args = self.container._sqlAndArgs('SELECT',
+                                                   self.container._queryTarget)
+            self._subselectSQL, self._subselectArgs = sql, args
+        return self._subselectSQL
+
+
+    def _queryArgs(self, store):
+        """
+        Make sure subselect arguments have been generated and then return
+        them.
+        """
+        self._queryContainer(store)
+        return self._subselectArgs
+
+
+    _sequence = None
+    def _sequenceContainer(self, store):
+        """
+        Smash whatever we got into a list and save the result in case we are
+        executed multiple times.  This keeps us from tripping up over
+        generators and the like.
+        """
+        if self._sequence is None:
+            self._sequence = list(self.container)
+            self._clause = ', '.join(['?'] * len(self._sequence))
+        return self._clause
+
+
+    def _sequenceArgs(self, store):
+        """
+        Filter each element of the data using the attribute type being
+        tested for containment and hand back the resulting list.
+        """
+        self._sequenceContainer(store) # Force _sequence to be valid
+        return [self.attribute.infilter(pyval, None, store) for pyval in self._sequence]
+
+
+    # IComparison - getArgs is assigned as an instance attribute
     def getQuery(self, store):
         return '%s %sIN (%s)' % (
-            store.getColumnName(self.attribute),
+            self.attribute.getColumnName(store),
             self.negate and 'NOT ' or '',
-            ', '.join(['?'] * len(self.seq)))
+            self.containerClause(store))
 
-    def getArgs(self, store):
-        return [self.attribute.infilter(pyval, None, store) for pyval in self.seq]
 
     def getInvolvedTables(self):
         return set([self.attribute.type])
+
+
 
 class AND(AggregateComparison):
     """

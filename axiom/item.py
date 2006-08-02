@@ -1,5 +1,8 @@
 # -*- test-case-name: axiom.test -*-
+
 __metaclass__ = type
+
+from zope.interface import implements
 
 from inspect import getabsfile
 
@@ -11,10 +14,12 @@ from twisted.application.service import IService, IServiceCollection, MultiServi
 
 from axiom import slotmachine, _schema, iaxiom
 
-from axiom.iaxiom import IPowerupIndirector
+from axiom.iaxiom import IColumn, IPowerupIndirector
 
-from axiom.attributes import SQLAttribute, Comparable, inmemory, \
-    reference, text, integer, AND, _cascadingDeletes
+from axiom.attributes import (
+    SQLAttribute, _ComparisonOperatorMuxer, _MatchingOperationMuxer,
+    _OrderingMixin, _ContainableMixin, Comparable, compare, inmemory,
+    reference, text, integer, AND, _cascadingDeletes)
 
 _typeNameToMostRecentClass = {}
 
@@ -77,6 +82,18 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         _typeNameToMostRecentClass[T.typeName] = T
         return T
 
+
+    def __cmp__(self, other):
+        """
+        Ensure stable sorting between Item classes.  This provides determinism
+        in SQL generation, which is beneficial for debugging and performance
+        purposes.
+        """
+        if isinstance(other, MetaItem):
+            return cmp(self.typeName, other.typeName)
+        return NotImplemented
+
+
 def noop():
     pass
 
@@ -84,6 +101,7 @@ class _StoreIDComparer(Comparable):
     """
     See Comparable's docstring for the explanation of the requirements of my implementation.
     """
+    implements(IColumn)
 
     def __init__(self, type):
         self.type = type
@@ -94,6 +112,12 @@ class _StoreIDComparer(Comparable):
 
     def outfilter(self, dbval, oself):
         return dbval
+
+    def getShortColumnName(self, store):
+        return store.getShortColumnName(self)
+
+    def getColumnName(self, store):
+        return store.getColumnName(self)
 
 
 class _SpecialStoreIDAttribute(slotmachine.SetOnce):
@@ -273,6 +297,7 @@ def transacted(func):
     def transactionified(item, *a, **kw):
         return item.store.transact(func, item, *a, **kw)
     return mergeFunctionMetadata(func, transactionified)
+
 
 
 class Item(Empowered, slotmachine._Strict):
@@ -742,6 +767,134 @@ class Item(Empowered, slotmachine._Strict):
             'WHERE ', self.store.getShortColumnName(type(self).storeID), ' = ?'])
         dirtyValues.append(self.storeID)
         return stmt, dirtyValues
+
+
+    def getTableName(cls, store):
+        """
+        Retrieve a string naming the database table associated with this item
+        class.
+        """
+        return store.getTableName(cls)
+    getTableName = classmethod(getTableName)
+
+
+    def getTableAlias(cls, store, currentAliases):
+        return None
+    getTableAlias = classmethod(getTableAlias)
+
+
+
+class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
+                         _MatchingOperationMuxer, _OrderingMixin):
+    """
+    Wrapper for columns from a L{Placeholder} which provides a fully qualified
+    name built with a table alias name instead of the underlying column's real
+    table name.
+    """
+    implements(IColumn)
+
+    def __init__(self, placeholder, column):
+        self.type = placeholder
+        self.column = column
+
+    def __repr__(self):
+        return '<Placeholder %r>' % (self.column,)
+
+
+    def compare(self, other, op):
+        return compare(self, other, op)
+
+
+    def getShortColumnName(self, store):
+        return self.column.getShortColumnName(store)
+
+
+    def getColumnName(self, store):
+        assert self.type._placeholderTableAlias is not None, (
+            "Placeholder.getTableAlias() must be called "
+            "before Placeholder.attribute.getColumnName()")
+
+        return '%s.%s' % (self.type._placeholderTableAlias,
+                          self.column.getShortColumnName(store))
+
+    def infilter(self, pyval, oself, store):
+        return self.column.infilter(pyval, oself, store)
+
+
+    def outfilter(self, dbval, oself):
+        return self.column.outfilter(dbval, oself)
+
+
+
+_placeholderCount = 0
+
+class Placeholder(object):
+    """
+    Wrap an existing L{Item} type to provide a different name for it.
+
+    This can be used to join a table against itself which is useful for
+    flattening normalized data.  For example, given a schema defined like
+    this::
+
+        class Tag(Item):
+            taggedObject = reference()
+            tagName = text()
+
+
+        class SomethingElse(Item):
+            ...
+
+
+    It might be useful to construct a query for instances of SomethingElse
+    which have been tagged both with C{"foo"} and C{"bar"}::
+
+        t1 = Placeholder(Tag)
+        t2 = Placeholder(Tag)
+        store.query(SomethingElse, AND(t1.taggedObject == SomethingElse.storeID,
+                                       t1.tagName == u"foo",
+                                       t2.taggedObject == SomethingElse.storeID,
+                                       t2.tagName == u"bar"))
+    """
+    _placeholderTableAlias = None
+
+    def __init__(self, itemClass):
+        global _placeholderCount
+
+        self._placeholderItemClass = itemClass
+        self._placeholderCount = _placeholderCount + 1
+        _placeholderCount += 1
+
+
+    def __cmp__(self, other):
+        """
+        Provide a deterministic sort order between Placeholder instances.
+        Those instantiated first will compare as less than than instantiated
+        later.
+        """
+        if isinstance(other, Placeholder):
+            return cmp(self._placeholderCount, other._placeholderCount)
+        return NotImplemented
+
+
+    def __getattr__(self, name):
+        if name == 'storeID' or name in dict(self._placeholderItemClass.getSchema()):
+            return _PlaceholderColumn(self, getattr(self._placeholderItemClass, name))
+        raise AttributeError(name)
+
+
+    def getSchema(self):
+        return self._placeholderItemClass.getSchema()
+
+
+    def getTableName(self, store):
+        return self._placeholderItemClass.getTableName(store)
+
+
+    def getTableAlias(self, store, currentAliases):
+        if self._placeholderTableAlias is None:
+            self._placeholderTableAlias = 'placeholder_' + str(len(currentAliases))
+        return self._placeholderTableAlias
+
 
 
 _legacyTypes = {}               # map (typeName, schemaVersion) to dummy class

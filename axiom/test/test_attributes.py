@@ -182,8 +182,13 @@ class BadAttributeTest(TestCase):
 
 
 class WhiteboxComparableTest(TestCase):
-    def testLikeRejectsIllegalOperations(self):
-        self.assertRaises(ValueError, Comparable()._like, 'XYZ')
+    def test_likeRejectsIllegalOperations(self):
+        """
+        Test that invoking the underlying method which provides the interface
+        to the LIKE operator raises a TypeError if it is invoked with too few
+        arguments.
+        """
+        self.assertRaises(TypeError, Comparable()._like, 'XYZ')
 
 someRandomDate = Time.fromISO8601TimeAndDate("1980-05-29")
 
