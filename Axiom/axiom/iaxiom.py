@@ -1,6 +1,7 @@
 
 from zope.interface import Interface, Attribute
 
+
 class IStatEvent(Interface):
     """
     Marker for a log message that is useful as a statistic.
@@ -126,17 +127,85 @@ class IScheduler(Interface):
         details.
         """
 
+
+class IQuery(Interface):
+    def __iter__():
+        """
+        Retrieve an iterator for the results of this query.
+
+        The query is performed whenever this is called.
+        """
+
+
+    def count():
+        """
+        Return the number of results in this query.
+        """
+
+
+
+class IColumn(Interface):
+    """
+    An object that represents a column in the database.
+    """
+    def getShortColumnName(store):
+        """
+        @rtype: C{str}
+        @return: Just the name of this column.
+        """
+
+
+    def getColumnName(store):
+        """
+        @rtype: C{str}
+        @return: The fully qualified name of this column, eg,
+        C{"main_database.some_table.[this_column]"}.
+        """
+
+
+
+class IOrdering(Interface):
+    """
+    An object suitable for passing to the 'sort' argument of a query method.
+    """
+    def getInvolvedTables():
+        """
+        Return an iterable of L{Item} subclasses which are required by this
+        comparison to be used.
+        """
+
+
+    def orderSQL(store):
+        """
+        Return an SQL string with ?-style bind parameter syntax thingies.
+        """
+
+
 class IComparison(Interface):
     """
     An object that represents an in-database comparison.  A predicate that may
     apply to certain items in a store.  Passed as an argument to
     attributes.AND, .OR, and Store.query(...)
     """
+    def getInvolvedTables():
+        """
+        Return an iterable of L{Item} subclasses which are required by this
+        comparison to be used.
+        """
 
-class IOrdering(Interface):
-    """
-    An object suitable for passing to the 'sort' argument of a query method.
-    """
+
+    def getQuery(store):
+        """
+        Return an SQL string with ?-style bind parameter syntax thingies.
+        """
+
+
+    def getArgs(store):
+        """
+        Return a sequence of arguments suitable for use to satisfy the bind
+        parameters in the result of L{getQuery}.
+        """
+
 
 
 class IReliableListener(Interface):

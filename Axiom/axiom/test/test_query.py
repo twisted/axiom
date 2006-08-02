@@ -1,7 +1,11 @@
+
+import operator, random
+
 from twisted.trial.unittest import TestCase
 
-from axiom.store import Store
-from axiom.item import Item
+from axiom.iaxiom import IComparison, IColumn
+from axiom.store import Store, ItemQuery
+from axiom.item import Item, Placeholder
 
 from axiom import errors
 from axiom.attributes import reference, text, bytes, integer, AND, OR
@@ -56,6 +60,127 @@ class ThingWithCharacterAndByteStrings(Item):
 
 
 class BasicQuery(TestCase):
+
+    def test_rightHandStoreIDComparison(self):
+        """
+        Test that a StoreID column on the right-hand side of an equality test
+        results in a TwoAttributeComparison object rather than an
+        AttributeValueComparison or anything else that would be wrong.
+        """
+        s = Store()
+        comparison = (A.reftoc == B.storeID)
+        self.assertEquals(
+            comparison.getQuery(s),
+            '(%s.[reftoc] = %s.oid)' % (
+                A.getTableName(s),
+                B.getTableName(s)))
+        self.assertEquals(comparison.getArgs(s), [])
+
+
+    def test_leftHandStoreIDComparison(self):
+        """
+        Test that a StoreID column on the left-hand side of an equality test
+        results in a TwoAttributeComparison object rather than an
+        AttributeValueComparison or anything else that would be wrong.
+        """
+        s = Store()
+        comparison = (B.storeID == A.reftoc)
+        self.assertEquals(
+            comparison.getQuery(s),
+            '(%s.oid = %s.[reftoc])' % (
+                B.getTableName(s),
+                A.getTableName(s)))
+        self.assertEquals(comparison.getArgs(s), [])
+
+
+    def test_simplestQuery(self):
+        """
+        Test that an ItemQuery with no comparison, sorting, or limit generates
+        the right SQL for that operation.
+        """
+        s = Store()
+        query = ItemQuery(s, A)
+        sql, args = query._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * FROM %s' % (A.getTableName(s),))
+        self.assertEquals(args, [])
+
+
+    def test_simpleIntegerComparison(self):
+        """
+        Test that an ItemQuery with a single attribute comparison on an integer
+        attribute generates SQL with the right WHERE clause.
+        """
+        s = Store()
+        query = ItemQuery(s, E, E.amount == 0)
+        sql, args = query._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * FROM %s WHERE (%s.[amount] = ?)' % (
+                E.getTableName(s),
+                E.getTableName(s)))
+        self.assertEquals(args, [0])
+
+
+    def test_simpleReferenceComparison(self):
+        """
+        Test that an ItemQuery with a single attribute comparison on a
+        reference attribute generates SQL with the right WHERE clause.
+        """
+        s = Store()
+        query = ItemQuery(s, A, A.reftoc == A.storeID)
+        sql, args = query._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * FROM %s WHERE (%s.[reftoc] = %s.oid)' % (
+                A.getTableName(s),
+                A.getTableName(s),
+                A.getTableName(s)))
+        self.assertEquals(args, [])
+
+
+    def test_reversedReferenceComparison(self):
+        """
+        Test that an ItemQuery with a single attribute comparison on a
+        reference attribute with the storeID part on the left-hand side
+        generates SQL with the right WHERE clause.
+        """
+        s = Store()
+        query = ItemQuery(s, A, A.storeID == A.reftoc)
+        sql, args = query._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * FROM %s WHERE (%s.oid = %s.[reftoc])' % (
+                A.getTableName(s),
+                A.getTableName(s),
+                A.getTableName(s)))
+        self.assertEquals(args, [])
+
+
+    def test_unionComparison(self):
+        """
+        Test that an ItemQuery with two comparisons joined with an L{AND}
+        generates the right WHERE clause.
+        """
+        s = Store()
+        query = ItemQuery(s, A, AND(A.reftoc == B.storeID,
+                                    B.cref == C.storeID))
+        sql, args = query._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * FROM %s, %s, %s '
+            'WHERE ((%s.[reftoc] = %s.oid) AND '
+                   '(%s.[cref] = %s.oid))' % (
+                A.getTableName(s),
+                B.getTableName(s),
+                C.getTableName(s),
+                A.getTableName(s),
+                B.getTableName(s),
+                B.getTableName(s),
+                C.getTableName(s)))
+        self.assertEquals(args, [])
+
 
     def testBasicQuery(self):
         s = Store()
@@ -262,18 +387,39 @@ class QueryingTestCase(TestCase):
     def query(self, *a, **kw):
         return list(self.store.query(*a, **kw))
 
-    def assertQuery(self, query, sql, args=None):
+    def assertQuery(self, query, expected, args=None):
+        """
+        Perform byte-for-byte comparisons against generated SQL.  It would be
+        slightly nicer if we have a SQL parser which emited an AST we could
+        test against instead, but in the absence of that, we'll do the more
+        difficult thing and keep the tests in sync with the SQL generator.
+        If, someday, we have multiple backends which have different SQL
+        generation requirements, we'll probably need to split all these tests
+        up.
+
+        While it is true that we don't actually directly care about what SQL
+        gets generated, we do want to test the SQL generation as a /unit/,
+        rather than indirectly testing it by making assertions about the
+        result set it generates.  This for all the usual reasons one writes
+        unit tests (ease of debugging, refactoring, maintenance).  Other
+        tests cover the actual query behavior this SQL results in, and
+        ideally some day we will have some tests which interact with the
+        actual underlying rdbm to test basic assumptions we are making about
+        the behavior of particular snippets of SQL.
+
+        To sum up, changes to the SQL generation code may rightly require
+        changes to tests which use assertQuery.  If the SQL we want to generate
+        changes, do not be afraid to update the tests.
+        """
         if args is None:
             args = []
-        # XXX: WTF?!? somebody wrote tests here that compare byte-for-byte SQL:
-        # since we are now (properly) quoting all attribute names, the SQL is
-        # subtly different; and there is no handy SQL AST that we can compare
-        # them against.  Really we should be comparing query results anyway; we
-        # should probably remove the SQL code entirely from these tests. (but
-        # at least the args are right, and it does grant some coverage, so I'm
-        # leaving them in for now)
 
-        # self.assertEquals(query.getQuery(self.store), sql)
+        sql = query.getQuery(self.store)
+        self.assertEquals(
+            sql,
+            expected,
+            "\n%r != %r\n(if SQL generation code has changed, maybe this test "
+            "should be updated)\n" % (sql, expected))
         self.assertEquals([str(a) for a in query.getArgs(self.store)], args)
 
 
@@ -284,18 +430,27 @@ class AndOrQueries(QueryingTestCase):
 
     def testOneCondition(self):
         self.assertQuery(
-            AND(A.type == u'Narf!'), '((item_a_v1.type = ?))', ['Narf!'])
+            AND(A.type == u'Narf!'),
+            '((%s = ?))' % (A.type.getColumnName(self.store),),
+            ['Narf!'])
         self.assertQuery(
-            OR(A.type == u'Narf!'), '((item_a_v1.type = ?))', ['Narf!'])
+            OR(A.type == u'Narf!'),
+            '((%s = ?))' % (A.type.getColumnName(self.store),),
+            ['Narf!'])
         self.assertEquals(self.query(D, AND(D.one == 'd1.one')), [self.d1])
-        self.assertEquals(self.query(D,  OR(D.one == 'd1.one')), [self.d1])
+        self.assertEquals(self.query(D, OR(D.one == 'd1.one')), [self.d1])
 
     def testMultipleAndConditions(self):
+        condition = AND(A.type == u'Narf!',
+                        A.type == u'Poiuyt!',
+                        A.type == u'Try to take over the world')
+
+        expectedSQL = '((%s = ?) AND (%s = ?) AND (%s = ?))'
+        expectedSQL %= (A.type.getColumnName(self.store),) * 3
+
         self.assertQuery(
-            AND(A.type == u'Narf!',
-                A.type == u'Poiuyt!',
-                A.type == u'Try to take over the world'),
-            '((item_a_v1.type = ?) AND (item_a_v1.type = ?) AND (item_a_v1.type = ?))',
+            condition,
+            expectedSQL,
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
         self.assertEquals(
             self.query(D, AND(D.one == 'd1.one',
@@ -304,11 +459,14 @@ class AndOrQueries(QueryingTestCase):
             [self.d1])
 
     def testMultipleOrConditions(self):
+        condition = OR(A.type == u'Narf!',
+                       A.type == u'Poiuyt!',
+                       A.type == u'Try to take over the world')
+        expectedSQL = '((%s = ?) OR (%s = ?) OR (%s = ?))'
+        expectedSQL %= (A.type.getColumnName(self.store),) * 3
         self.assertQuery(
-            OR(A.type == u'Narf!',
-               A.type == u'Poiuyt!',
-               A.type == u'Try to take over the world'),
-            '((item_a_v1.type = ?) OR (item_a_v1.type = ?) OR (item_a_v1.type = ?))',
+            condition,
+            expectedSQL,
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
         q = self.query(D, OR(D.one == 'd1.one',
                              D.one == 'd2.one',
@@ -319,15 +477,99 @@ class AndOrQueries(QueryingTestCase):
 
 class SetMembershipQuery(QueryingTestCase):
 
+    def test_oneOfValueQueryGeneration(self):
+        """
+        Test that comparing an attribute for containment against a value set
+        generates the appropriate SQL.
+        """
+        values = [u'a', u'b', u'c']
+        comparison = C.name.oneOf(values)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(self.store),
+            '%s IN (?, ?, ?)' % (
+                C.name.getColumnName(self.store),))
+        self.assertEquals(
+            comparison.getArgs(self.store),
+            values)
+
+
+    def test_oneOfColumnQueryGeneration(self):
+        """
+        Test that comparing an attribute for containment against an L{IColumn}
+        generates the appropriate SQL.
+        """
+        values = A.type
+        comparison = C.name.oneOf(values)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(self.store),
+            '%s IN (%s)' % (
+                C.name.getColumnName(self.store),
+                A.type.getColumnName(self.store)))
+        self.assertEquals(
+            comparison.getArgs(self.store),
+            [])
+
+
+    def test_oneOfColumnQueryQueryGeneration(self):
+        """
+        Test that comparing an attribute for containment against another query
+        generates a sub-select.
+        """
+        subselect = self.store.query(A).getColumn('type')
+        comparison = C.name.oneOf(subselect)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(self.store),
+            '%s IN (SELECT %s FROM %s)' % (
+                C.name.getColumnName(self.store),
+                A.type.getColumnName(self.store),
+                A.getTableName(self.store)))
+        self.assertEquals(
+            comparison.getArgs(self.store),
+            [])
+
+
+    def test_oneOfColumnQueryQueryGenerationWithArguments(self):
+        """
+        Like test_oneOfColumnQueryQueryGeneration, but pass some values to the
+        subselect and make sure they come out of the C{getArgs} method
+        properly.
+        """
+        value = '10'
+        subselect = self.store.query(
+            D,
+            AND(D.id == value,
+                D.four == C.name)).getColumn('one')
+
+        comparison = C.name.oneOf(subselect)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(self.store),
+            '%s IN (SELECT %s FROM %s, %s WHERE ((%s = ?) AND (%s = %s)))' % (
+                C.name.getColumnName(self.store),
+                D.one.getColumnName(self.store),
+                C.getTableName(self.store),
+                D.getTableName(self.store),
+                D.id.getColumnName(self.store),
+                D.four.getColumnName(self.store),
+                C.name.getColumnName(self.store)))
+        self.assertEquals(
+            map(str, comparison.getArgs(self.store)),
+            [value])
+
+
     def testOneOfWithList(self):
-        s = Store()
+        cx = C(store=self.store, name=u'x')
+        cy = C(store=self.store, name=u'y')
+        cz = C(store=self.store, name=u'z')
 
-        cx = C(store=s, name=u'x')
-        cy = C(store=s, name=u'y')
-        cz = C(store=s, name=u'z')
+        query = self.store.query(
+            C, C.name.oneOf([u'x', u'z', u'a']), sort=C.name.ascending)
 
-        self.assertEquals(list(s.query(C, C.name.oneOf([u'x', u'z', u'a']), sort=C.name.ascending)),
-                          [cx, cz])
+        self.assertEquals(list(query), [cx, cz])
+
 
     def testOneOfWithSet(self):
         s = Store()
@@ -342,29 +584,33 @@ class SetMembershipQuery(QueryingTestCase):
 
 class WildcardQueries(QueryingTestCase):
     def testNoConditions(self):
-        self.assertRaises(ValueError, D.one.like)
-        self.assertRaises(ValueError, D.one.notLike)
+        self.assertRaises(TypeError, D.one.like)
+        self.assertRaises(TypeError, D.one.notLike)
 
     def testOneString(self):
         self.assertQuery(
             D.one.like('foobar%'),
-            '(item_d_v1.one LIKE (?))', ['foobar%'])
+            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            ['foobar%'])
         self.assertQuery(
             D.one.notLike('foobar%'),
-            '(item_d_v1.one NOT LIKE (?))', ['foobar%'])
+            '(%s NOT LIKE (?))' % (D.one.getColumnName(self.store),),
+            ['foobar%'])
         self.assertEquals(self.query(D, D.one.like('d1.one')), [self.d1])
         self.assertEquals(self.query(D, D.one.notLike('d%.one')), [])
 
     def testOneColumn(self):
         self.assertQuery(
             D.one.like(D.two),
-            '(item_d_v1.one LIKE (item_d_v1.two))')
+            '(%s LIKE (%s))' % (D.one.getColumnName(self.store),
+                                D.two.getColumnName(self.store)))
         self.assertEquals(self.query(D, D.one.like(D.two)), [])
 
     def testOneColumnAndStrings(self):
         self.assertQuery(
             D.one.like('%', D.id, '%one'),
-            '(item_d_v1.one LIKE (? || item_d_v1.id || ?))',
+            '(%s LIKE (? || %s || ?))' % (D.one.getColumnName(self.store),
+                                          D.id.getColumnName(self.store)),
             ['%', '%one'])
         q = self.query(D, D.one.like('%', D.id, '%one'))
         e = [self.d1, self.d2, self.d3]
@@ -373,29 +619,38 @@ class WildcardQueries(QueryingTestCase):
     def testMultipleColumns(self):
         self.assertQuery(
             D.one.like(D.two, '%', D.three),
-            '(item_d_v1.one LIKE (item_d_v1.two || ? || item_d_v1.three))',
+            '(%s LIKE (%s || ? || %s))' % (D.one.getColumnName(self.store),
+                                           D.two.getColumnName(self.store),
+                                           D.three.getColumnName(self.store)),
             ['%'])
         self.assertEquals(
             self.query(D, D.one.like(D.two, '%', D.three)), [])
 
+
     def testStartsEndsWith(self):
         self.assertQuery(
             D.one.startswith('foo'),
-            '(item_d_v1.one LIKE (? || ?))', ['foo', '%'])
+            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            ['foo%'])
         self.assertQuery(
             D.one.endswith('foo'),
-            '(item_d_v1.one LIKE (? || ?))', ['%', 'foo'])
+            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            ['%foo'])
         self.assertEquals(
             self.query(D, D.one.startswith('d1')), [self.d1])
         self.assertEquals(
             self.query(D, D.one.endswith('3.one')), [self.d3])
 
+
     def testStartsEndsWithColumn(self):
         self.assertQuery(
             D.one.startswith(D.two),
-            '(item_d_v1.one LIKE (item_d_v1.two || ?))', ['%'])
+            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
+                                     D.two.getColumnName(self.store)),
+            ['%'])
         self.assertEquals(
             self.query(D, D.one.startswith(D.two)), [])
+
 
     def testStartsEndsWithText(self):
         self.assertEquals(
@@ -404,12 +659,14 @@ class WildcardQueries(QueryingTestCase):
         self.assertEquals(
             self.query(D, D.four.endswith(u'2.four')),
             [self.d2])
-    testStartsEndsWithText.todo = 'This is issue #402'
+
 
     def testOtherTable(self):
         self.assertQuery(
             D.one.startswith(A.type),
-            '(item_d_v1.one LIKE (item_a_v1.type || ?))', ['%'])
+            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
+                                     A.type.getColumnName(self.store)),
+            ['%'])
 
         C(store=self.store, name=u'd1.')
         C(store=self.store, name=u'2.one')
@@ -444,3 +701,446 @@ class UniqueTest(TestCase):
         self.assertRaises(errors.DuplicateUniqueItem,
                           self.s.findUnique, C, C.name == u'non-unique')
 
+
+
+class PlaceholderTestItem(Item):
+    """
+    Type used by the placeholder support test cases.
+    """
+    attr = integer()
+    other = integer()
+    characters = text()
+
+
+COMPARISON_OPS = [
+    operator.lt, operator.le, operator.eq,
+    operator.ne, operator.ge, operator.gt]
+
+class PlaceholderTestCase(TestCase):
+    """
+    Tests for placeholder table name support.
+    """
+    def test_placeholderType(self):
+        """
+        Test that the C{type} attribute of a Placeholder column is the
+        Placeholder from which it came.
+        """
+        p = Placeholder(PlaceholderTestItem)
+        a = p.attr
+        self.assertIdentical(a.type, p)
+
+
+    def test_placeholderTableName(self):
+        """
+        Test that the table name of a Placeholder is the same as the table name
+        of the underlying Item class.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+        self.assertEquals(p.getTableName(s), PlaceholderTestItem.getTableName(s))
+
+
+    def test_placeholderColumnInterface(self):
+        """
+        Test that a column from a placeholder provides L{IColumn}.
+        """
+        value = 0
+        p = Placeholder(PlaceholderTestItem)
+        a = p.attr
+        self.failUnless(IColumn.providedBy(a))
+
+
+    def test_placeholderAttributeValueComparison(self):
+        """
+        Test that getting an attribute from a Placeholder which exists on the
+        underlying Item class and comparing it to a value returns an
+        L{IComparison} provider.
+        """
+        value = 0
+        p = Placeholder(PlaceholderTestItem)
+        for op in COMPARISON_OPS:
+            self.failUnless(IComparison.providedBy(op(p.attr, value)))
+            self.failUnless(IComparison.providedBy(op(value, p.attr)))
+
+
+    def test_placeholderAttributeColumnComparison(self):
+        """
+        Test that getting an attribute from a Placeholder which exists on the
+        underlying Item class and comparing it to another column returns an
+        L{IComparison} provider.
+        """
+        value = 0
+        p = Placeholder(PlaceholderTestItem)
+        for op in COMPARISON_OPS:
+            self.failUnless(IComparison.providedBy(op(p.attr, PlaceholderTestItem.attr)))
+            self.failUnless(IComparison.providedBy(op(PlaceholderTestItem.attr, p.attr)))
+
+
+    def _placeholderAttributeSimilarity(self, kind, sql, args):
+        s = Store()
+        value = u'text'
+
+        p = Placeholder(PlaceholderTestItem)
+
+        # Explicitly call this, since we aren't going through ItemQuery.
+        p.getTableAlias(s, ())
+
+        comparison = getattr(p.characters, kind)(value)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(comparison.getQuery(s),
+                          sql % (p.characters.getColumnName(s),))
+        self.assertEquals(
+            comparison.getArgs(s),
+            [args % (value,)])
+
+
+    def test_placeholderAttributeSimilarity(self):
+        """
+        Test that placeholder attributes can be used with the SQL LIKE
+        operator.
+        """
+        return self._placeholderAttributeSimilarity('like', '(%s LIKE (?))', '%s')
+
+
+    def test_placeholderAttributeDisimilarity(self):
+        """
+        Test that placeholder attributes can be used with the SQL NOT LIKE
+        operator.
+        """
+        return self._placeholderAttributeSimilarity('notLike', '(%s NOT LIKE (?))', '%s')
+
+
+    def test_placeholderAttributeStartsWith(self):
+        """
+        Test that placeholder attributes work with the .startswith() method.
+        """
+        return self._placeholderAttributeSimilarity('startswith', '(%s LIKE (?))', '%s%%')
+
+
+    def test_placeholderAttributeEndsWith(self):
+        """
+        Test that placeholder attributes work with the .endswith() method.
+        """
+        return self._placeholderAttributeSimilarity('endswith', '(%s LIKE (?))', '%%%s')
+
+
+    def test_placeholderLikeTarget(self):
+        """
+        Test that a placeholder can be used as the right-hand argument to a SQL
+        LIKE expression.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+
+        # Call this since we're not using ItemQuery
+        p.getTableAlias(s, ())
+
+        comparison = PlaceholderTestItem.attr.like(p.attr)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(s),
+            '(%s LIKE (placeholder_0.[attr]))' % (
+                PlaceholderTestItem.attr.getColumnName(s),))
+        self.assertEquals(
+            comparison.getArgs(s),
+            [])
+
+
+    def test_placeholderContainment(self):
+        """
+        Test that placeholder attributes can be used with the SQL IN and NOT IN
+        operators.
+        """
+        s = Store()
+        value = [1, 2, 3]
+        p = Placeholder(PlaceholderTestItem)
+
+        # Call this since we're not using ItemQuery
+        p.getTableAlias(s, ())
+
+        comparison = p.attr.oneOf(value)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(s),
+            '%s IN (?, ?, ?)' % (p.attr.getColumnName(s),))
+        self.assertEquals(
+            comparison.getArgs(s),
+            value)
+
+
+    def test_placeholderAntiContainment(self):
+        """
+        Test that placeholder attributes can be used with the SQL NOT IN
+        operator.
+        """
+        s = Store()
+        value = [1, 2, 3]
+        p = Placeholder(PlaceholderTestItem)
+
+        # Call this since we're not using ItemQuery
+        p.getTableAlias(s, ())
+
+        comparison = p.attr.notOneOf(value)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(s),
+            '%s NOT IN (?, ?, ?)' % (p.attr.getColumnName(s),))
+        self.assertEquals(
+            comparison.getArgs(s),
+            value)
+
+
+    def test_placeholderContainmentTarget(self):
+        """
+        Test that a placeholder attribute can be used as the right-hand
+        argument to the SQL IN operator.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+
+        # Call this since we're not using ItemQuery
+        p.getTableAlias(s, ())
+
+        comparison = PlaceholderTestItem.attr.oneOf(p.attr)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(s),
+            '%s IN (%s)' % (PlaceholderTestItem.attr.getColumnName(s),
+                            p.attr.getColumnName(s)))
+        self.assertEquals(
+            comparison.getArgs(s),
+            [])
+
+
+    def test_placeholderAntiContainmentTarget(self):
+        """
+        Test that a placeholder attribute can be used as the right-hand
+        argument to the SQL NOT IN operator.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+
+        # Call this since we're not using ItemQuery
+        p.getTableAlias(s, ())
+
+        comparison = PlaceholderTestItem.attr.notOneOf(p.attr)
+        self.failUnless(IComparison.providedBy(comparison))
+        self.assertEquals(
+            comparison.getQuery(s),
+            '%s NOT IN (%s)' % (PlaceholderTestItem.attr.getColumnName(s),
+                            p.attr.getColumnName(s)))
+        self.assertEquals(
+            comparison.getArgs(s),
+            [])
+
+
+    def test_placeholderStoreID(self):
+        """
+        Test that the C{storeID} attribute of a Placeholder can be retrieved
+        just like any other attribute.
+        """
+        value = 0
+        p = Placeholder(PlaceholderTestItem)
+        self.failUnless(IComparison.providedBy(p.storeID > value))
+
+
+    def test_placeholderAttributeError(self):
+        """
+        Test that trying to get an attribute from a Placeholder which is not an
+        L{IComparison} on the underlying Item class raises an AttributeError.
+        """
+        p = Placeholder(PlaceholderTestItem)
+        self.assertRaises(AttributeError, getattr, p, 'nonexistentAttribute')
+
+
+    def test_placeholderComparisonTables(self):
+        """
+        Test that the result of L{IComparison.getInvolvedTables} on an
+        attribute retrieved from a Placeholder returns a special placeholder
+        item.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+        value = 0
+        involvedTables = (p.attr > value).getInvolvedTables()
+        self.assertEquals(len(involvedTables), 1)
+        theTable = iter(involvedTables).next()
+        self.assertEquals(theTable.getTableName(s),
+                          PlaceholderTestItem.getTableName(s))
+        self.assertEquals(theTable.getTableAlias(s, ()),
+                          'placeholder_0')
+
+
+    def test_placeholderComparisonQuery(self):
+        """
+        Test that the result of L{IComparison.getQuery} on an attribute
+        retrieved from a Placeholder returns SQL which correctly uses an alias
+        of the wrapped table.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+
+        # Explicitly call this here, since we're not going through ItemQuery or
+        # another more reasonable codepath, which would have called it for us.
+        p.getTableAlias(s, ())
+
+        value = 0
+        comparison = (p.attr > value)
+        self.assertEquals(
+            comparison.getQuery(s),
+            '(placeholder_0.[attr] > ?)')
+        self.assertEquals(
+            comparison.getArgs(s),
+            [value])
+
+
+    def test_placeholderComparisonArgs(self):
+        """
+        Test that the result of L{IComparison.getArgs} on an attribute
+        retrieved from a Placeholder returns the right values for the
+        comparison.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+        value = 0
+        args = (p.attr > value).getArgs(s)
+        self.assertEquals(args, [0])
+
+
+    def test_placeholderQuery(self):
+        """
+        Test that a BaseQuery can be created with Placeholder instances and the
+        SQL it emits as a result correctly assigns and uses table aliases.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+        sql, args = ItemQuery(s, p)._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * FROM %s AS placeholder_0' % (
+                PlaceholderTestItem.getTableName(s),))
+
+
+    def test_placeholderComparison(self):
+        """
+        Test that a comparison which contains a Placeholder also results in
+        properly generated SQL.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+        query = ItemQuery(
+            s,
+            PlaceholderTestItem,
+            PlaceholderTestItem.attr == p.attr)
+        sql, args = query._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * '
+            'FROM %s, %s AS placeholder_0 '
+            'WHERE (%s.[attr] = placeholder_0.[attr])' % (
+                PlaceholderTestItem.getTableName(s),
+                PlaceholderTestItem.getTableName(s),
+                PlaceholderTestItem.getTableName(s)))
+        self.assertEquals(args, [])
+
+
+    def test_placeholderOrdering(self):
+        """
+        Placeholders should be ordered based on the order in which they were
+        instantiated.
+        """
+        p1 = Placeholder(PlaceholderTestItem)
+        p2 = Placeholder(PlaceholderTestItem)
+        self.failUnless(p1 < p2)
+        self.failUnless(p2 > p1)
+        self.failIf(p1 >= p2)
+        self.failIf(p2 <= p1)
+        self.failIf(p1 == p2)
+        self.failIf(p2 == p1)
+        self.failUnless(p1 != p2)
+        self.failUnless(p2 != p1)
+
+
+    def test_placeholderSorting(self):
+        """
+        Placeholders should sort based on the order in which they were
+        instantiated.
+        """
+        placeholders = [Placeholder(PlaceholderTestItem) for n in xrange(10)]
+        shuffledPlaceholders = list(placeholders)
+        random.shuffle(shuffledPlaceholders)
+        shuffledPlaceholders.sort()
+        self.assertEquals(placeholders, shuffledPlaceholders)
+
+
+    def test_placeholderAliasAssignment(self):
+        """
+        Test that each placeholder selects a unique alias for itself.
+        """
+        s = Store()
+        p1 = Placeholder(PlaceholderTestItem)
+        p2 = Placeholder(PlaceholderTestItem)
+
+        aliases = []
+        self.assertEquals(p1.getTableAlias(s, aliases), 'placeholder_0')
+        self.assertEquals(p1.getTableAlias(s, aliases), 'placeholder_0')
+        aliases.append('placeholder_')
+        self.assertEquals(p1.getTableAlias(s, aliases), 'placeholder_0')
+        self.assertEquals(p2.getTableAlias(s, aliases), 'placeholder_1')
+
+
+    def test_multiplePlaceholderComparisons(self):
+        """
+        Test that using multiple different placeholders in a comparison at once
+        properly gives each a unique name.
+        """
+        s = Store()
+        p1 = Placeholder(PlaceholderTestItem)
+        p2 = Placeholder(PlaceholderTestItem)
+
+        query = ItemQuery(
+            s,
+            PlaceholderTestItem,
+            AND(PlaceholderTestItem.attr == p1.attr,
+                PlaceholderTestItem.other == p1.other,
+                PlaceholderTestItem.attr == p2.attr,
+                PlaceholderTestItem.characters == p2.characters))
+        sql, args = query._sqlAndArgs('SELECT', '*')
+        self.assertEquals(
+            sql,
+            'SELECT * '
+            'FROM %s, %s AS placeholder_0, %s AS placeholder_1 '
+            'WHERE ((%s = placeholder_0.[attr]) AND '
+                   '(%s = placeholder_0.[other]) AND '
+                   '(%s = placeholder_1.[attr]) AND '
+                   '(%s = placeholder_1.[characters]))' % (
+                PlaceholderTestItem.getTableName(s),
+                PlaceholderTestItem.getTableName(s),
+                PlaceholderTestItem.getTableName(s),
+                PlaceholderTestItem.attr.getColumnName(s),
+                PlaceholderTestItem.other.getColumnName(s),
+                PlaceholderTestItem.attr.getColumnName(s),
+                PlaceholderTestItem.characters.getColumnName(s)))
+        self.assertEquals(args, [])
+
+
+    def test_placeholderSorting(self):
+        """
+        Test that a placeholder attribute can be used as a sort key.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+
+        query = ItemQuery(
+            s,
+            PlaceholderTestItem,
+            sort=p.attr.ascending)
+        sql, args = query._sqlAndArgs('SELECT', '*')
+
+        expectedSQL = ('SELECT * '
+                       'FROM %s, %s AS placeholder_0 '
+                       'ORDER BY placeholder_0.[attr] ASC')
+        expectedSQL %= (PlaceholderTestItem.getTableName(s),) * 2
+
+        self.assertEquals(sql, expectedSQL)
+        self.assertEquals(args, [])

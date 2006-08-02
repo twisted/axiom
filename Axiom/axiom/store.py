@@ -8,7 +8,6 @@ import os
 import itertools
 import warnings
 import sys
-import errno
 
 from zope.interface import implements
 
@@ -131,6 +130,7 @@ def _typeIsTotallyUnknown(typename, version):
             and ((typename, version) not in _legacyTypes))
 
 class BaseQuery:
+    implements(iaxiom.IQuery)
 
     def __init__(self, store, tableClass,
                  comparison=None, limit=None,
@@ -162,21 +162,51 @@ class BaseQuery:
         self.limit = limit
         self.offset = offset
         self.sort = iaxiom.IOrdering(sort)
+        self._computeFromClause()
 
-    def _sqlAndArgs(self, verb, subject):
+
+    def _computeFromClause(self):
+        """
+        Generate the SQL string which follows the "FROM" string and before the
+        "WHERE" string in the final SQL statement.
+        """
         # SQL and arguments
         if self.comparison is not None:
-            where = 'WHERE '+self.comparison.getQuery(self.store)
             tables = self.comparison.getInvolvedTables()
-            args = self.comparison.getArgs(self.store)
+            self.args = self.comparison.getArgs(self.store)
+        else:
+            tables = set()
+            self.args = []
+        tables.add(self.tableClass)
+        tables.update(self.sort.getInvolvedTables())
+
+        tableAliases = []
+        fromClauseParts = []
+        for table in sorted(tables):
+            # The indirect calls to store.getTableName() will create the tables
+            # if needed. (XXX That's bad, actually.  They should get created
+            # some other way if necessary.  -exarkun)
+            tableName = table.getTableName(self.store)
+            tableAlias = table.getTableAlias(self.store, tuple(tableAliases))
+            if tableAlias is None:
+                fromClauseParts.append(tableName)
+            else:
+                tableAliases.append(tableAlias)
+                fromClauseParts.append('%s AS %s' % (tableName, tableAlias))
+        self.fromClause = ', '.join(fromClauseParts)
+        self.sortClause = self.sort.orderSQL(self.store)
+
+
+    def _sqlAndArgs(self, verb, subject):
+
+        # Generate the WHERE clause separately from determining the tables
+        # which are involved so that the loop over those tables above has a
+        # chance to call getTableAlias, which may have side-effects.
+        if self.comparison is not None:
+            where = 'WHERE ' + self.comparison.getQuery(self.store)
         else:
             where = ''
-            tables = set()
-            args = []
-        tables.add(self.tableClass)
-        
-        # The calls to store.getTableName() will create the tables if needed
-        fromClause = ', '.join([self.store.getTableName(table) for table in tables])
+
         limitClause = []
         if self.limit is not None:
             # XXX LIMIT and OFFSET used to be using ?, but they started
@@ -195,11 +225,15 @@ class BaseQuery:
                 limitClause.append(str(self.offset))
         else:
             assert self.offset is None, 'Offset specified without limit'
-        sqlstr = ' '.join([verb, subject,
-                           'FROM', fromClause,
-                           where, self.sort.orderSQL(self.store),
-                           ' '.join(limitClause)])
-        return (sqlstr, args)
+
+        sqlstr = ' '.join(
+            filter(
+                None,
+                [verb, subject, 'FROM', self.fromClause,
+                 where, self.sortClause,
+                 ' '.join(limitClause)]))
+        return (sqlstr, self.args)
+
 
     def _runQuery(self, verb, subject):
         # XXX ideally this should be creating an SQL cursor and iterating
@@ -254,11 +288,10 @@ class _FakeItemForFilter:
 class ItemQuery(BaseQuery):
     def __init__(self, *a, **k):
         BaseQuery.__init__(self, *a, **k)
-        tc = self.tableClass
         self._queryTarget = (
-            self.store.getColumnName(tc.storeID) + ', ' + (
+            self.tableClass.storeID.getColumnName(self.store) + ', ' + (
                 ', '.join(
-                    [self.store.getColumnName(attrobj)
+                    [attrobj.getColumnName(self.store)
                      for name, attrobj in self.tableClass.getSchema()
                      ])))
 
@@ -280,7 +313,7 @@ class ItemQuery(BaseQuery):
     def count(self):
         rslt = self._runQuery(
             'SELECT',
-            'COUNT(' + self.store.getColumnName(self.tableClass.storeID)
+            'COUNT(' + self.tableClass.storeID.getColumnName(self.store)
             + ')')
         assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
         return rslt[0][0] or 0
@@ -315,7 +348,7 @@ class AttributeQuery(BaseQuery):
                            offset, sort)
         self.attribute = attribute
         self.raw = raw
-        self._queryTarget = self.store.getColumnName(attribute)
+        self._queryTarget = attribute.getColumnName(self.store)
 
     # XXX: Each implementation of 'outfilter' needs to be changed to deal
     # with self being 'None' in these cases.  most of the ones we're likely
@@ -1204,7 +1237,7 @@ class Store(Empowered):
         for nam, atr in tableClass.getSchema():
             # it's a stored attribute
             sqlarg.append("\n%s %s" %
-                          (self.getShortColumnName(atr), atr.sqltype))
+                          (atr.getShortColumnName(self), atr.sqltype))
 
         if len(sqlarg) == 0:
             # XXX should be raised way earlier, in the class definition or something
@@ -1243,9 +1276,9 @@ class Store(Empowered):
         indexes = set()
         for nam, atr in tableClass.getSchema():
             if atr.indexed:
-                indexes.add(((self.getShortColumnName(atr),), (atr.attrname,)))
+                indexes.add(((atr.getShortColumnName(self),), (atr.attrname,)))
             for compound in atr.compoundIndexes:
-                indexes.add((tuple(self.getShortColumnName(inatr) for inatr in compound),
+                indexes.add((tuple(inatr.getShortColumnName(self) for inatr in compound),
                              tuple(inatr.attrname for inatr in compound)))
 
         # _ZOMFG_ SQL is such a piece of _shit_: you can't fully qualify the
