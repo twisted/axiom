@@ -1,6 +1,3 @@
-0.5.8 (2006-08-17):
-  - The upgrader added in the previous release has been fixed.
-
 0.5.7 (2006-08-14):
   - item.Item has a new method, stored, which will be called the first time an
     item is added to a store, in the same transaction as it is added.
