@@ -116,3 +116,13 @@ class ItemClassesOnly(TypeError):
     """
     An object was passed to a method that wasn't a subclass of Item.
     """
+
+
+class ChangeRejected(Exception):
+    """
+    Raised when an attempt is made to change the database at a time when
+    database changes are disallowed for reasons of consistency.
+
+    This is raised when an application-level callback (for example, committed)
+    attempts to change database state.
+    """

@@ -426,7 +426,8 @@ class Store(Empowered):
 
     implements(iaxiom.IBeneficiary)
 
-    transaction = None          # current transaction object
+    transaction = None          # set of objects changed in the current transaction
+    touched = None              # set of objects changed since the last checkpoint
 
     storeID = -1                # I have a StoreID so that things can reference
                                 # me
@@ -442,6 +443,12 @@ class Store(Empowered):
     store = property(lambda self: self) # I have a 'store' attribute because I
                                         # am 'stored' within myself; this is
                                         # also for references to use.
+
+
+    # Counter indicating things are going on which disallows changes to the
+    # database.  Callbacks dispatched to application code while this is
+    # non-zero will reject database changes with a ChangeRejected exception.
+    _rejectChanges = 0
 
     def _currentlyValidAsReferentFor(self, store):
         """necessary because I can be a target of attributes.reference()
@@ -844,6 +851,7 @@ class Store(Empowered):
             onething = list(self.query(t0, limit=1))
             if not onething:
                 self._oldTypesRemaining.pop(0)
+                log.msg("%s finished upgrading %s" % (self.dbdir.path, qual(t0)))
                 continue
             o = onething[0]
             self.transact(upgrade.upgradeAllTheWay, o, t0.typeName, t0.schemaVersion)
@@ -855,10 +863,10 @@ class Store(Empowered):
         while self._upgradeOneThing():
             if not didAny:
                 didAny = True
-                log.msg("Beginning upgrade...")
+                log.msg("%s beginning upgrade..." % (self.dbdir.path,))
             yield None
         if didAny:
-            log.msg("Upgrade complete.")
+            log.msg("%s completely upgraded." % (self.dbdir.path,))
 
     def whenFullyUpgraded(self):
         """
@@ -984,12 +992,26 @@ class Store(Empowered):
                 self.objectCache.cache(storeID, result)
         return result
 
+
+    def changed(self, item):
+        if self._rejectChanges:
+            raise errors.ChangeRejected()
+        if self.transaction is not None:
+            self.transaction.add(item)
+            self.touched.add(item)
+
+
     def checkpoint(self):
-        for item in self.transaction:
-            # XXX: it should be possible here, using various clever hacks, to
-            # automatically optimize functionally identical statements into
-            # executemany.
-            item.checkpoint()
+        self._rejectChanges += 1
+        try:
+            for item in self.touched:
+                # XXX: it should be possible here, using various clever hacks, to
+                # automatically optimize functionally identical statements into
+                # executemany.
+                item.checkpoint()
+            self.touched.clear()
+        finally:
+            self._rejectChanges -= 1
 
     executedThisTransaction = None
     tablesCreatedThisTransaction = None
@@ -1037,8 +1059,10 @@ class Store(Empowered):
         self.tablesCreatedThisTransaction = []
         if self.attachedToParent:
             self.transaction = self.parent.transaction
+            self.touched = self.parent.touched
         else:
             self.transaction = set()
+            self.touched = set()
         self.autocommit = False
         for sub in self._attachedChildren.values():
             sub._setupTxnState()
@@ -1051,9 +1075,15 @@ class Store(Empowered):
         log.msg(interface=iaxiom.IStatEvent, stat_commits=1)
         self._postCommitHook()
 
+
     def _postCommitHook(self):
-        for committed in self.transaction:
-            committed.committed()
+        self._rejectChanges += 1
+        try:
+            for committed in self.transaction:
+                committed.committed()
+        finally:
+            self._rejectChanges -= 1
+
 
     def _rollback(self):
         if self.debug:
@@ -1069,8 +1099,12 @@ class Store(Empowered):
 
 
     def _inMemoryRollback(self):
-        for item in self.transaction:
-            item.revert()
+        self._rejectChanges += 1
+        try:
+            for item in self.transaction:
+                item.revert()
+        finally:
+            self._rejectChanges -= 1
         self.transaction.clear()
         for tableClass in self.tablesCreatedThisTransaction:
             del self.typenameAndVersionToID[tableClass.typeName,
@@ -1087,7 +1121,7 @@ class Store(Empowered):
             for name, attr in tableClass.getSchema():
                 if attr in self.attrToColumnNameCache:
                     del self.attrToColumnNameCache[attr]
-            
+
         for sub in self._attachedChildren.values():
             sub._inMemoryRollback()
 
@@ -1095,6 +1129,7 @@ class Store(Empowered):
     def _cleanupTxnState(self):
         self.autocommit = True
         self.transaction = None
+        self.touched = None
         self.executedThisTransaction = None
         self.tablesCreatedThisTransaction = []
         for sub in self._attachedChildren.values():
@@ -1147,6 +1182,7 @@ class Store(Empowered):
             # make sure the table exists
             self.getTypeID(tableClass)
         return self.typeToTableNameCache[tableClass]
+
 
     def getShortColumnName(self, attribute):
         """
@@ -1214,6 +1250,7 @@ class Store(Empowered):
             return self.typenameAndVersionToID[key]
         return self.transact(self._actualTableCreation, tableClass, key)
 
+
     def _actualTableCreation(self, tableClass, key):
         """
         In the event that an Item subclass which has never before been added to
@@ -1254,7 +1291,7 @@ class Store(Empowered):
                                         tableClass.schemaVersion])
 
         self.typenameAndVersionToID[key] = typeID
-        
+
         if self.tablesCreatedThisTransaction is not None:
             self.tablesCreatedThisTransaction.append(tableClass)
 
@@ -1271,6 +1308,7 @@ class Store(Empowered):
             # start parameterizing references.
 
         return typeID
+
 
     def _createIndexesFor(self, tableClass):
         indexes = set()
@@ -1299,12 +1337,14 @@ class Store(Empowered):
                 if "already exists" not in str(sqle):
                     raise
 
+
     def getTableQuery(self, typename, version):
         if (typename, version) not in self.tableQueries:
             query = 'SELECT * FROM %s WHERE oid = ?' % (
                 self._tableNameFor(typename, version), )
             self.tableQueries[typename, version] = query
         return self.tableQueries[typename, version]
+
 
     def getItemByID(self, storeID, default=_noItem, autoUpgrade=True):
         """
@@ -1377,6 +1417,7 @@ class Store(Empowered):
             raise KeyError(storeID)
         return default
 
+
     def _normalizeSQL(self, sql):
         # It turns out that "ATTACH DATABASE" *requires* string interpolation,
         # since it syntactically does not support bind parameters.  It takes a
@@ -1397,9 +1438,11 @@ class Store(Empowered):
             self.statementCache[sql] = normsql
         return self.statementCache[sql]
 
+
     def querySchemaSQL(self, sql, args=()):
         sql = sql.replace("*DATABASE*", self.databaseName)
         return self.querySQL(sql, args)
+
 
     def querySQL(self, sql, args=()):
         """For use with SELECT (or SELECT-like PRAGMA) statements.
@@ -1410,6 +1453,7 @@ class Store(Empowered):
         else:
             result = self._queryandfetch(sql, args)
         return result
+
 
     def _queryandfetch(self, sql, args):
         if self.debug:
@@ -1451,9 +1495,11 @@ class Store(Empowered):
         assert not rows
         return sql
 
+
     def executeSchemaSQL(self, sql, args=()):
         sql = sql.replace("*DATABASE*", self.databaseName)
         return self.executeSQL(sql, args)
+
 
     def executeSQL(self, sql, args=()):
         """

@@ -2,11 +2,15 @@
 import sys, os
 
 from twisted.trial import unittest
+from twisted.trial.unittest import TestCase
 from twisted.internet import error, protocol, defer, reactor
 from twisted.protocols import policies
 from twisted.python import log
 
 from axiom import store, item
+from axiom.store import Store
+from axiom.item import Item
+from axiom.errors import ChangeRejected
 from axiom.test import itemtest, itemtestmain
 from axiom.attributes import integer, text, inmemory
 
@@ -100,7 +104,7 @@ class StoredNoticingItem(item.Item):
 
 
 
-class TestItem(unittest.TestCase):
+class ItemTestCase(unittest.TestCase):
     def test_itemClassOrdering(self):
         """
         Test that L{Item} subclasses (not instances) sort by the Item's
@@ -285,3 +289,212 @@ class TestItem(unittest.TestCase):
                           1234)
         self.assertEquals(st.getItemByID(oldStoreID, default=1234),
                           1234)
+
+
+
+class TestItem(Item):
+    """
+    Boring, behaviorless Item subclass used when we just need an item
+    someplace.
+    """
+    attribute = integer()
+
+
+
+class BrokenCommittedItem(Item):
+    """
+    Item class which changes database state in its committed method.  Don't
+    write items like this, they're broken.
+    """
+    attribute = integer()
+    _committed = inmemory()
+
+    def committed(self):
+        Item.committed(self)
+        if getattr(self, '_committed', None) is not None:
+            self._committed(self)
+
+
+
+class CheckpointTestCase(TestCase):
+    """
+    Tests for Item checkpointing.
+    """
+    def setUp(self):
+        self.checkpointed = []
+        def checkpoint(item):
+            self.checkpointed.append(item)
+        self.originalCheckpoint = TestItem.checkpoint.im_func
+        TestItem.checkpoint = checkpoint
+
+
+    def tearDown(self):
+        TestItem.checkpoint = self.originalCheckpoint
+
+
+    def _autocommitBrokenCommittedMethodTest(self, method):
+        store = Store()
+        item = BrokenCommittedItem(store=store)
+        item._committed = method
+        self.assertRaises(ChangeRejected, setattr, item, 'attribute', 0)
+
+
+    def _transactionBrokenCommittedMethodTest(self, method):
+        store = Store()
+        item = BrokenCommittedItem(store=store)
+        item._committed = method
+
+        def txn():
+            item.attribute = 0
+        self.assertRaises(ChangeRejected, store.transact, txn)
+
+
+    def test_autocommitBrokenCommittedMethodMutate(self):
+        """
+        Test changing a persistent attribute in the committed (even if the
+        original change was made in autocommit mode) callback raises
+        L{ChangeRejected}.
+        """
+        def mutate(self):
+            self.attribute = 0
+        return self._autocommitBrokenCommittedMethodTest(mutate)
+
+
+    def test_transactionBrokenCommittedMethodMutate(self):
+        """
+        Test changing a persistent attribute in the committed callback raises
+        L{ChangeRejected}.
+        """
+        def mutate(item):
+            item.attribute = 0
+        return self._transactionBrokenCommittedMethodTest(mutate)
+
+
+    def test_autocommitBrokenCommittedMethodDelete(self):
+        """
+        Test deleting an item in the committed (even if the original change was
+        made in autocommit mode) callback raises L{ChangeRejected}.
+        """
+        def delete(item):
+            item.deleteFromStore()
+        return self._autocommitBrokenCommittedMethodTest(delete)
+
+
+    def test_transactionBrokenCommittedMethodDelete(self):
+        """
+        Test changing a persistent attribute in the committed callback raises
+        L{ChangeRejected}.
+        """
+        def delete(item):
+            item.deleteFromStore()
+        return self._transactionBrokenCommittedMethodTest(delete)
+
+
+    def test_autocommitBrokenCommittedMethodCreate(self):
+        """
+        Test that creating a new item in a committed (even if the original
+        change was made in autocommit mode) callback raises L{ChangeRejected}
+        """
+        def create(item):
+            TestItem(store=item.store)
+        return self._autocommitBrokenCommittedMethodTest(create)
+
+
+    def test_transactionBrokenCommittedMethodCreate(self):
+        """
+        Test that creating a new item in a committed callback raises
+        L{ChangeRejected}.
+        """
+        def create(item):
+            TestItem(store=item.store)
+        return self._transactionBrokenCommittedMethodTest(create)
+
+
+    def test_autocommitCheckpoint(self):
+        """
+        Test that an Item is checkpointed when it is created outside of a
+        transaction.
+        """
+        store = Store()
+        item = TestItem(store=store)
+        self.assertEquals(self.checkpointed, [item])
+
+
+    def test_transactionCheckpoint(self):
+        """
+        Test that an Item is checkpointed when the transaction it is created
+        within is committed.
+        """
+        store = Store()
+        def txn():
+            item = TestItem(store=store)
+            self.assertEquals(self.checkpointed, [])
+            return item
+        item = store.transact(txn)
+        self.assertEquals(self.checkpointed, [item])
+
+
+    def test_queryCheckpoint(self):
+        """
+        Test that a newly created Item is checkpointed before a query is
+        executed.
+        """
+        store = Store()
+        def txn():
+            item = TestItem(store=store)
+            list(store.query(TestItem))
+            self.assertEquals(self.checkpointed, [item])
+        store.transact(txn)
+
+
+    def test_autocommitTouchCheckpoint(self):
+        """
+        Test that an existing Item is checkpointed if it has an attribute
+        changed on it.
+        """
+        store = Store()
+        item = TestItem(store=store)
+
+        # Get rid of the entry that's there from creation
+        self.checkpointed = []
+
+        item.attribute = 0
+        self.assertEquals(self.checkpointed, [item])
+
+
+    def test_transactionTouchCheckpoint(self):
+        """
+        Test that in a transaction an existing Item is checkpointed if it has
+        touch called on it and the store it is in is checkpointed.
+        """
+        store = Store()
+        item = TestItem(store=store)
+
+        # Get rid of the entry that's there from creation
+        self.checkpointed = []
+
+        def txn():
+            item.touch()
+            store.checkpoint()
+            self.assertEquals(self.checkpointed, [item])
+        store.transact(txn)
+
+
+    def test_twoQueriesOneCheckpoint(self):
+        """
+        Test that if two queries are performed in a transaction, a touched item
+        only has checkpoint called on it before the first.
+        """
+        store = Store()
+        item = TestItem(store=store)
+
+        # Get rid of the entry that's there from creation
+        self.checkpointed = []
+
+        def txn():
+            item.touch()
+            list(store.query(TestItem))
+            self.assertEquals(self.checkpointed, [item])
+            list(store.query(TestItem))
+            self.assertEquals(self.checkpointed, [item])
+        store.transact(txn)

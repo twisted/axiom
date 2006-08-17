@@ -16,7 +16,7 @@ from epsilon.extime import Time
 
 from axiom.slotmachine import Attribute as inmemory
 
-from axiom.errors import NoCrossStoreReferences
+from axiom.errors import NoCrossStoreReferences, ChangeRejected
 
 from axiom.iaxiom import IComparison, IOrdering, IColumn, IQuery
 
@@ -474,18 +474,23 @@ class SQLAttribute(inmemory, Comparable):
                                         # for us, I guess.
 
     def __set__(self, oself, pyval):
+        st = oself.store
+
         # convert to dbval later, I guess?
         if pyval is None and not self.allowNone:
             raise TypeError("attribute [%s.%s = %s()] must not be None" % (
                     self.classname, self.attrname, self.__class__.__name__))
 
-        st = oself.store
         dbval = self.infilter(pyval, oself, st)
         oself.__dirty__[self.attrname] = self, dbval
         oself.touch()
         setattr(oself, self.underlying, pyval)
         if st is not None and st.autocommit:
-            oself.checkpoint()
+            st._rejectChanges += 1
+            try:
+                oself.checkpoint()
+            finally:
+                st._rejectChanges -= 1
 
 
 class TwoAttributeComparison:
