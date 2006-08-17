@@ -239,3 +239,63 @@ class SubSchedTest(SchedTest):
 
         return self._doTestScheduler(substore)
 
+
+class ServiceNotRunningMixin(unittest.TestCase):
+    """
+    A set of tests to verify that things *aren't* scheduled with the reactor
+    when the scheduling service isn't running, merely persisted to the
+    database.
+    """
+
+    def setUp(self):
+        """
+        Create a store with a scheduler installed on it and hook the C{now} and
+        C{callLater} methods of that scheduler so their behavior can be
+        controlled by these tests.
+        """
+        self.calls = []
+        self.store = Store(self.mktemp())
+        self.siteScheduler = Scheduler(store=self.store)
+        self.siteScheduler.installOn(self.store)
+        self.siteScheduler.callLater = self._callLater
+
+
+    def _callLater(self, s, f, *a, **k):
+        self.calls.append((s, f, a, k))
+
+
+    def test_schedule(self):
+        """
+        Test that if an event is scheduled against a scheduler which is not
+        running, not transient scheduling (eg, reactor.callLater) is performed.
+        """
+        return self._testSchedule(self.siteScheduler)
+
+
+    def test_subSchedule(self):
+        """
+        The same as test_schedule, except using a subscheduler.
+        """
+        subst = SubStore.createNew(self.store, ['scheduler_test'])
+        substore = subst.open()
+        subscheduler = SubScheduler(store=substore)
+        subscheduler.installOn(substore)
+        return self._testSchedule(subscheduler)
+
+    def test_orphanedSubSchedule(self):
+        """
+        The same as test_scheduler, except using a subscheduler that is orphaned.
+        """
+        subscheduler = SubScheduler(store=self.store)
+        subscheduler.installOn(self.store)
+        return self._testSchedule(subscheduler)
+
+
+    def _testSchedule(self, scheduler):
+        t1 = TestEvent(store=scheduler.store)
+        scheduler.schedule(t1, Time.fromPOSIXTimestamp(0))
+        self.failIf(self.calls,
+                    "Should not have had any calls: %r" % (self.calls,))
+        self.assertIdentical(
+            scheduler._getNextEvent(Time.fromPOSIXTimestamp(1)).runnable, t1)
+

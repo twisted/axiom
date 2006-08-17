@@ -12,11 +12,6 @@ class Referee(Item):
 
     topSecret = integer()
 
-class _Referent(Item):
-    schemaVersion = 1
-
-    ref = reference(whenDeleted=reference.CASCADE)
-
 class SimpleReferent(Item):
     schemaVersion = 1
     typeName = "test_reference_referent"
@@ -24,7 +19,7 @@ class SimpleReferent(Item):
     ref = reference()
 
 class DependentReferent(Item):
-    ref = reference(whenDeleted=reference.CASCADE)
+    ref = reference(whenDeleted=reference.CASCADE, reftype=Referee)
 
 class BadReferenceTestCase(TestCase):
     ntimes = 10

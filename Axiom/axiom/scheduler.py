@@ -182,7 +182,7 @@ class SchedulerMixin:
             TimedEvent, TimedEvent.runnable == runnable)
         return events.getColumn("time")
 
-
+_EPSILON = 1e-20      # A very small amount of time.
 
 class Scheduler(Item, Service, SchedulerMixin):
 
@@ -192,6 +192,7 @@ class Scheduler(Item, Service, SchedulerMixin):
     parent = inmemory()
     name = inmemory()
     timer = inmemory()
+    callLater = inmemory()
 
     eventsRun = integer()
     lastEventAt = timestamp()
@@ -218,6 +219,7 @@ class Scheduler(Item, Service, SchedulerMixin):
 
     def activate(self):
         self.timer = None
+        self.callLater = reactor.callLater
 
     def installOn(self, other):
         other.powerUp(self, IService)
@@ -237,10 +239,6 @@ class Scheduler(Item, Service, SchedulerMixin):
         self.timer = None
         return super(Scheduler, self).tick()
 
-    def callLater(self, s, f, *a, **k):
-        s = max(s, 0.00000001)
-        return reactor.callLater(s, f, *a, **k)
-
     def _transientSchedule(self, when, now):
         if not self.running:
             return
@@ -248,8 +246,14 @@ class Scheduler(Item, Service, SchedulerMixin):
             if self.timer.getTime() < when.asPOSIXTimestamp():
                 return
             self.timer.cancel()
-        self.timer = self.callLater(when.asPOSIXTimestamp() - now.asPOSIXTimestamp(),
-                                    self.tick)
+        delay = when.asPOSIXTimestamp() - now.asPOSIXTimestamp()
+
+        # reactor.callLater allows only positive delay values.  The scheduler
+        # may want to have scheduled things in the past and that's OK, since we
+        # are dealing with Time() instances it's impossible to predict what
+        # they are relative to the current time from user code anyway.
+        delay = max(_EPSILON, delay)
+        self.timer = self.callLater(delay, self.tick)
         self.nextEventAt = when
 
 
@@ -289,6 +293,7 @@ class SubScheduler(Item, SchedulerMixin):
         other.powerUp(self, IScheduler)
 
     def _transientSchedule(self, when, now):
-        loginAccount = self.store.parent.getItemByID(self.store.idInParent)
-        hook = self.store.parent.findOrCreate(_SubSchedulerParentHook, loginAccount = loginAccount)
-        hook._schedule(when)
+        if self.store.parent is not None:
+            loginAccount = self.store.parent.getItemByID(self.store.idInParent)
+            hook = self.store.parent.findOrCreate(_SubSchedulerParentHook, loginAccount = loginAccount)
+            hook._schedule(when)

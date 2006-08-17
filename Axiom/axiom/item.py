@@ -13,7 +13,7 @@ from twisted.python.util import mergeFunctionMetadata
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema, iaxiom
-
+from axiom.errors import ChangeRejected
 from axiom.iaxiom import IColumn, IPowerupIndirector
 
 from axiom.attributes import (
@@ -367,6 +367,10 @@ class Item(Empowered, slotmachine._Strict):
             if self.__store is not None:
                 raise AttributeError(
                     "Store already set - can't move between stores")
+
+            if store._rejectChanges:
+                raise ChangeRejected()
+
             self._schemaPrepareInsert(store)
             self.__store = store
             oid = self.storeID = self.store.executeSchemaSQL(
@@ -517,9 +521,9 @@ class Item(Empowered, slotmachine._Strict):
 
     def touch(self):
         # xxx what
-        if self.store is None or self.store.transaction is None:
+        if self.store is None:
             return
-        self.store.transaction.add(self)
+        self.store.changed(self)
 
     def revert(self):
         if self.__justCreated:
@@ -537,6 +541,7 @@ class Item(Empowered, slotmachine._Strict):
 
         self.__deleting = False
         self.__deletingObject = False
+
 
     def deleted(self):
         """User-definable callback that is invoked when an object is well and truly
@@ -566,6 +571,7 @@ class Item(Empowered, slotmachine._Strict):
                 self.store.objectCache.uncache(self.storeID, self)
             self.__store = None
         self.__justCreated = False
+
 
     def checkpoint(self):
         """ Update the database to reflect in-memory changes made to this item; for
