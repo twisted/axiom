@@ -126,3 +126,9 @@ class ChangeRejected(Exception):
     This is raised when an application-level callback (for example, committed)
     attempts to change database state.
     """
+
+class DependencyError(Exception):
+    """
+    Raised when an item can't be installed or uninstalled.
+    """
+
