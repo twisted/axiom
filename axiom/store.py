@@ -840,6 +840,7 @@ class Store(Empowered):
         self._oldTypesRemaining.append(dis)
         return dis
 
+    _anyUpgradesThisTypeYet = False
 
     def _upgradeOneThing(self):
         """
@@ -851,9 +852,12 @@ class Store(Empowered):
             onething = list(self.query(t0, limit=1))
             if not onething:
                 self._oldTypesRemaining.pop(0)
-                log.msg("%s finished upgrading %s" % (self.dbdir.path, qual(t0)))
+                if self._anyUpgradesThisTypeYet:
+                    log.msg("%s finished upgrading %s" % (self.dbdir.path, qual(t0)))
+                self._anyUpgradesThisTypeYet = False
                 continue
             o = onething[0]
+            self._anyUpgradesThisTypeYet = True
             self.transact(upgrade.upgradeAllTheWay, o, t0.typeName, t0.schemaVersion)
             return True
         return False

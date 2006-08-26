@@ -4,6 +4,9 @@ from twisted.trial import unittest
 from axiom import store, upgrade, item, errors
 
 from twisted.application.service import IService
+from twisted.internet.defer import maybeDeferred
+
+from twisted.python import log
 
 def axiomInvalidate(itemClass):
     """
@@ -93,6 +96,14 @@ class SchemaUpgradeTest(unittest.TestCase):
         svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
         svc.startService()
 
+def _logMessagesFrom(f):
+    L = []
+    log.addObserver(L.append)
+    d = maybeDeferred(f)
+    def x(ign):
+        log.removeObserver(L.append)
+        return ign
+    return d.addBoth(x).addCallback(lambda ign: L)
 
 class SwordUpgradeTest(SchemaUpgradeTest):
 
@@ -114,6 +125,33 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             sword = s.getItemByID(swordID, autoUpgrade=False)
             self._testPlayerAndSwordState(player, sword)
         return s.whenFullyUpgraded().addCallback(afterUpgrade)
+
+    def test_loggingAtAppropriateTimes(self):
+        """
+        Verify that log messages show up when we do upgrade work, but then don't
+        when we don't.
+        """
+        def someLogging(logMessages):
+            ok = False
+            unrelatedMessages = []
+            for msgdict in logMessages:
+                msgstr = u''.join(msgdict.get('message', ()))
+                if u'finished upgrading' in msgstr:
+                    ok = True
+                else:
+                    unrelatedMessages.append(msgstr)
+            self.failUnless(ok, "No messages related to upgrading: %r" % (unrelatedMessages,))
+            s = self.openStore()
+            def afterUpgrade(noLogMessages):
+                for nmsgdict in noLogMessages:
+                    mm = u''.join(nmsgdict.get('message', ()))
+                    if mm:
+                        self.failIfIn(u'finished upgrading', mm)
+            self.startStoreService()
+            return _logMessagesFrom(s.whenFullyUpgraded
+                                    ).addCallback(afterUpgrade)
+
+        return _logMessagesFrom(self.testTwoObjectUpgrade_UseService).addCallback(someLogging)
 
     def _testTwoObjectUpgrade(self):
         choose(oldapp)
