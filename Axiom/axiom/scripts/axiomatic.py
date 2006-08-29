@@ -38,9 +38,15 @@ class AxiomaticCommand(usage.Options, AxiomaticSubCommandMixin):
 if platform.isWinNT():
     from twisted.scripts import _twistw as twistd
 else:
-    from twisted.scripts import twistd
+    try:
+        from twisted.scripts import _twistd_unix as twistd
+    except ImportError:
+        from twisted.scripts import twistd
 
 class Start(twistd.ServerOptions):
+    def noSubCommands(self):
+        raise AttributeError()
+    subCommands = property(noSubCommands)
 
     def _fixConfig(self):
         self['no_save'] = True
