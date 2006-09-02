@@ -13,6 +13,7 @@ from axiom.substore import SubStore
 from axiom.attributes import text, integer, reference, boolean, AND
 from axiom.errors import (
     BadCredentials, NoSuchUser, DuplicateUser, MissingDomainPart)
+from axiom.scheduler import IScheduler
 from axiom import upgrade, iaxiom
 
 from zope.interface import implements, Interface, Attribute
@@ -146,6 +147,9 @@ class LoginAccount(Item):
             for x in list(oldAccounts) + list(oldMethods):
                 x.deleteFromStore()
             self.cloneInto(ss, ss)
+            sched = IScheduler(ss, None)
+            if sched is not None:
+                sched.migrateDown()
         ss.transact(_)
 
     def migrateUp(self):
@@ -161,6 +165,9 @@ class LoginAccount(Item):
             # you're making a mistake. -glyph
             siteStoreSubRef = siteStore.getItemByID(self.store.idInParent)
             self.cloneInto(siteStore, siteStoreSubRef)
+            sched = IScheduler(self.store, None)
+            if sched is not None:
+                sched.migrateUp()
         siteStore.transact(_)
 
     def cloneInto(self, newStore, avatars):

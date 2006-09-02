@@ -295,5 +295,25 @@ class SubScheduler(Item, SchedulerMixin):
     def _transientSchedule(self, when, now):
         if self.store.parent is not None:
             loginAccount = self.store.parent.getItemByID(self.store.idInParent)
-            hook = self.store.parent.findOrCreate(_SubSchedulerParentHook, loginAccount = loginAccount)
+            hook = self.store.parent.findOrCreate(_SubSchedulerParentHook,
+                                                  loginAccount=loginAccount)
             hook._schedule(when)
+
+    def migrateDown(self):
+        """
+        Remove the components in the site store for this SubScheduler.
+        """
+        loginAccount = self.store.parent.getItemByID(self.store.idInParent)
+        ssph = self.store.parent.findUnique(_SubSchedulerParentHook,
+                          _SubSchedulerParentHook.loginAccount == loginAccount)
+        te = self.store.parent.findUnique(TimedEvent,
+                                          TimedEvent.runnable == ssph)
+        te.deleteFromStore()
+        ssph.deleteFromStore()
+
+    def migrateUp(self):
+        """
+        Recreate the hooks in the site store to trigger this SubScheduler.
+        """
+        te = self.store.findFirst(TimedEvent, sort=TimedEvent.time.descending)
+        self._transientSchedule(te.time, Time)
