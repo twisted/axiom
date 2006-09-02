@@ -1,3 +1,4 @@
+import datetime
 
 from zope.interface import Interface, implements
 
@@ -10,8 +11,12 @@ from twisted.cred.credentials import UsernamePassword
 
 from twisted.python.filepath import FilePath
 
+from epsilon.extime import Time
+
 from axiom.store import Store
 from axiom.substore import SubStore
+from axiom.scheduler import _SubSchedulerParentHook, SubScheduler, Scheduler
+from axiom.scheduler import TimedEvent
 from axiom import userbase
 from axiom.item import Item
 from axiom.attributes import integer
@@ -257,6 +262,9 @@ class ThingThatMovesAround(Item):
 
     superValue = integer()
 
+    def run():
+        pass
+
 class SubStoreMigrationTestCase(unittest.TestCase):
 
     IMPORTANT_VALUE = 159
@@ -265,12 +273,18 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.dbdir = self.mktemp()
         self.store = Store(self.dbdir)
         self.ls = userbase.LoginSystem(store=self.store)
+        self.scheduler = Scheduler(store=self.store)
+        self.scheduler.installOn(self.store)
 
         self.account = self.ls.addAccount(u'testuser', u'localhost', u'PASSWORD')
 
         accountStore = self.account.avatars.open()
 
-        ThingThatMovesAround(store=accountStore, superValue=self.IMPORTANT_VALUE)
+        thing = ThingThatMovesAround(store=accountStore,
+                                     superValue=self.IMPORTANT_VALUE)
+        ss = accountStore.findOrCreate(SubScheduler)
+        ss.installOn(accountStore)
+        ss.schedule(thing, Time() + datetime.timedelta(days=1))
 
         self.origdir = accountStore.dbdir
         self.destdir = FilePath(self.mktemp())
@@ -284,6 +298,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.failIf(list(self.store.query(SubStore, SubStore.storepath == self.origdir)))
         self.origdir.restat(False)
         self.failIf(self.origdir.exists())
+        self.failIf(list(self.store.query(_SubSchedulerParentHook)))
 
     def testInsertion(self, _deleteDomainDirectory=False):
         self.testExtraction()
@@ -296,6 +311,13 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.assertEquals(
             insertedStore.findUnique(ThingThatMovesAround).superValue,
             self.IMPORTANT_VALUE)
+        siteStoreSubRef = self.store.getItemByID(insertedStore.idInParent)
+        ssph = self.store.findUnique(_SubSchedulerParentHook,
+                         _SubSchedulerParentHook.loginAccount == siteStoreSubRef,
+                                     default=None)
+        self.failUnless(ssph)
+        self.failUnless(self.store.findUnique(TimedEvent,
+                                              TimedEvent.runnable == ssph))
 
     def testInsertionWithNoDomainDirectory(self):
         self.testInsertion(True)
