@@ -1,3 +1,6 @@
+0.5.9 (2006-08-30):
+  - A new dependency-management system has been added, in axiom.dependency.
+
 0.5.8 (2006-08-17):
   - The upgrader added in the previous release has been fixed.
 
