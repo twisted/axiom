@@ -1352,7 +1352,35 @@ class Store(Empowered):
 
     def getItemByID(self, storeID, default=_noItem, autoUpgrade=True):
         """
+        Retrieve an item by its storeID, and return it.
+
+        Note: most of the failure modes of this method are catastrophic and
+        should not be handled by application code.  The only one that
+        application programmers should be concerned with is KeyError.  They are
+        listed for educational purposes.
+
+        @param storeID: an L{int} which refers to the store.
+
+        @param default: if passed, return this value rather than raising in the
+        case where no Item is found.
+
+        @raise TypeError: if storeID is not an integer.
+
+        @raise UnknownItemType: if the storeID refers to an item row in the
+        database, but the corresponding type information is not available to
+        Python.
+
+        @raise RuntimeError: if the found item's class version is higher than
+        the current application is aware of.  (In other words, if you have
+        upgraded a database to a new schema and then attempt to open it with a
+        previous version of the code.)
+
+        @raise KeyError: if no item corresponded to the given storeID.
+
+        @return: an Item, or the given default, if it was passed and no row
+        corresponding to the given storeID can be located in the database.
         """
+
         if not isinstance(storeID, (int, long)):
             raise TypeError("storeID *must* be an int or long, not %r" % (
                     type(storeID).__name__,))
