@@ -23,7 +23,8 @@ def dependentsOf(cls):
         return [d[0] for d in deps]
 
 ##Totally ripping off z.i
-def dependsOn(itemType, itemCustomizer=None):
+def dependsOn(itemType, itemCustomizer=None, doc='', indexed=True,
+              whenDeleted=reference.NULLIFY):
     """
     This function behaves like L{axiom.attributes.reference} but with
     an extra behaviour: when this item is installed (via
@@ -54,7 +55,8 @@ def dependsOn(itemType, itemCustomizer=None):
     if (locals is frame.f_globals) or (
         ('__module__' not in locals) and sys.version_info[:3] > (2, 2, 0)):
         raise TypeError("dependsOn can be used only from a class definition.")
-    ref = reference() #XXX should this set reftype? we know the itemType here
+    ref = reference(reftype=itemType, doc=doc, indexed=indexed, allowNone=True,
+                    whenDeleted=whenDeleted)
     locals.setdefault('__dependsOn_advice_data__', []).append(
     (itemType, itemCustomizer, ref))
     if not isClassAdvisor(locals.get('__metaclass__')):

@@ -3,7 +3,7 @@ from twisted.trial import unittest
 from axiom import dependency
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import text, integer
+from axiom.attributes import text, integer, reference
 
 
 class Kitchen(Item):
@@ -30,9 +30,12 @@ class Breadbox(Item, dependency.DependencyMixin):
 
 class Toaster(Item, dependency.DependencyMixin):
     powerStrip = dependency.dependsOn(PowerStrip,
-                                      lambda ps: ps.setForUSElectricity())
+                                      lambda ps: ps.setForUSElectricity(),
+                                      doc="the power source for this toaster")
     description = text()
-    breadFactory = dependency.dependsOn(Breadbox)
+    breadFactory = dependency.dependsOn(Breadbox,
+                                        doc="the thing we get bread input from",
+                                        whenDeleted=reference.CASCADE)
 
     def toast(self):
         self.powerStrip.draw(100)
@@ -201,4 +204,15 @@ class DependencyTest(unittest.TestCase):
         self.failIf(ic.installedOn)
 
     def test_wrongDependsOn(self):
+        """
+        dependsOn should raise an error if used outside a class definition.
+        """
         self.assertRaises(TypeError, dependency.dependsOn, Toaster)
+
+    def test_referenceArgsPassthrough(self):
+        """
+        dependsOn should accept (most of) attributes.reference's args.
+        """
+
+        self.failUnless("power source" in Toaster.powerStrip.doc)
+        self.assertEquals(Toaster.breadFactory.whenDeleted, reference.CASCADE)
