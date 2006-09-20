@@ -1,3 +1,6 @@
+0.5.11 (2006-09-20):
+  - dependency.dependsOn now takes similar arguments to attributes.reference.
+
 0.5.10 (2006-09-12):
   - The axiomatic commands "insert-user" and "extract-user" now interact with 
     the scheduler properly.
