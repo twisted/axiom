@@ -1,3 +1,7 @@
+0.5.12 (2006-09-29):
+  - Fixed a scheduler bug that would cause tasks scheduled in a substore to be
+    removed from the scheduler.
+
 0.5.11 (2006-09-20):
   - dependency.dependsOn now takes similar arguments to attributes.reference.
 
