@@ -88,7 +88,7 @@ MAX_WORK_PER_TICK = 10
 
 class SchedulerMixin:
     def now(self):
-        # testing hook
+        # Testing hook
         return Time()
 
 
@@ -192,7 +192,10 @@ class Scheduler(Item, Service, SchedulerMixin):
     parent = inmemory()
     name = inmemory()
     timer = inmemory()
+
+    # Also testing hooks
     callLater = inmemory()
+    now = inmemory()
 
     eventsRun = integer()
     lastEventAt = timestamp()
@@ -220,6 +223,8 @@ class Scheduler(Item, Service, SchedulerMixin):
     def activate(self):
         self.timer = None
         self.callLater = reactor.callLater
+        self.now = Time
+
 
     def installOn(self, other):
         other.powerUp(self, IService)
@@ -273,9 +278,10 @@ class _SubSchedulerParentHook(Item):
         if self.scheduledAt is not None:
             if when < self.scheduledAt:
                 sch.reschedule(self, self.scheduledAt, when)
+                self.scheduledAt = when
         else:
             sch.schedule(self, when)
-        self.scheduledAt = when
+            self.scheduledAt = when
 
 
 class SubScheduler(Item, SchedulerMixin):
@@ -286,8 +292,16 @@ class SubScheduler(Item, SchedulerMixin):
     lastEventAt = timestamp()
     nextEventAt = timestamp()
 
+    # Also testing hooks
+    now = inmemory()
+
     def __repr__(self):
         return '<SubScheduler for %r>' % (self.store,)
+
+
+    def activate(self):
+        self.now = Time
+
 
     def installOn(self, other):
         other.powerUp(self, IScheduler)

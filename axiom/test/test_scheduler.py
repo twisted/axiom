@@ -4,8 +4,10 @@
 from datetime import timedelta
 
 from twisted.trial import unittest
+from twisted.trial.unittest import TestCase
 from twisted.application.service import IService
 from twisted.internet.defer import Deferred
+from twisted.internet.task import Clock
 from twisted.python import log
 
 from epsilon.extime import Time
@@ -15,7 +17,7 @@ from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
 
-from axiom.attributes import integer, text, inmemory
+from axiom.attributes import integer, text, inmemory, boolean, timestamp
 from axiom.iaxiom import IScheduler
 
 
@@ -299,3 +301,178 @@ class ServiceNotRunningMixin(unittest.TestCase):
         self.assertIdentical(
             scheduler._getNextEvent(Time.fromPOSIXTimestamp(1)).runnable, t1)
 
+
+
+class ScheduleCallingItem(Item):
+    """
+    Item which invokes C{schedule} on its store's L{IScheduler} from its own
+    C{run} method.
+    """
+
+    ran = boolean(default=False)
+    rescheduleFor = timestamp()
+
+    def run(self):
+        scheduler = IScheduler(self.store)
+        scheduler.schedule(self, self.rescheduleFor)
+        self.ran = True
+
+
+
+class NullRunnable(Item):
+    """
+    Runnable item which does nothing.
+    """
+    ran = boolean(default=False)
+
+    def run(self):
+        pass
+
+
+
+class SubStoreSchedulerReentrancy(TestCase):
+    """
+    Test re-entrant scheduling calls on an item run by a SubScheduler.
+    """
+    def setUp(self):
+        self.clock = Clock()
+
+        self.dbdir = self.mktemp()
+        self.store = Store(self.dbdir)
+        self.substoreItem = SubStore.createNew(self.store, ['sub'])
+        self.substore = self.substoreItem.open()
+
+        Scheduler(store=self.store).installOn(self.store)
+        SubScheduler(store=self.substore).installOn(self.substore)
+
+        self.scheduler = IScheduler(self.store)
+        self.subscheduler = IScheduler(self.substore)
+
+        self.scheduler.callLater = self.clock.callLater
+        self.scheduler.now = lambda: Time.fromPOSIXTimestamp(self.clock.seconds())
+        self.subscheduler.now = lambda: Time.fromPOSIXTimestamp(self.clock.seconds())
+
+        IService(self.store).startService()
+
+
+    def tearDown(self):
+        return IService(self.store).stopService()
+
+
+    def _scheduleRunner(self, now, offset):
+        scheduledAt = Time.fromPOSIXTimestamp(now + offset)
+        rescheduleFor = Time.fromPOSIXTimestamp(now + offset + 10)
+        runnable = ScheduleCallingItem(store=self.substore, rescheduleFor=rescheduleFor)
+        self.subscheduler.schedule(runnable, scheduledAt)
+        return runnable
+
+
+    def testSchedule(self):
+        """
+        Test the schedule method, as invoked from the run method of an item
+        being run by the subscheduler.
+        """
+        now = self.clock.seconds()
+        runnable = self._scheduleRunner(now, 10)
+
+        self.clock.advance(11)
+
+        self.assertEqual(
+            list(self.subscheduler.scheduledTimes(runnable)),
+            [Time.fromPOSIXTimestamp(now + 20)])
+
+        hook = self.store.findUnique(
+            _SubSchedulerParentHook,
+            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+
+        self.assertEqual(
+            list(self.scheduler.scheduledTimes(hook)),
+            [Time.fromPOSIXTimestamp(now + 20)])
+
+
+    def testScheduleWithLaterTimedEvents(self):
+        """
+        Like L{testSchedule}, but use a SubScheduler which has pre-existing
+        TimedEvents which are beyond the new runnable's scheduled time (to
+        trigger the reschedule-using code-path in
+        _SubSchedulerParentHook._schedule).
+        """
+        now = self.clock.seconds()
+        when = Time.fromPOSIXTimestamp(now + 30)
+        null = NullRunnable(store=self.substore)
+        self.subscheduler.schedule(null, when)
+        runnable = self._scheduleRunner(now, 10)
+
+        self.clock.advance(11)
+
+        self.assertEqual(
+            list(self.subscheduler.scheduledTimes(runnable)),
+            [Time.fromPOSIXTimestamp(now + 20)])
+
+        self.assertEqual(
+            list(self.subscheduler.scheduledTimes(null)),
+            [Time.fromPOSIXTimestamp(now + 30)])
+
+        hook = self.store.findUnique(
+            _SubSchedulerParentHook,
+            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+
+        self.assertEqual(
+            list(self.scheduler.scheduledTimes(hook)),
+            [Time.fromPOSIXTimestamp(20)])
+
+
+    def testScheduleWithEarlierTimedEvents(self):
+        """
+        Like L{testSchedule}, but use a SubScheduler which has pre-existing
+        TimedEvents which are before the new runnable's scheduled time.
+        """
+        now = self.clock.seconds()
+        when = Time.fromPOSIXTimestamp(now + 15)
+        null = NullRunnable(store=self.substore)
+        self.subscheduler.schedule(null, when)
+        runnable = self._scheduleRunner(now, 10)
+
+        self.clock.advance(11)
+
+        self.assertEqual(
+            list(self.subscheduler.scheduledTimes(runnable)),
+            [Time.fromPOSIXTimestamp(now + 20)])
+
+        self.assertEqual(
+            list(self.subscheduler.scheduledTimes(null)),
+            [Time.fromPOSIXTimestamp(now + 15)])
+
+        hook = self.store.findUnique(
+            _SubSchedulerParentHook,
+            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+
+        self.assertEqual(
+            list(self.scheduler.scheduledTimes(hook)),
+            [Time.fromPOSIXTimestamp(now + 15)])
+
+
+    def testMultipleEventsPerTick(self):
+        """
+        Test running several runnables in a single tick of the subscheduler.
+        """
+        now = self.clock.seconds()
+        runnables = [
+            self._scheduleRunner(now, 10),
+            self._scheduleRunner(now, 11),
+            self._scheduleRunner(now, 12)]
+
+        self.clock.advance(13)
+
+        for n, runnable in enumerate(runnables):
+            self.assertEqual(
+                list(self.subscheduler.scheduledTimes(runnable)),
+                [Time.fromPOSIXTimestamp(now + n + 20)])
+
+        hook = self.store.findUnique(
+            _SubSchedulerParentHook,
+            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+
+        self.assertEqual(
+            list(self.scheduler.scheduledTimes(hook)),
+            [Time.fromPOSIXTimestamp(now + 20)])
