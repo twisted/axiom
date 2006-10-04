@@ -10,7 +10,7 @@ from twisted.python import log
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
-from axiom.attributes import text, integer, reference, boolean, AND
+from axiom.attributes import text, integer, reference, boolean, AND, OR
 from axiom.errors import (
     BadCredentials, NoSuchUser, DuplicateUser, MissingDomainPart)
 from axiom.scheduler import IScheduler
@@ -509,6 +509,18 @@ class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
     failedLogins = integer(default=0)
 
 
+def getLoginMethods(store, protocol=None):
+    """
+    Retrieve L{LoginMethod} items from store C{store}, optionally constraining
+    them by protocol
+    """
+    if protocol is not None:
+        comp = OR(LoginMethod.protocol == u'*',
+                  LoginMethod.protocol == protocol)
+    else:
+        comp = None
+    return store.query(LoginMethod, comp)
+
 def getAccountNames(store, protocol=None):
     """
     Retrieve account name information about the given database.
@@ -520,13 +532,8 @@ def getAccountNames(store, protocol=None):
     @return: A generator of two-tuples of (username, domain) which
     refer to the given store.
     """
-    if protocol:
-        for meth in store.query(LoginMethod,
-                                LoginMethod.protocol == protocol):
-            yield (meth.localpart, meth.domain)
-    else:
-        for meth in store.query(LoginMethod):
-            yield (meth.localpart, meth.domain)
+    return ((meth.localpart, meth.domain) for meth
+                in getLoginMethods(store, protocol))
 
 
 def getDomainNames(store):

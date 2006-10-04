@@ -130,6 +130,33 @@ class AccountTestCase(unittest.TestCase):
             names,
             [('nameuser', 'ain.dom'), ('username', 'dom.ain')])
 
+    def testGetLoginMethods(self):
+        """
+        Test L{userbase.getLoginMethods}
+        """
+        dbdir = self.mktemp()
+        s = Store(dbdir)
+        ls = userbase.LoginSystem(store=s)
+        ls.installOn(s)
+
+        acc = ls.addAccount('username', 'dom.ain', 'password', protocol=u'speech')
+        ss = acc.avatars.open()
+
+        for protocol in (None, u'speech'):
+            self.assertEquals(list(userbase.getAccountNames(ss, protocol)),
+                              [('username', 'dom.ain')])
+
+        # defaults to ANY_PROTOCOL
+        acc.addLoginMethod(u'username2', u'dom.ain')
+
+        # check that searching for protocol=speech also gives us the
+        # ANY_PROTOCOL LoginMethod
+        for protocol in (None, u'speech'):
+            self.assertEquals(sorted(userbase.getAccountNames(ss, protocol)),
+                              [('username', 'dom.ain'),
+                               ('username2', 'dom.ain')])
+
+
     def testAvatarStoreState(self):
         """
         You can only pass an 'avatars' argument if it doesn't already have an
