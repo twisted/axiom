@@ -1,3 +1,6 @@
+0.5.13 (2006-10-05):
+  - Changed userbase.getLoginMethods to return LoginMethods rather than 
+    (localpart, domain) tuples.
 0.5.12 (2006-09-29):
   - Fixed a scheduler bug that would cause tasks scheduled in a substore to be
     removed from the scheduler.
