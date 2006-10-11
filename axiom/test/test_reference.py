@@ -82,3 +82,15 @@ class BadReferenceTestCase(TestCase):
         self.assertIdentical(store.getItemByID(sid), dep) # sanity
         referee.deleteFromStore()
         self.assertRaises(KeyError, store.getItemByID, sid)
+
+    def testBatchReferenceDeletion(self):
+        """
+        Test that batch deletion removes dependent items correctly.
+        """
+        store = Store()
+        referee = Referee(store=store, topSecret=0)
+        dep = DependentReferent(store=store,
+                                ref=referee)
+        sid = dep.storeID
+        store.query(Referee).deleteFromStore()
+        self.assertRaises(KeyError, store.getItemByID, sid)
