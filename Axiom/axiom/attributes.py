@@ -473,15 +473,24 @@ class SQLAttribute(inmemory, Comparable):
                                         # attribute errors; what gives?  good
                                         # for us, I guess.
 
-    def __set__(self, oself, pyval):
-        st = oself.store
-
+    def _convertPyval(self, oself, pyval):
+        """
+        Convert a Python value to a value suitable for inserting into the database.
+        @param oself: The object on which this descriptor is an attribute.
+        @param pyval: The value to be converted.
+        @return: A value legal for this column in the database.
+        """
         # convert to dbval later, I guess?
         if pyval is None and not self.allowNone:
             raise TypeError("attribute [%s.%s = %s()] must not be None" % (
                     self.classname, self.attrname, self.__class__.__name__))
 
-        dbval = self.infilter(pyval, oself, st)
+        return self.infilter(pyval, oself, oself.store)
+
+    def __set__(self, oself, pyval):
+        st = oself.store
+
+        dbval = self._convertPyval(oself, pyval)
         oself.__dirty__[self.attrname] = self, dbval
         oself.touch()
         setattr(oself, self.underlying, pyval)

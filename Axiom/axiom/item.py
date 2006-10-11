@@ -300,6 +300,28 @@ def transacted(func):
 
 
 
+
+def dependentItems(store, tableClass, comparisonFactory):
+    """
+    Collect all the items that should be deleted when an item or items
+    of a particular item type are deleted.
+
+    @param tableClass: An L{Item} subclass.
+
+    @param comparison: A one-argument callable taking an attribute and
+    returning an L{iaxiom.IComparison} describing the items to
+    collect.
+
+    @return: An iterable of items to delete.
+    """
+    for cascadingAttr in (_cascadingDeletes.get(tableClass, []) +
+                          _cascadingDeletes.get(None, [])):
+        for cascadedItem in store.query(cascadingAttr.type,
+                                        comparisonFactory(cascadingAttr)):
+            yield cascadedItem
+
+
+
 class Item(Empowered, slotmachine._Strict):
     # Python-Special Attributes
     __metaclass__ = MetaItem
@@ -686,18 +708,11 @@ class Item(Empowered, slotmachine._Strict):
         self.deleteFromStore(False)
         return new
 
-    def dependentItems(self):
-        for cascadingAttr in (_cascadingDeletes.get(self.__class__, []) +
-                              _cascadingDeletes.get(None, [])):
-            for cascadedItem in self.store.query(cascadingAttr.type,
-                                                 cascadingAttr == self):
-                yield cascadedItem
-
-
     def deleteFromStore(self, deleteObject=True):
         # go grab dependent stuff
         if deleteObject:
-            for dependent in self.dependentItems():
+            for dependent in dependentItems(self.store, self.__class__,
+                                            lambda attr: attr == self):
                 dependent.deleteFromStore()
 
         self.touch()

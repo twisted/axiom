@@ -103,6 +103,11 @@ class StoredNoticingItem(item.Item):
         self.activatedCount += getattr(self, 'activated', 0)
 
 
+class ItemWithDefault(item.Item):
+    """
+    Item with an attribute having a default value.
+    """
+    value = integer(default=10)
 
 class ItemTestCase(unittest.TestCase):
     def test_itemClassOrdering(self):
@@ -127,6 +132,14 @@ class ItemTestCase(unittest.TestCase):
         st = store.Store()
         self.assertRaises(item.CantInstantiateItem, item.Item, store=st)
 
+    def testCreateItemWithDefault(self):
+        """
+        Test that attributes with default values can be set to None properly.
+        """
+        st = store.Store()
+        it = ItemWithDefault()
+        it.value = None
+        self.assertEqual(it.value, None)
 
     def test_storedCallbackAfterActivateCallback(self):
         """

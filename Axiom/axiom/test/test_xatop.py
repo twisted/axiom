@@ -19,7 +19,7 @@ class RevertException(Exception):
 class TestItem(item.Item):
     schemaVersion = 1
     typeName = 'TestItem'
-    foo = attributes.integer(indexed=True)
+    foo = attributes.integer(indexed=True, default=10)
     bar = attributes.text()
     baz = attributes.timestamp()
     other = attributes.reference()
@@ -422,6 +422,145 @@ class TestFindOrCreate(unittest.TestCase):
         ai2 = s.findFirst(AttributefulItem)
         self.assertEquals(a0, ai2)
 
+class DeleteTrackingItem(item.Item):
+
+    deletedTimes = 0
+    value = attributes.integer()
+
+    def deleted(self):
+        DeleteTrackingItem.deletedTimes += 1
+
+class MassInsertDeleteTests(unittest.TestCase):
+
+    def setUp(self):
+        self.storepath = self.mktemp()
+        self.store = store.Store(self.storepath)
+
+    def testBatchInsert(self):
+        """
+        Make sure that batchInsert creates all the items it's supposed
+        to with appropriate attributes.
+        """
+
+        dataRows = [(37, 93),
+                    (1,   2)]
+
+        self.store.batchInsert(AttributefulItem,
+                              [AttributefulItem.withDefault,
+                               AttributefulItem.withoutDefault],
+                              dataRows)
+        items = list(self.store.query(AttributefulItem))
+        self.assertEquals(items[0].withDefault, 37)
+        self.assertEquals(items[0].withoutDefault, 93)
+        self.assertEquals(items[1].withDefault, 1)
+        self.assertEquals(items[1].withoutDefault, 2)
+
+    def testTransactedBatchInsert(self):
+        """
+        Test that batchInsert works in a transaction.
+        """
+        dataRows = [(37, 93),
+                    (1,   2)]
+
+        self.store.transact(self.store.batchInsert,
+                            AttributefulItem,
+                            [AttributefulItem.withDefault,
+                             AttributefulItem.withoutDefault],
+                            dataRows)
+
+        items = list(self.store.query(AttributefulItem))
+        self.assertEquals(items[0].withDefault, 37)
+        self.assertEquals(items[0].withoutDefault, 93)
+        self.assertEquals(items[1].withDefault, 1)
+        self.assertEquals(items[1].withoutDefault, 2)
+
+    def testBatchInsertReference(self):
+        """
+        Test that reference args are handled okay by batchInsert.
+        """
+        itemA = AttributefulItem(store=self.store)
+        itemB = AttributefulItem(store=self.store)
+        dataRows = [(1, u"hello", extime.Time(),
+                     itemA, True, False, self.store),
+                    (2, u"hoorj", extime.Time(),
+                     itemB, False, True, self.store)]
+
+        self.store.batchInsert(TestItem,
+                               [TestItem.foo, TestItem.bar,
+                                TestItem.baz, TestItem.other,
+                                TestItem.booleanT, TestItem.booleanF,
+                                TestItem.myStore],
+                               dataRows)
+        items = list(self.store.query(TestItem))
+
+        self.assertEquals(items[0].other, itemA)
+        self.assertEquals(items[1].other, itemB)
+        self.assertEquals(items[0].store, self.store)
+        self.assertEquals(items[1].store, self.store)
+
+    def testMemoryBatchInsert(self):
+        """
+        Test that batchInsert works on an in-memory store.
+        """
+        self.store = store.Store()
+        self.testBatchInsert()
+
+    def testBatchInsertSelectedAttributes(self):
+        """
+        Test that batchInsert does the right thing when only a few
+        attributes are being set.
+        """
+        dataRows = [(u"hello", 50, False, self.store),
+                    (u"hoorj", None, True, self.store)]
+
+        self.store.batchInsert(TestItem,
+                               [TestItem.bar,
+                                TestItem.foo,
+                                TestItem.booleanF,
+                                TestItem.myStore],
+                               dataRows)
+        items = list(self.store.query(TestItem))
+
+        self.assertEquals(items[0].other, None)
+        self.assertEquals(items[1].other, None)
+        self.assertEquals(items[0].foo, 50)
+        self.assertEquals(items[1].foo, None)
+        self.assertEquals(items[0].bar, u"hello")
+        self.assertEquals(items[1].bar, u"hoorj")
+        self.assertEquals(items[0].store, self.store)
+        self.assertEquals(items[1].store, self.store)
+
+    def testBatchDelete(self):
+        """
+        Ensure that unqualified batchDelete removes all the items of a
+        certain class.
+        """
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+
+        self.store.query(AttributefulItem).deleteFromStore()
+        self.assertEquals(list(self.store.query(AttributefulItem)), [])
+
+    def testBatchDeleteCondition(self):
+        """
+        Ensure that conditions for batchDelete are honored properly.
+        """
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+
+        self.store.query(AttributefulItem,
+                              AttributefulItem.withoutDefault > 4
+                         ).deleteFromStore()
+        self.assertEquals(self.store.query(AttributefulItem).count(), 5)
+
+    def testSlowBatchDelete(self):
+        """
+        Ensure that a 'deleted' method on an Item will be called if it exists.
+        """
+        for i in xrange(10):
+            it = DeleteTrackingItem(store=self.store, value=i)
+        self.store.query(DeleteTrackingItem).deleteFromStore()
+        self.assertEqual(DeleteTrackingItem.deletedTimes, 10)
 
 # Item types we will use to change the underlying database schema (by creating
 # them).

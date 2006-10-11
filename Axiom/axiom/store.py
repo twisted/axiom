@@ -23,6 +23,7 @@ from epsilon.pending import PendingEvent
 from epsilon.cooperator import SchedulingService
 
 from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
+from axiom import item
 
 # Doing this in a slightly awkward way so Pyflakes won't complain; it really
 # doesn't like conditional imports.
@@ -323,13 +324,27 @@ class ItemQuery(BaseQuery):
         """
         Delete all the Items which are found by this query.
         """
-        # XXX Improve this by using DELETE FROM instead of SELECT+DELETE loop;
-        # also, make sure to do some magical introspection to take the slow
-        # path if the user has overridden the 'deleted' notification on Item,
-        # but don't bother to call it if it's Item's (no-op) implementation.
-        for item in self:
-            item.deleteFromStore()
+        #We can do this the fast way or the slow way.
 
+        #If there's a 'deleted' callback on the Item type, we have to
+        #do it the slow way.
+        if self.tableClass.deleted.im_func is not item.Item.deleted.im_func:
+            for it in self:
+                it.deleteFromStore()
+        else:
+
+            # Find other item types whose instances need to be deleted
+            # when items of the type in this query are deleted, and
+            # remove them from the store.
+            def itemsToDelete(attr):
+                return attr.oneOf(self.getColumn("storeID"))
+
+            for it in item.dependentItems(self.store,
+                                          self.tableClass, itemsToDelete):
+                it.deleteFromStore()
+
+            # actually run the DELETE for the items in this query.
+            self._runQuery('DELETE', "")
 
 _noDefault = object()
 
@@ -986,6 +1001,56 @@ class Store(Empowered):
     def count(self, *a, **k):
         return self.query(*a, **k).count()
 
+    def batchInsert(self, itemType, itemAttributes, dataRows):
+        """
+        Create multiple items in the store without loading
+        corresponding Python objects into memory.
+
+        the items' C{stored} callback will not be called.
+
+        Example::
+
+            myData = [(37, u"Fred",  u"Wichita"),
+                      (28, u"Jim",   u"Fresno"),
+                      (43, u"Betty", u"Dubuque")]
+            myStore.batchInsert(FooItem,
+                                [FooItem.age, FooItem.name, FooItem.city],
+                                myData)
+
+        @param itemType: an Item subclass to create instances of.
+
+        @param itemAttributes: an iterable of attributes on the Item subclass.
+
+        @param dataRows: an iterable of iterables, each the same
+        length as C{itemAttributes} and containing data corresponding
+        to each attribute in it.
+
+        @return: None.
+        """
+        class FakeItem:
+            pass
+        _NEEDS_DEFAULT = object() # token for lookup failure
+        fakeOSelf = FakeItem()
+        fakeOSelf.store = self
+        sql = itemType._baseInsertSQL(self)
+        indices = {}
+        schema = [attr for (name, attr) in itemType.getSchema()]
+        for i, attr in enumerate(itemAttributes):
+            indices[attr] = i
+        for row in dataRows:
+            oid = self.store.executeSchemaSQL(
+                _schema.CREATE_OBJECT, [self.store.getTypeID(itemType)])
+            insertArgs = [oid]
+            for attr in schema:
+                i = indices.get(attr, _NEEDS_DEFAULT)
+                if i is _NEEDS_DEFAULT:
+                    pyval = attr.default
+                else:
+                    pyval = row[i]
+                dbval = attr._convertPyval(fakeOSelf, pyval)
+                insertArgs.append(dbval)
+            self.executeSQL(sql, insertArgs)
+
     def _loadedItem(self, itemClass, storeID, attrs):
         if self.objectCache.has(storeID):
             result = self.objectCache.get(storeID)
@@ -1177,7 +1242,6 @@ class Store(Empowered):
 
         @return: a string
         """
-        from axiom import item
         if not (isinstance(tableClass, type) and issubclass(tableClass, item.Item)):
             raise errors.ItemClassesOnly("Only subclasses of Item have table names.")
 
