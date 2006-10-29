@@ -339,6 +339,11 @@ class ItemQuery(BaseQuery):
             def itemsToDelete(attr):
                 return attr.oneOf(self.getColumn("storeID"))
 
+            if not item.allowDeletion(self.store, self.tableClass, itemsToDelete):
+                raise errors.DeletionDisallowed(
+                    'Cannot delete item; '
+                    'has referents with whenDeleted == reference.DISALLOW')
+
             for it in item.dependentItems(self.store,
                                           self.tableClass, itemsToDelete):
                 it.deleteFromStore()

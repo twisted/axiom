@@ -132,6 +132,11 @@ class DependencyError(Exception):
     Raised when an item can't be installed or uninstalled.
     """
 
+class DeletionDisallowed(ValueError):
+    """
+    Raised when an attempt is made to delete an item that is referred to by
+    reference attributes with whenDeleted == DISALLOW.
+    """
 
 class DataIntegrityError(RuntimeError):
     """
