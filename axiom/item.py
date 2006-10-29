@@ -13,13 +13,13 @@ from twisted.python.util import mergeFunctionMetadata
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema, iaxiom
-from axiom.errors import ChangeRejected
+from axiom.errors import ChangeRejected, DeletionDisallowed
 from axiom.iaxiom import IColumn, IPowerupIndirector
 
 from axiom.attributes import (
     SQLAttribute, _ComparisonOperatorMuxer, _MatchingOperationMuxer,
     _OrderingMixin, _ContainableMixin, Comparable, compare, inmemory,
-    reference, text, integer, AND, _cascadingDeletes)
+    reference, text, integer, AND, _cascadingDeletes, _disallows)
 
 _typeNameToMostRecentClass = {}
 
@@ -319,6 +319,30 @@ def dependentItems(store, tableClass, comparisonFactory):
         for cascadedItem in store.query(cascadingAttr.type,
                                         comparisonFactory(cascadingAttr)):
             yield cascadedItem
+
+
+
+def allowDeletion(store, tableClass, comparisonFactory):
+    """
+    Returns a C{bool} indicating whether deletion of an item or items of a
+    particular item type should be allowed to proceed.
+
+    @param tableClass: An L{Item} subclass.
+
+    @param comparison: A one-argument callable taking an attribute and
+    returning an L{iaxiom.IComparison} describing the items to
+    collect.
+
+    @return: A C{bool} indicating whether deletion should be allowed.
+    """
+    for cascadingAttr in (_disallows.get(tableClass, []) +
+                          _disallows.get(None, [])):
+        for cascadedItem in store.query(cascadingAttr.type,
+                                        comparisonFactory(cascadingAttr),
+                                        limit=1):
+            return False
+
+    return True
 
 
 
@@ -711,6 +735,12 @@ class Item(Empowered, slotmachine._Strict):
     def deleteFromStore(self, deleteObject=True):
         # go grab dependent stuff
         if deleteObject:
+            if not allowDeletion(self.store, self.__class__,
+                                 lambda attr: attr == self):
+                raise DeletionDisallowed(
+                    'Cannot delete item; '
+                    'has referents with whenDeleted == reference.DISALLOW')
+
             for dependent in dependentItems(self.store, self.__class__,
                                             lambda attr: attr == self):
                 dependent.deleteFromStore()

@@ -1012,6 +1012,7 @@ class timestamp(integer):
         return Time.fromPOSIXTimestamp(dbval / MICRO)
 
 _cascadingDeletes = {}
+_disallows = {}
 
 class reference(integer):
     NULLIFY = object()
@@ -1032,6 +1033,8 @@ class reference(integer):
             # Note; this list is technically in a slightly inconsistent state
             # as things are being built.
             _cascadingDeletes.setdefault(reftype, []).append(self)
+        if whenDeleted is reference.DISALLOW:
+            _disallows.setdefault(reftype, []).append(self)
 
     def reprFor(self, oself):
         obj = getattr(oself, self.underlying, None)

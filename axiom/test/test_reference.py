@@ -5,7 +5,7 @@ from twisted.trial.unittest import TestCase
 from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import integer, reference
-from axiom.errors import BrokenReference
+from axiom.errors import BrokenReference, DeletionDisallowed
 
 from axiom.test.test_upgrading import axiomInvalidate
 
@@ -30,6 +30,9 @@ class BreakingReferent(Item):
 
 class DependentReferent(Item):
     ref = reference(whenDeleted=reference.CASCADE, reftype=Referee)
+
+class DisallowReferent(Item):
+    ref = reference(whenDeleted=reference.DISALLOW, reftype=Referee)
 
 class BadReferenceTestCase(TestCase):
     ntimes = 10
@@ -115,6 +118,18 @@ class BadReferenceTestCase(TestCase):
         referent = store.findUnique(SimpleReferent)
         referee = store.findUnique(Referee)
         self.assertEqual(referent.ref, referee)
+
+    def testBrokenReferenceDisallow(self):
+        """
+        Test that deleting an item referred to by a whenDeleted == DISALLOW
+        reference raises an exception.
+        """
+        store = Store()
+        referee = Referee(store=store, topSecret=0)
+        referent = DisallowReferent(store=store, ref=referee)
+
+        self.assertRaises(DeletionDisallowed, referee.deleteFromStore)
+        self.assertRaises(DeletionDisallowed, store.query(Referee).deleteFromStore)
 
     def testReferenceQuery(self):
         store = Store()
