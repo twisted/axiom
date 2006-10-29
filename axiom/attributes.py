@@ -16,7 +16,7 @@ from epsilon.extime import Time
 
 from axiom.slotmachine import Attribute as inmemory
 
-from axiom.errors import NoCrossStoreReferences, ChangeRejected
+from axiom.errors import NoCrossStoreReferences, ChangeRejected, BrokenReference
 
 from axiom.iaxiom import IComparison, IOrdering, IColumn, IQuery
 
@@ -1087,7 +1087,11 @@ class reference(integer):
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
-        return oself.store.getItemByID(dbval, autoUpgrade=not oself.__legacy__)
+
+        referee = oself.store.getItemByID(dbval, default=None, autoUpgrade=not oself.__legacy__)
+        if referee is None and self.whenDeleted is not reference.NULLIFY:
+            raise BrokenReference('Reference to storeID %r is broken' % (dbval,))
+        return referee
 
 class ieee754_double(SQLAttribute):
     """

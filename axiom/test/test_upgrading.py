@@ -1,7 +1,7 @@
 # -*- test-case-name: axiom.test.test_upgrading -*-
 from twisted.trial import unittest
 
-from axiom import store, upgrade, item, errors
+from axiom import store, upgrade, item, errors, attributes
 
 from twisted.application.service import IService
 from twisted.internet.defer import maybeDeferred
@@ -23,6 +23,15 @@ def axiomInvalidate(itemClass):
 
     @param itemClass: an Item subclass that you no longer wish to use.
     """
+    for cascades in attributes._cascadingDeletes.itervalues():
+        _deleteMe = []
+        for attr in cascades:
+            if attr.type is itemClass:
+                _deleteMe.append(attr)
+
+        for attr in _deleteMe:
+            cascades.remove(attr)
+
     store._typeNameToMostRecentClass.pop(itemClass.typeName, None)
 
     for (tnam, schever) in item._legacyTypes.keys():

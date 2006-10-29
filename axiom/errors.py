@@ -132,3 +132,14 @@ class DependencyError(Exception):
     Raised when an item can't be installed or uninstalled.
     """
 
+
+class DataIntegrityError(RuntimeError):
+    """
+    Data integrity seems to have been lost.
+    """
+
+class BrokenReference(DataIntegrityError):
+    """
+    A reference to a nonexistent item was detected when this should be
+    impossible.
+    """
