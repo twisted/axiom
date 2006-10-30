@@ -168,17 +168,12 @@ class IOrdering(Interface):
     """
     An object suitable for passing to the 'sort' argument of a query method.
     """
-    def getInvolvedTables():
+    def orderColumns():
         """
-        Return an iterable of L{Item} subclasses which are required by this
-        comparison to be used.
+        Return a list of two-tuples of IColumn providers and either C{'ASC'} or
+        C{'DESC'} defining this ordering.
         """
 
-
-    def orderSQL(store):
-        """
-        Return an SQL string with ?-style bind parameter syntax thingies.
-        """
 
 
 class IComparison(Interface):
@@ -189,8 +184,8 @@ class IComparison(Interface):
     """
     def getInvolvedTables():
         """
-        Return an iterable of L{Item} subclasses which are required by this
-        comparison to be used.
+        Return a sequence of L{Item} subclasses which are referenced by this
+        comparison.  A class may appear at most once.
         """
 
 

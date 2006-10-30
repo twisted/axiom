@@ -166,6 +166,7 @@ class BaseQuery:
         self._computeFromClause()
 
 
+
     def _computeFromClause(self):
         """
         Generate the SQL string which follows the "FROM" string and before the
@@ -176,26 +177,36 @@ class BaseQuery:
             tables = self.comparison.getInvolvedTables()
             self.args = self.comparison.getArgs(self.store)
         else:
-            tables = set()
+            tables = [self.tableClass]
             self.args = []
-        tables.add(self.tableClass)
-        tables.update(self.sort.getInvolvedTables())
+
+        if self.tableClass not in tables:
+            raise ValueError(
+                "Comparison omits required reference to result type")
 
         tableAliases = []
-        fromClauseParts = []
-        for table in sorted(tables):
+        self.fromClauseParts = []
+        for table in tables:
             # The indirect calls to store.getTableName() will create the tables
-            # if needed. (XXX That's bad, actually.  They should get created
+            # if needed. (XXX That's bad, actually.   They should get created
             # some other way if necessary.  -exarkun)
             tableName = table.getTableName(self.store)
             tableAlias = table.getTableAlias(self.store, tuple(tableAliases))
             if tableAlias is None:
-                fromClauseParts.append(tableName)
+                self.fromClauseParts.append(tableName)
             else:
                 tableAliases.append(tableAlias)
-                fromClauseParts.append('%s AS %s' % (tableName, tableAlias))
-        self.fromClause = ', '.join(fromClauseParts)
-        self.sortClause = self.sort.orderSQL(self.store)
+                self.fromClauseParts.append('%s AS %s' % (tableName,
+                                                          tableAlias))
+
+        self.sortClauseParts = []
+        for attr, direction in self.sort.orderColumns():
+            assert direction in ('ASC', 'DESC')
+            if attr.type not in tables:
+                raise ValueError(
+                    "Ordering references type excluded from comparison")
+            self.sortClauseParts.append(
+                '%s %s' % (attr.getColumnName(self.store), direction))
 
 
     def _sqlAndArgs(self, verb, subject):
@@ -227,12 +238,16 @@ class BaseQuery:
         else:
             assert self.offset is None, 'Offset specified without limit'
 
-        sqlstr = ' '.join(
-            filter(
-                None,
-                [verb, subject, 'FROM', self.fromClause,
-                 where, self.sortClause,
-                 ' '.join(limitClause)]))
+        sqlParts = [verb, subject]
+        if self.fromClauseParts:
+            sqlParts.extend(['FROM', ', '.join(self.fromClauseParts)])
+        if self.comparison is not None:
+            sqlParts.extend(['WHERE', self.comparison.getQuery(self.store)])
+        if self.sortClauseParts:
+            sqlParts.extend(['ORDER BY', ', '.join(self.sortClauseParts)])
+        if limitClause:
+            sqlParts.append(' '.join(limitClause))
+        sqlstr = ' '.join(sqlParts)
         return (sqlstr, self.args)
 
 

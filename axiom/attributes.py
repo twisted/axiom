@@ -197,23 +197,8 @@ class SimpleOrdering:
         self.direction = direction
 
 
-    def getInvolvedTables(self):
-        return set([self.attribute.type])
-
-
-    def columnAndDirection(self, store):
-        """
-        'Internal' API.  Called by CompoundOrdering.
-        """
-        return '%s %s' % (self.attribute.getColumnName(store),
-                          self.direction)
-
-
-    def orderSQL(self, store):
-        """
-        'External' API.  Called by Query objects in store.py.
-        """
-        return 'ORDER BY ' + self.columnAndDirection(store)
+    def orderColumns(self):
+        return [(self.attribute, self.direction)]
 
 
     def __add__(self, other):
@@ -243,6 +228,7 @@ class CompoundOrdering:
     def __init__(self, seq):
         self.simpleOrderings = list(seq)
 
+
     def __add__(self, other):
         """
         Just thinking about what might be useful from the perspective of
@@ -257,6 +243,7 @@ class CompoundOrdering:
             return CompoundOrdering(self.simpleOrderings + list(other))
         else:
             return NotImplemented
+
 
     def __radd__(self, other):
         """
@@ -274,15 +261,11 @@ class CompoundOrdering:
             return NotImplemented
 
 
-    def getInvolvedTables(self):
-        s = set()
-        for ordering in self.simpleOrderings:
-            s.update(ordering.getInvolvedTables())
-        return s
-
-
-    def orderSQL(self, store):
-        return 'ORDER BY ' + (', '.join([o.columnAndDirection(store) for o in self.simpleOrderings]))
+    def orderColumns(self):
+        x = []
+        for o in self.simpleOrderings:
+            x.extend(o.orderColumns())
+        return x
 
 
 
@@ -298,12 +281,8 @@ class UnspecifiedOrdering:
     __radd__ = __add__
 
 
-    def getInvolvedTables(self):
-        return set()
-
-
-    def orderSQL(self, store):
-        return ''
+    def orderColumns(self):
+        return []
 
 
 registerAdapter(CompoundOrdering, list, IOrdering)
@@ -516,7 +495,11 @@ class TwoAttributeComparison:
         return sql
 
     def getInvolvedTables(self):
-        return set([self.leftAttribute.type, self.rightAttribute.type])
+        tables = [self.leftAttribute.type]
+        if self.leftAttribute.type is not self.rightAttribute.type:
+            tables.append(self.rightAttribute.type)
+        return tables
+
 
     def getArgs(self, store):
         return []
@@ -537,7 +520,7 @@ class AttributeValueComparison:
         return [self.attribute.infilter(self.value, None, store)]
 
     def getInvolvedTables(self):
-        return set([self.attribute.type])
+        return [self.attribute.type]
 
     def __repr__(self):
         return ' '.join((self.attribute.fullyQualifiedName(),
@@ -562,7 +545,7 @@ class NullComparison:
         return []
 
     def getInvolvedTables(self):
-        return set([self.attribute.type])
+        return [self.attribute.type]
 
 class LikeFragment:
     def getLikeArgs(self):
@@ -610,10 +593,11 @@ class LikeComparison:
         self.likeParts = likeParts
 
     def getInvolvedTables(self):
-        tbls = set()
+        tables = [self.attribute.type]
         for lf in self.likeParts:
-            tbls.update(lf.getLikeTables())
-        return tbls
+            tables.extend([
+                    t for t in lf.getLikeTables() if t not in tables])
+        return tables
 
     def getQuery(self, store):
         if self.negate:
@@ -666,12 +650,11 @@ class AggregateComparison:
         return args
 
     def getInvolvedTables(self):
-        tbls = set()
-        # We only want to join these tables ONCE per expression
-        # OR(A.foo=='bar', A.foo=='shoe') should not do "FROM foo, foo"
+        tables = []
         for cond in self.conditions:
-            tbls.update(cond.getInvolvedTables())
-        return tbls
+            tables.extend([
+                    t for t in cond.getInvolvedTables() if t not in tables])
+        return tables
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__,
@@ -768,7 +751,7 @@ class SequenceComparison:
 
 
     def getInvolvedTables(self):
-        return set([self.attribute.type])
+        return [self.attribute.type]
 
 
 
@@ -783,6 +766,37 @@ class OR(AggregateComparison):
     Combine 2 L{IComparison}s such that this is true when either is true.
     """
     operator = 'OR'
+
+
+class TableOrderComparisonWrapper(object):
+    """
+    Wrap any other L{IComparison} and override its L{getInvolvedTables} method
+    to specify the same tables but in an explicitly specified order.
+    """
+    implements(IComparison)
+
+    tables = None
+    comparison = None
+
+    def __init__(self, tables, comparison):
+        assert set(tables) == set(comparison.getInvolvedTables())
+
+        self.tables = tables
+        self.comparison = comparison
+
+
+    def getInvolvedTables(self):
+        return self.tables
+
+
+    def getQuery(self, store):
+        return self.comparison.getQuery(store)
+
+
+    def getArgs(self, store):
+        return self.comparison.getArgs(store)
+
+
 
 class boolean(SQLAttribute):
     sqltype = 'BOOLEAN'
