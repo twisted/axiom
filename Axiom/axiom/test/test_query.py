@@ -1,14 +1,15 @@
 
 import operator, random
 
-from twisted.trial.unittest import TestCase
+from twisted.trial.unittest import TestCase, SkipTest
 
 from axiom.iaxiom import IComparison, IColumn
 from axiom.store import Store, ItemQuery
 from axiom.item import Item, Placeholder
 
 from axiom import errors
-from axiom.attributes import reference, text, bytes, integer, AND, OR
+from axiom.attributes import (
+    reference, text, bytes, integer, AND, OR, TableOrderComparisonWrapper)
 
 class A(Item):
     schemaVersion = 1
@@ -423,12 +424,230 @@ class QueryingTestCase(TestCase):
         self.assertEquals([str(a) for a in query.getArgs(self.store)], args)
 
 
+
+class TableOrder(TestCase):
+    """
+    Tests for the order of tables when joins are being performed.
+    """
+    def test_baseQuery(self):
+        """
+        Test that the simplest query possible, one with only a FROM clause,
+        specifies only the table for the type being queried.
+        """
+        store = Store()
+        query = store.query(A)
+        self.assertEqual(query.fromClauseParts, [store.getTableName(A)])
+
+
+    def test_singleValueComparison(self):
+        """
+        Test that a query with a simple comparison against a value specifies
+        only the table for the type being queried.
+        """
+        store = Store()
+        query = store.query(A, A.type == u'value')
+        self.assertEqual(query.fromClauseParts, [store.getTableName(A)])
+
+
+    def test_twoColumnComparison(self):
+        """
+        Test that a query which compares one column against another from the
+        type being queried specifies only the table for the type being queried
+        for the FROM clause.
+        """
+        store = Store()
+        query = store.query(A, A.type == A.reftoc)
+        self.assertEqual(query.fromClauseParts, [store.getTableName(A)])
+
+
+    def test_baseSort(self):
+        """
+        Test that a query which includes an ORDER BY clause including a column
+        from the type being queried properly includes only the table for the
+        type being queried in the FROM clause.
+        """
+        store = Store()
+        query = store.query(A, sort=A.type.ascending)
+        self.assertEqual(query.fromClauseParts, [store.getTableName(A)])
+
+
+    def test_comparisonWithSort(self):
+        """
+        Test that a query with both a WHERE clause and an ORDER BY clause from
+        the table being queried properly has only the table for the type being
+        queried included in the FROM clause.
+        """
+        store = Store()
+        query = store.query(A, A.type == u'value', sort=A.type.ascending)
+        self.assertEqual(query.fromClauseParts, [store.getTableName(A)])
+
+
+    def test_invalidComparison(self):
+        """
+        Test that a query with a WHERE clause which does not reference the type
+        being queried for is rejected.
+        """
+        store = Store()
+        self.assertRaises(
+            ValueError,
+            store.query, A, B.name == u'value')
+
+
+    def test_invalidSort(self):
+        """
+        Test that sorting by a column from a table other than the one being
+        queried without joining on that table is rejected.
+        """
+        store = Store()
+        self.assertRaises(
+            ValueError,
+            store.query, A, sort=B.name.ascending)
+
+
+    def test_singleJoin(self):
+        """
+        Test that joining on another table by performing a comparison between
+        two types properly includes both table names, in the right order (the
+        order of tables in the comparison, left to right), in the FROM CLAUSE.
+        """
+        store = Store()
+        query = store.query(A, A.type == B.name)
+        self.assertEqual(
+            query.fromClauseParts,
+            [store.getTableName(A), store.getTableName(B)])
+
+
+    def test_singleJoinReversed(self):
+        """
+        Test that joining on another table by performing a comparison between
+        two types properly includes both table names, in the right order (the
+        order of tables in the comparison, left to right), in the FROM CLAUSE.
+        """
+        store = Store()
+        query = store.query(A, B.name == A.type)
+        self.assertEqual(
+            query.fromClauseParts,
+            [store.getTableName(B), store.getTableName(A)])
+
+
+    def test_explicitTableOrder(self):
+        """
+        Test that the order of tables in a join can be explicitly specified by
+        using L{TableOrderComparisonWrapper}.
+        """
+        store = Store()
+        query = store.query(
+            A, TableOrderComparisonWrapper(
+                [E, D, C, B, A],
+                AND(A.type == B.name,
+                    B.name == C.name,
+                    C.name == D.four,
+                    D.four == E.name)))
+        self.assertEqual(
+            query.fromClauseParts,
+            [store.getTableName(E), store.getTableName(D),
+             store.getTableName(C), store.getTableName(B),
+             store.getTableName(A)])
+
+
+class FirstType(Item):
+    value = text()
+
+
+class SecondType(Item):
+    value = text()
+    ref = reference(reftype=FirstType)
+
+
+class QueryComplexity(TestCase):
+    comparison = AND(FirstType.value == u"foo",
+                     SecondType.ref == FirstType.storeID,
+                     SecondType.value == u"bar")
+
+    def setUp(self):
+        self.store = Store()
+        self.query = self.store.query(FirstType, self.comparison)
+        class counter:
+            count = 0
+            def increment(self):
+                self.count += 1
+                return 0
+        self.counter = counter()
+
+        store = self.store
+        connection = store.connection
+        _connection = connection._connection
+        try:
+            self.setProgressHandler = _connection.set_progress_handler
+        except AttributeError:
+            raise SkipTest(
+                "Axiom missing setProgressHandler, cannot run bytecode "
+                "execution-counting tests.")
+
+        # Make one of each to get any initialization taken care of so it
+        # doesn't pollute our numbers below.
+        FirstType(store=self.store)
+        SecondType(store=self.store)
+
+        self.setProgressHandler(self.counter.increment)
+
+
+    def _countQuery(self):
+        for i in range(10):
+            self.counter.count = 0
+            list(self.query)
+            yield self.counter.count
+
+    def test_firstTableOuterLoop(self):
+        """
+        Test that in a two table query, the table which appears first in the
+        result of the getInvolvedTables method of the comparison used is the
+        one which the outer join loop iterates over.
+
+        Test this by inserting rows into the first table and checking that the
+        number of bytecodes executed increased.
+        """
+        counts = []
+        for c in self._countQuery():
+            counts.append(c)
+            FirstType(store=self.store)
+
+        # Make sure they're not all the same
+        self.assertEqual(len(set(counts)), len(counts))
+
+        # Make sure they're increasing
+        self.assertEqual(counts, sorted(counts))
+
+
+    def test_secondTableInnerLoop(self):
+        """
+        Like L{test_firstTableOuterLoop} but for the second table being
+        iterated over by the inner loop.
+
+        This creates more rows in the second table while still performing a
+        query for which no rows in the first table satisfy the WHERE
+        condition.  This should mean that rows from the second table are
+        never examined.
+        """
+        count = None
+        for c in self._countQuery():
+            if count is None:
+                count = c
+            self.assertEqual(count, c)
+            SecondType(store=self.store)
+
+
 class AndOrQueries(QueryingTestCase):
     def testNoConditions(self):
         self.assertRaises(ValueError, AND)
         self.assertRaises(ValueError, OR)
 
+
     def testOneCondition(self):
+        """
+        Test that an L{AND} or an L{OR} with a single argument collapses to
+        just that argument.
+        """
         self.assertQuery(
             AND(A.type == u'Narf!'),
             '((%s = ?))' % (A.type.getColumnName(self.store),),
@@ -439,6 +658,7 @@ class AndOrQueries(QueryingTestCase):
             ['Narf!'])
         self.assertEquals(self.query(D, AND(D.one == 'd1.one')), [self.d1])
         self.assertEquals(self.query(D, OR(D.one == 'd1.one')), [self.d1])
+
 
     def testMultipleAndConditions(self):
         condition = AND(A.type == u'Narf!',
@@ -550,8 +770,8 @@ class SetMembershipQuery(QueryingTestCase):
             '%s IN (SELECT %s FROM %s, %s WHERE ((%s = ?) AND (%s = %s)))' % (
                 C.name.getColumnName(self.store),
                 D.one.getColumnName(self.store),
-                C.getTableName(self.store),
                 D.getTableName(self.store),
+                C.getTableName(self.store),
                 D.id.getColumnName(self.store),
                 D.four.getColumnName(self.store),
                 C.name.getColumnName(self.store)))
@@ -586,6 +806,27 @@ class WildcardQueries(QueryingTestCase):
     def testNoConditions(self):
         self.assertRaises(TypeError, D.one.like)
         self.assertRaises(TypeError, D.one.notLike)
+
+
+    def test_likeValueComparisonInvolvedTables(self):
+        """
+        Test that only the table to which a column belongs is included in the
+        involved tables set when that column is compared to a literal value
+        using like.
+        """
+        comparison = D.one.like('foo')
+        self.assertEqual(comparison.getInvolvedTables(), [D])
+
+
+    def test_likeColumnComparisonInvolvedTables(self):
+        """
+        Test that both the table to which a column belongs and the table to
+        which a target column belongs are included in the involved tables set
+        when those columns are compared using like.
+        """
+        comparison = D.one.like(A.type)
+        self.assertEqual(comparison.getInvolvedTables(), [D, A])
+
 
     def testOneString(self):
         self.assertQuery(
@@ -1061,7 +1302,7 @@ class PlaceholderTestCase(TestCase):
         self.failUnless(p2 != p1)
 
 
-    def test_placeholderSorting(self):
+    def test_placeholderObjectSorting(self):
         """
         Placeholders should sort based on the order in which they were
         instantiated.
@@ -1124,7 +1365,7 @@ class PlaceholderTestCase(TestCase):
         self.assertEquals(args, [])
 
 
-    def test_placeholderSorting(self):
+    def test_sortByPlaceholderAttribute(self):
         """
         Test that a placeholder attribute can be used as a sort key.
         """
@@ -1133,14 +1374,14 @@ class PlaceholderTestCase(TestCase):
 
         query = ItemQuery(
             s,
-            PlaceholderTestItem,
+            p,
             sort=p.attr.ascending)
         sql, args = query._sqlAndArgs('SELECT', '*')
 
         expectedSQL = ('SELECT * '
-                       'FROM %s, %s AS placeholder_0 '
+                       'FROM %s AS placeholder_0 '
                        'ORDER BY placeholder_0.[attr] ASC')
-        expectedSQL %= (PlaceholderTestItem.getTableName(s),) * 2
+        expectedSQL %= (p.getTableName(s),)
 
         self.assertEquals(sql, expectedSQL)
         self.assertEquals(args, [])
