@@ -158,8 +158,20 @@ class IColumn(Interface):
     def getColumnName(store):
         """
         @rtype: C{str}
-        @return: The fully qualified name of this column, eg,
-        C{"main_database.some_table.[this_column]"}.
+
+        @return: The fully qualified name of this object as a column within the
+        database, eg, C{"main_database.some_table.[this_column]"}.
+        """
+
+    def fullyQualifiedName():
+        """
+        @rtype: C{str}
+
+        @return: The fully qualfied name of this object as an attribute in
+        Python code, eg, C{myproject.mymodule.MyClass.myAttribute}.  If this
+        attribute is represented by an actual Python code object, it will be a
+        dot-separated sequence of Python identifiers; otherwise, it will
+        contain invalid identifier characters other than '.'.
         """
 
 

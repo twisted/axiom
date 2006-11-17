@@ -1,5 +1,9 @@
 # -*- test-case-name: axiom.test -*-
 
+"""
+This module holds the Axiom Store class and related classes, such as queries.
+"""
+
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
@@ -131,6 +135,20 @@ def _typeIsTotallyUnknown(typename, version):
             and ((typename, version) not in _legacyTypes))
 
 class BaseQuery:
+    """
+    This is the abstract base implementation of query logic shared between item
+    and attribute queries.
+
+    Note: as this is an abstract class, it doesn't *actually* implement IQuery,
+    but all its subclasses must, so it is declared to.  Don't instantiate it
+    directly.
+    """
+    # XXX: need a better convention for this sort of
+    # abstract-but-provide-most-of-a-base-implementation thing. -glyph
+
+    # How about not putting the implements(iaxiom.IQuery) here, but on
+    # subclasses instead? -exarkun
+
     implements(iaxiom.IQuery)
 
     def __init__(self, store, tableClass,
@@ -165,6 +183,25 @@ class BaseQuery:
         self.sort = iaxiom.IOrdering(sort)
         self._computeFromClause()
 
+
+    def explain(self):
+        """
+        A debugging API, exposing SQLite's 'EXPLAIN' statement.
+
+        While this is not a private method, you also probably don't have any
+        use for it unless you understand this page very well:
+
+            http://www.sqlite.org/opcode.html
+
+        Once you do, it can be handy to call this interactively to get a sense
+        of the complexity of a query.
+
+        @return: a list, the first element of which is a L{str} (the SQL
+        statement which will be run), and the remainder of which is 3-tuples
+        resulting from the 'EXPLAIN' of that statement.
+        """
+        return ([self._sqlAndArgs('SELECT', self._queryTarget)[0]] +
+                self._runQuery('EXPLAIN SELECT', self._queryTarget))
 
 
     def _computeFromClause(self):
@@ -257,15 +294,14 @@ class BaseQuery:
         # but right now Store's interface to SQL is all through one cursor.
         # I'm not sure how to do this and preserve the chokepoint so that we
         # can do, e.g. transaction fallbacks.
-        t= time.time()
+        t = time.time()
         if not self.store.autocommit:
             self.store.checkpoint()
-        tnsv = (self.tableClass.typeName,
-                self.tableClass.schemaVersion)
         sqlstr, sqlargs = self._sqlAndArgs(verb, subject)
         sqlResults = self.store.querySQL(sqlstr, sqlargs)
         cs = self.locateCallSite()
-        log.msg(interface=iaxiom.IStatEvent, querySite=cs, queryTime=time.time()-t, querySQL=sqlstr)
+        log.msg(interface=iaxiom.IStatEvent,
+                querySite=cs, queryTime=time.time() - t, querySQL=sqlstr)
         return sqlResults
 
     def locateCallSite(self):
@@ -277,16 +313,88 @@ class BaseQuery:
             frame = sys._getframe(i)
         return (frame.f_code.co_filename, frame.f_lineno)
 
-    def __iter__(self):
+
+    def _selectStuff(self, verb='SELECT'):
         """
-        Iterate the results of a query object.
+        Return a generator which yields the massaged results of this query with
+        a particular SQL verb.
+
+        For an attribute query, massaged results are of the type of that
+        attribute.  For an item query, they are items of the type the query is
+        supposed to return.
+
+        @param verb: a str containing the SQL verb to execute.  This really
+        must be some variant of 'SELECT', the only two currently implemented
+        being 'SELECT' and 'SELECT DISTINCT'.
         """
-        sqlResults = self._runQuery('SELECT', self._queryTarget)
+        sqlResults = self._runQuery(verb, self._queryTarget)
         for row in sqlResults:
             yield self._massageData(row)
 
+
+    def _massageData(self, row):
+        """
+        Subclasses must override this method to 'massage' the data received
+        from the database, converting it from data direct from the database
+        into Python objects of the appropriate form.
+
+        @param row: a tuple of some kind, representing an element of data
+        returned from a call to sqlite.
+        """
+        raise NotImplementedError()
+
+
+    def distinct(self):
+        """
+        Call this method if you want to avoid repeated results from a query.
+
+        You can call this on either an attribute or item query.  For example,
+        on an attribute query::
+
+            X(store=s, value=1, name=u'foo')
+            X(store=s, value=1, name=u'bar')
+            X(store=s, value=2, name=u'baz')
+            X(store=s, value=3, name=u'qux')
+            list(s.query(X).getColumn('value'))
+                => [1, 1, 2, 3]
+            list(s.query(X).getColumn('value').distinct())
+                => [1, 2, 3]
+
+        You can also use distinct queries to eliminate duplicate results from
+        joining two Item types together in a query, like so:
+
+            x = X(store=s, value=1, name=u'hello')
+            Y(store=s, other=x, ident=u'a')
+            Y(store=s, other=x, ident=u'b')
+            Y(store=s, other=x, ident=u'b+')
+            list(s.query(X, AND(Y.other == X.storeID,
+                                Y.ident.startswith(u'b'))))
+                => [X(name=u'hello', value=1, storeID=1)@...,
+                    X(name=u'hello', value=1, storeID=1)@...]
+            list(s.query(X, AND(Y.other == X.storeID,
+                                Y.ident.startswith(u'b'))).distinct())
+                => [X(name=u'hello', value=1, storeID=1)@...]
+
+        @return: an L{iaxiom.IQuery} provider whose values are distinct.
+        """
+        return _DistinctQuery(self)
+
+
+    def __iter__(self):
+        """
+        Iterate the results of this query.
+        """
+        return self._selectStuff('SELECT')
+
+
     _selfiter = None
     def next(self):
+        """
+        This method is deprecated, a holdover from when queries were iterators,
+        rather than iterables.
+
+        @return: one element of massaged data.
+        """
         if self._selfiter is None:
             warnings.warn(
                 "Calling 'next' directly on a query is deprecated. "
@@ -296,13 +404,25 @@ class BaseQuery:
             self._selfiter = self.__iter__()
         return self._selfiter.next()
 
+
+
 class _FakeItemForFilter:
     __legacy__ = False
     def __init__(self, store):
         self.store = store
 
+
+
 class ItemQuery(BaseQuery):
+    """
+    This class is a query whose results will be Item instances.  This is the
+    type always returned from L{Store.query}.
+    """
+
     def __init__(self, *a, **k):
+        """
+        Create an ItemQuery.  This is typically done via L{Store.query}.
+        """
         BaseQuery.__init__(self, *a, **k)
         self._queryTarget = (
             self.tableClass.storeID.getColumnName(self.store) + ', ' + (
@@ -312,11 +432,39 @@ class ItemQuery(BaseQuery):
                      ])))
 
     def _massageData(self, row):
+        """
+        Convert a row into an Item instance by loading cached items or
+        creating new ones based on query results.
+
+        @param row: an n-tuple, where n is the number of columns specified by
+        my item type.
+
+        @return: an instance of the type specified by this query.
+        """
         result = self.store._loadedItem(self.tableClass, row[0], row[1:])
         assert result.store is not None, "result %r has funky store" % (result,)
         return result
 
+
     def getColumn(self, attributeName, raw=False):
+        """
+        Get an L{iaxiom.IQuery} whose results will be values of a single
+        attribute rather than an Item.
+
+        @param attributeName: a L{str}, the name of a Python attribute, that
+        describes a column on the Item subclass that this query was specified
+        for.
+
+        @return: an L{AttributeQuery} for the column described by the attribute
+        named L{attributeName} on the item class that this query's results will
+        be instances of.
+        """
+        # XXX: 'raw' is undocumented because I think it's completely unused,
+        # and it's definitely untested.  It should probably be removed when
+        # someone has the time. -glyph
+
+        # Quotient POP3 server uses it.  Not that it shouldn't be removed.
+        # ;) -exarkun
         attr = getattr(self.tableClass, attributeName)
         return AttributeQuery(self.store,
                               self.tableClass,
@@ -326,6 +474,8 @@ class ItemQuery(BaseQuery):
                               self.sort,
                               attr,
                               raw)
+
+
     def count(self):
         rslt = self._runQuery(
             'SELECT',
@@ -366,6 +516,55 @@ class ItemQuery(BaseQuery):
             # actually run the DELETE for the items in this query.
             self._runQuery('DELETE', "")
 
+
+
+class _DistinctQuery(object):
+    """
+    A query for results excluding duplicates.
+
+    Results from this query depend on the query it was initialized with.
+    """
+    implements(iaxiom.IQuery)
+
+    def __init__(self, query):
+        """
+        Create a distinct query, based on another query.
+
+        @param query: an instandce of a L{BaseQuery} subclass.  Note: an IQuery
+        provider is not sufficient, this class relies on implementation details
+        of L{BaseQuery}.
+        """
+        self.query = query
+
+
+    def __iter__(self):
+        """
+        Iterate the distinct results of the wrapped query.
+
+        @return: a generator which yields distinct values from its delegate
+        query, whether they are items or attributes.
+        """
+        return self.query._selectStuff('SELECT DISTINCT')
+
+
+    def count(self):
+        """
+        Count the number of distinct results of the wrapped query.
+
+        @return: an L{int} representing the number of distinct results.
+        """
+        if not self.query.store.autocommit:
+            self.query.store.checkpoint()
+        sql, args = self.query._sqlAndArgs(
+            'SELECT DISTINCT',
+            self.query.tableClass.storeID.getColumnName(self.query.store))
+        sql = 'SELECT COUNT(*) FROM (' + sql + ')'
+        result = self.query.store.querySQL(sql, args)
+        assert len(result) == 1, 'more than one result: %r' % (result,)
+        return result[0][0] or 0
+
+
+
 _noDefault = object()
 
 class AttributeQuery(BaseQuery):
@@ -385,39 +584,71 @@ class AttributeQuery(BaseQuery):
         self.raw = raw
         self._queryTarget = attribute.getColumnName(self.store)
 
-    # XXX: Each implementation of 'outfilter' needs to be changed to deal
-    # with self being 'None' in these cases.  most of the ones we're likely
-    # to use (e.g. integer) are likely to have this already.
+
     def _massageData(self, row):
+        """
+        Convert a raw database row to the type described by an attribute.  For
+        example, convert a database integer into an L{extime.Time} instance for
+        an L{attributes.timestamp} attribute.
+
+        @param row: a 1-tuple, containing the in-database value from my
+        attribute.
+
+        @return: a value of the type described by my attribute.
+        """
         if self.raw:
             return row[0]
         return self.attribute.outfilter(row[0], _FakeItemForFilter(self.store))
 
+
+    def count(self):
+        """
+        @return: the number of non-None values of this attribute specified by this query.
+        """
+        rslt = self._runQuery('SELECT', 'COUNT(%s)' % (self._queryTarget,)) or [(0,)]
+        assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
+        return rslt[0][0]
+
+
+
     def sum(self):
-        #XXX sqlite has a 'total()' function that always returns a
-        #float.  If it was used here instead of sum(), these three
-        #functions might be refactored together.
+        """
+        Return the sum of all the values returned by this query.  If no results
+        are specified, return None.
+
+        Note: for non-numeric column types the result of this method will be
+        nonsensical.
+
+        @return: a number or None.
+        """
         res = self._runQuery('SELECT', 'SUM(%s)' % (self._queryTarget,)) or [(0,)]
         assert len(res) == 1, "more than one result: %r" % (res,)
         dbval = res[0][0] or 0
         return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
 
-    def count(self):
-        rslt = self._runQuery('SELECT', 'COUNT(%s)' % (self._queryTarget,)) or [(0,)]
-        assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
-        return rslt[0][0]
 
     def average(self):
-        """Apply the SQL AVG() function to the results of this query."""
+        """
+        Return the average value (as defined by the AVG implementation in the
+        database) of the values specified by this query.
+
+        Note: for non-numeric column types the result of this method will be
+        nonsensical.
+
+        @return: a L{float} representing the 'average' value of this column.
+        """
         rslt = self._runQuery('SELECT', 'AVG(%s)' % (self._queryTarget,)) or [(0,)]
         assert len(rslt) == 1, 'more than one result: %r' % (rslt,)
         return rslt[0][0]
 
+
     def max(self, default=_noDefault):
         return self._functionOnTarget('MAX', default)
 
+
     def min(self, default=_noDefault):
         return self._functionOnTarget('MIN', default)
+
 
     def _functionOnTarget(self, which, default):
         rslt = self._runQuery('SELECT', '%s(%s)' %
@@ -431,13 +662,6 @@ class AttributeQuery(BaseQuery):
                 return default
         return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
 
-    def distinct(self):
-        """
-        Iterate through the distinct values for this column.
-        """
-        sqlResults = self._runQuery('SELECT DISTINCT', self._queryTarget)
-        for row in sqlResults:
-            yield self._massageData(row)
 
 
 class Store(Empowered):
@@ -606,6 +830,10 @@ class Store(Empowered):
             # Automatically upgrade when possible.
             self._upgradeComplete = PendingEvent()
             d = self._upgradeService.addIterator(self._upgradeEverything())
+            def logUpgradeFailure(aFailure):
+                log.err(aFailure, "upgrading %r failed" % (self,))
+                return aFailure
+            d.addErrback(logUpgradeFailure)
             def finishHim(resultOrFailure):
                 self._upgradeComplete.callback(resultOrFailure)
                 self._upgradeComplete = None

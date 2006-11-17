@@ -352,6 +352,42 @@ class BasicQuery(TestCase):
         s.transact(entesten)
         s.close()
 
+
+    def test_itemQueryDistinct(self):
+        """
+        Verify that a join which would produce duplicate rows will not produce
+        duplicate item results.
+        """
+        s = Store()
+        def entesten():
+            theC = C(store=s, name=u'it')
+            B(store=s, cref=theC)
+            B(store=s, cref=theC)
+            B(store=s, cref=theC)
+            self.assertEquals(list(s.query(C, B.cref == C.storeID).distinct()),
+                              [theC])
+        s.transact(entesten)
+        s.close()
+
+
+    def test_itemQueryDistinctCount(self):
+        """
+        Like L{test_itemQueryDistinct} but for the C{count} method of a
+        distinct item query.
+        """
+        s = Store()
+        def entesten():
+            for n, name in (2, u'it'), (3, u'indefinite nominative'):
+                theC = C(store=s, name=name)
+                for i in range(n):
+                    B(store=s, cref=theC)
+            self.assertEquals(
+                s.query(C, B.cref == C.storeID).distinct().count(),
+                2)
+        s.transact(entesten)
+        s.close()
+
+
     def testAttributeQueryMinMax(self):
         s = Store()
         def entesten():

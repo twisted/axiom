@@ -9,7 +9,7 @@ from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
 
 from axiom.store import Store
-from axiom.item import Item, normalize
+from axiom.item import Item, normalize, Placeholder
 
 from axiom.attributes import Comparable, SQLAttribute, integer, timestamp, textlist
 
@@ -261,6 +261,31 @@ class SQLAttributeTestCase(TestCase):
         self.assertEquals(
             SQLAttributeDummyClass.dummyAttribute.fullyQualifiedName(),
             'axiom.test.test_attributes.SQLAttributeDummyClass.dummyAttribute')
+
+
+    def test_fullyQualifiedStoreID(self):
+        """
+        Test that the L{IColumn} implementation on the storeID emits the
+        correct fullyQualifiedName as well.  This is necessary because storeID
+        is unfortunately implemented differently than other columns, due to its
+        presence on Item.
+        """
+        self.assertEquals(
+            SQLAttributeDummyClass.storeID.fullyQualifiedName(),
+            'axiom.test.test_attributes.SQLAttributeDummyClass.storeID')
+
+
+    def test_fullyQualifiedPlaceholder(self):
+        """
+        Verify that the L{IColumn.fullyQualifiedName} implementation on
+        placeholder attributes returns a usable string, but one which is
+        recognizable as an invalid Python identifier.
+        """
+        ph = Placeholder(SQLAttributeDummyClass)
+        self.assertEquals(
+            'axiom.test.test_attributes.SQLAttributeDummyClass'
+            '.dummyAttribute.<placeholder:%d>' % (ph._placeholderCount,),
+            ph.dummyAttribute.fullyQualifiedName())
 
 
     def test_typeAttribute(self):

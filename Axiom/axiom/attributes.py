@@ -505,6 +505,12 @@ class TwoAttributeComparison:
         return []
 
 
+    def __repr__(self):
+        return ' '.join((self.leftAttribute.fullyQualifiedName(),
+                         self.operationString,
+                         self.rightAttribute.fullyQualifiedName()))
+
+
 class AttributeValueComparison:
     implements(IComparison)
     def __init__(self, attribute, operationString, value):
