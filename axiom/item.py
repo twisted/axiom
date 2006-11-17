@@ -106,6 +106,14 @@ class _StoreIDComparer(Comparable):
     def __init__(self, type):
         self.type = type
 
+    def fullyQualifiedName(self):
+        # XXX: this is an example of silly redundancy, this really ought to be
+        # refactored to work like any other attribute (including being
+        # explicitly covered in the schema, which has other good qualities like
+        # allowing tables to be VACUUM'd without destroying oid stability and
+        # every storeID reference ever. --glyph
+        return qual(self.type)+'.storeID'
+
     # attributes required by ColumnComparer
     def infilter(self, pyval, oself, store):
         return pyval
@@ -394,7 +402,7 @@ class Item(Empowered, slotmachine._Strict):
         if self.__deletingObject:
             return False
         return True
-    # return (self.store is store and not self.__deletingObject)
+
 
     def _schemaPrepareInsert(self, store):
         """
@@ -405,6 +413,7 @@ class Item(Empowered, slotmachine._Strict):
         """
         for name, atr in self.getSchema():
             atr.prepareInsert(self, store)
+
 
     def store():
         def get(self):
@@ -442,9 +451,12 @@ class Item(Empowered, slotmachine._Strict):
 
     store = property(*store())
 
-# XXX: Think about how to do this _safely_ (e.g. not recursing infinitely
-# through circular references) before turning it on
     def __repr__(self):
+        """
+        Return a nice string representation of the Item which contains some
+        information about each of its attributes.
+        """
+
         L = [self.__name__]
         L.append('(')
         A = []
@@ -620,7 +632,8 @@ class Item(Empowered, slotmachine._Strict):
 
 
     def checkpoint(self):
-        """ Update the database to reflect in-memory changes made to this item; for
+        """
+        Update the database to reflect in-memory changes made to this item; for
         example, to make it show up in store.query() calls where it is now
         valid, but was not the last time it was persisted to the database.
 
@@ -850,6 +863,11 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
 
     def __repr__(self):
         return '<Placeholder %r>' % (self.column,)
+
+
+    def fullyQualifiedName(self):
+        return self.column.fullyQualifiedName() + '.<placeholder:%s>' % (
+            self.type._placeholderCount,)
 
 
     def compare(self, other, op):

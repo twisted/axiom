@@ -54,6 +54,10 @@ from axiom.test import oldapp
 
 axiomInvalidateModule(oldapp)
 
+from axiom.test import brokenapp
+
+axiomInvalidateModule(brokenapp)
+
 from axiom.test import toonewapp
 
 axiomInvalidateModule(toonewapp)
@@ -161,6 +165,26 @@ class SwordUpgradeTest(SchemaUpgradeTest):
                                     ).addCallback(afterUpgrade)
 
         return _logMessagesFrom(self.testTwoObjectUpgrade_UseService).addCallback(someLogging)
+
+
+    def test_basicErrorLogging(self):
+        """
+        Verify that if an exception is raised in an upgrader, the exception
+        will be logged.
+        """
+        self._testTwoObjectUpgrade()
+        choose(brokenapp)
+        s = self.openStore()
+        self.startStoreService()
+        def checkException(ign):
+            self.assertEquals(
+                len(self.flushLoggedErrors(brokenapp.UpgradersAreBrokenHere)),
+                1)
+        def failme(ign):
+            self.fail()
+        return s.whenFullyUpgraded().addCallbacks(
+            failme, checkException)
+
 
     def _testTwoObjectUpgrade(self):
         choose(oldapp)
