@@ -1,3 +1,4 @@
+# -*- test-case-name: axiomatic.test.test_axiomatic -*-
 from zope.interface import directlyProvides
 
 import os
@@ -78,12 +79,6 @@ class Start(twistd.ServerOptions):
         return application
 
 
-    def postOptions(self):
-        if platform.isWinNT():
-            self._win32PostOptions()
-        else:
-            self._unixPostOptions()
-
     def _checkPID(self):
         # There *IS* a Windows way to do this, but it doesn't use PIDs.
         if not platform.isWinNT():
@@ -116,8 +111,6 @@ class Start(twistd.ServerOptions):
         # method was implemented, all the super method did was *conditionally*
         # set self['no_save'] to True and take the abspath of self['pidfile'].
         # See below for the irrelevance of those operations.
-
-        app.installReactor(self['reactor'])
 
         self._fixConfig()
         self._checkPID()
