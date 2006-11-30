@@ -7,7 +7,7 @@ import getpass
 from twisted.python import usage
 from twisted.python import filepath
 
-from axiom import attributes, userbase, dependency
+from axiom import attributes, userbase
 from axiom.scripts import axiomatic
 
 class UserbaseMixin:
@@ -17,7 +17,7 @@ class UserbaseMixin:
             raise usage.UsageError("UserBase already installed")
         else:
             ls = userbase.LoginSystem(store=self.store)
-            dependency.installOn(ls, other)
+            ls.installOn(other)
             return ls
 
 class Install(axiomatic.AxiomaticSubCommand, UserbaseMixin):
