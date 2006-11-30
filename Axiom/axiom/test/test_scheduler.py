@@ -19,7 +19,7 @@ from axiom.substore import SubStore
 
 from axiom.attributes import integer, text, inmemory, boolean, timestamp
 from axiom.iaxiom import IScheduler
-
+from axiom.dependency import installOn
 
 class TestEvent(Item):
 
@@ -98,7 +98,7 @@ class SchedTest(unittest.TestCase):
     def setUp(self):
         # self.storePath = self.mktemp()
         self.store = Store()
-        Scheduler(store=self.store).installOn(self.store)
+        installOn(Scheduler(store=self.store), self.store)
         IService(self.store).startService()
 
     def tearDown(self):
@@ -227,7 +227,7 @@ class SubSchedTest(SchedTest):
     def setUp(self):
         self.storePath = self.mktemp()
         self.store = Store(self.storePath)
-        Scheduler(store=self.store).installOn(self.store)
+        installOn(Scheduler(store=self.store), self.store)
         self.svc = IService(self.store)
         self.svc.startService()
 
@@ -237,7 +237,7 @@ class SubSchedTest(SchedTest):
     def testSubScheduler(self):
         substoreItem = SubStore.createNew(self.store, ['scheduler_test'])
         substore = substoreItem.open()
-        SubScheduler(store=substore).installOn(substore)
+        installOn(SubScheduler(store=substore), substore)
 
         return self._doTestScheduler(substore)
 
@@ -258,7 +258,7 @@ class ServiceNotRunningMixin(unittest.TestCase):
         self.calls = []
         self.store = Store(self.mktemp())
         self.siteScheduler = Scheduler(store=self.store)
-        self.siteScheduler.installOn(self.store)
+        installOn(self.siteScheduler, self.store)
         self.siteScheduler.callLater = self._callLater
 
 
@@ -281,7 +281,7 @@ class ServiceNotRunningMixin(unittest.TestCase):
         subst = SubStore.createNew(self.store, ['scheduler_test'])
         substore = subst.open()
         subscheduler = SubScheduler(store=substore)
-        subscheduler.installOn(substore)
+        installOn(subscheduler, substore)
         return self._testSchedule(subscheduler)
 
     def test_orphanedSubSchedule(self):
@@ -289,7 +289,7 @@ class ServiceNotRunningMixin(unittest.TestCase):
         The same as test_scheduler, except using a subscheduler that is orphaned.
         """
         subscheduler = SubScheduler(store=self.store)
-        subscheduler.installOn(self.store)
+        installOn(subscheduler, self.store)
         return self._testSchedule(subscheduler)
 
 
@@ -342,8 +342,8 @@ class SubStoreSchedulerReentrancy(TestCase):
         self.substoreItem = SubStore.createNew(self.store, ['sub'])
         self.substore = self.substoreItem.open()
 
-        Scheduler(store=self.store).installOn(self.store)
-        SubScheduler(store=self.substore).installOn(self.substore)
+        installOn(Scheduler(store=self.store), self.store)
+        installOn(SubScheduler(store=self.substore), self.substore)
 
         self.scheduler = IScheduler(self.store)
         self.subscheduler = IScheduler(self.substore)
