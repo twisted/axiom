@@ -1,17 +1,15 @@
-
 from twisted.trial import unittest
 
 from axiom import dependency
 from axiom.store import Store
 from axiom.item import Item
-from axiom.attributes import text, integer, reference, inmemory
+from axiom.attributes import text, integer, reference
 
-from zope.interface import Interface, implements
 
 class Kitchen(Item):
     name = text()
 
-class PowerStrip(Item):
+class PowerStrip(Item, dependency.DependencyMixin):
     "Required for plugging appliances into."
     voltage = integer()
 
@@ -24,22 +22,13 @@ class PowerStrip(Item):
     def draw(self, watts):
         return "zap zap"
 
-class IAppliance(Interface):
-    pass
-
-class IBreadConsumer(Interface):
-    pass
-
-class Breadbox(Item):
+class Breadbox(Item, dependency.DependencyMixin):
     slices = integer(default=100)
 
     def dispenseBread(self, amt):
         self.slices -= amt
 
-class Toaster(Item):
-    implements(IBreadConsumer)
-    powerupInterfaces = (IAppliance, IBreadConsumer)
-
+class Toaster(Item, dependency.DependencyMixin):
     powerStrip = dependency.dependsOn(PowerStrip,
                                       lambda ps: ps.setForUSElectricity(),
                                       doc="the power source for this toaster")
@@ -48,32 +37,16 @@ class Toaster(Item):
                                         doc="the thing we get bread input from",
                                         whenDeleted=reference.CASCADE)
 
-    callback = inmemory()
-
-    def activate(self):
-        self.callback = None
-
-    def installed(self):
-        if self.callback is not None:
-            self.callback("installed")
-
-    def uninstalled(self):
-        if self.callback is not None:
-            self.callback("uninstalled")
-
     def toast(self):
         self.powerStrip.draw(100)
         self.breadFactory.dispenseBread(2)
 
-class Blender(Item):
+class Blender(Item, dependency.DependencyMixin):
     powerStrip = dependency.dependsOn(PowerStrip,
                                       lambda ps: ps.setForUSElectricity())
     description = text()
 
-    def __getPowerupInterfaces__(self, powerups):
-        yield (IAppliance, 0)
-
-class IceCrusher(Item):
+class IceCrusher(Item, dependency.DependencyMixin):
     blender = dependency.dependsOn(Blender)
 
 class DependencyTest(unittest.TestCase):
@@ -88,7 +61,7 @@ class DependencyTest(unittest.TestCase):
         foo = Kitchen(store=self.store)
         e = Toaster(store=self.store)
         self.assertEquals(e.powerStrip, None)
-        dependency.installOn(e, foo)
+        e.installOn(foo)
         e.toast()
         ps = self.store.findUnique(PowerStrip, default=None)
         bb = self.store.findUnique(Breadbox, default=None)
@@ -97,8 +70,13 @@ class DependencyTest(unittest.TestCase):
         self.assertEquals(e.powerStrip, ps)
         self.assertEquals(ps.voltage, 110)
         self.assertEquals(e.breadFactory, bb)
-        self.assertEquals(set(dependency.installedRequirements(e, foo)), set([ps, bb]))
-        self.assertEquals(list(dependency.installedDependents(ps, foo)), [e])
+        self.assertEquals(set(e.installedRequirements(foo)), set([ps, bb]))
+        self.assertEquals(list(ps.installedDependents(foo)), [e])
+
+        #this part I made up myself
+        self.assertEquals(e.installedOn, foo)
+        self.assertEquals(ps.installedOn, foo)
+        self.assertEquals(bb.installedOn, foo)
 
     def test_basicUninstall(self):
         """
@@ -107,9 +85,13 @@ class DependencyTest(unittest.TestCase):
         """
         foo = Kitchen(store=self.store)
         e = Toaster(store=self.store)
-        dependency.installOn(e, foo)
+        e.installOn(foo)
         ps = self.store.findUnique(PowerStrip)
-        dependency.uninstallFrom(e, foo)
+        e.uninstallFrom(foo)
+
+        #more made up stuff
+        self.failIf(e.installedOn)
+        self.failIf(ps.installedOn)
 
     def test_wrongUninstall(self):
         """
@@ -118,10 +100,10 @@ class DependencyTest(unittest.TestCase):
         """
         foo = Kitchen(store=self.store)
         e = Toaster(store=self.store)
-        dependency.installOn(e, foo)
+        e.installOn(foo)
 
         ps = self.store.findUnique(PowerStrip)
-        self.failUnlessRaises(dependency.DependencyError, dependency.uninstallFrom, ps, foo)
+        self.failUnlessRaises(dependency.DependencyError, ps.uninstallFrom, foo)
 
     def test_properOrphaning(self):
         """
@@ -132,24 +114,23 @@ class DependencyTest(unittest.TestCase):
 
         foo = Kitchen(store=self.store)
         e = Toaster(store=self.store)
-        dependency.installOn(e, foo)
+        e.installOn(foo)
         ps = self.store.findUnique(PowerStrip)
         bb = self.store.findUnique(Breadbox)
         f = Blender(store=self.store)
-        dependency.installOn(f, foo)
+        f.installOn(foo)
 
         self.assertEquals(list(self.store.query(PowerStrip)), [ps])
         #XXX does ordering matter?
-        self.assertEquals(set(dependency.installedDependents(ps, foo)), set([e, f]))
-        self.assertEquals(set(dependency.installedRequirements(e, foo)), set([bb, ps]))
-        self.assertEquals(list(dependency.installedUniqueRequirements(e, foo)), [bb])
-        self.assertEquals(list(dependency.installedRequirements(f, foo)), [ps])
+        self.assertEquals(set(ps.installedDependents(foo)), set([e, f]))
+        self.assertEquals(set(e.installedRequirements(foo)), set([bb, ps]))
+        self.assertEquals(list(f.installedRequirements(foo)), [ps])
 
-        dependency.uninstallFrom(e, foo)
-        self.assertEquals(dependency.installedOn(ps), foo)
+        e.uninstallFrom(foo)
+        self.assertEquals(ps.installedOn, foo)
 
-        dependency.uninstallFrom(f, foo)
-        self.assertEquals(dependency.installedOn(ps), None)
+        f.uninstallFrom(foo)
+        self.assertEquals(ps.installedOn, None)
 
     def test_customizerCalledOnce(self):
         """
@@ -159,43 +140,36 @@ class DependencyTest(unittest.TestCase):
         """
         foo = Kitchen(store=self.store)
         ps = PowerStrip(store=self.store)
-        dependency.installOn(ps, foo)
+        ps.installOn(foo)
         ps.voltage = 115
         e = Toaster(store=self.store)
-        dependency.installOn(e, foo)
+        e.installOn(foo)
         self.assertEqual(ps.voltage, 115)
 
     def test_explicitInstall(self):
         """
         If an item is explicitly installed, it should not be
-        implicitly uninstalled. Also, dependsOn attributes should be
-        filled in properly even if a dependent item is not installed
-        automatically.
+        implicitly uninstalled.
         """
         foo = Kitchen(store=self.store)
         ps = PowerStrip(store=self.store)
-        dependency.installOn(ps, foo)
+        ps.installOn(foo)
         e = Toaster(store=self.store)
-        dependency.installOn(e, foo)
-        self.assertEqual(e.powerStrip, ps)
-        dependency.uninstallFrom(e, foo)
-        self.assertEquals(dependency.installedOn(ps), foo)
+        e.installOn(foo)
+
+        e.uninstallFrom(foo)
+        self.assertEquals(ps.installedOn, foo)
 
     def test_doubleInstall(self):
         """
         Make sure that installing two instances of a class on the same
-        target fails, if something depends on that class, and succeeds
-        otherwise.
+        target fails.
         """
         foo = Kitchen(store=self.store)
         e = Toaster(store=self.store)
-        dependency.installOn(e, foo)
+        e.installOn(foo)
         ps = PowerStrip(store=self.store)
-        self.failUnlessRaises(dependency.DependencyError,
-                              dependency.installOn, ps, foo)
-        e2 = Toaster(store=self.store)
-        dependency.installOn(e2, foo)
-
+        self.failUnlessRaises(dependency.DependencyError, ps.installOn, foo)
 
     def test_recursiveInstall(self):
         """
@@ -204,13 +178,13 @@ class DependencyTest(unittest.TestCase):
         """
         foo = Kitchen(store=self.store)
         ic = IceCrusher(store=self.store)
-        dependency.installOn(ic, foo)
+        ic.installOn(foo)
         blender = self.store.findUnique(Blender)
         ps = self.store.findUnique(PowerStrip)
 
-        self.assertEquals(dependency.installedOn(blender), foo)
-        self.assertEquals(dependency.installedOn(ps), foo)
-        self.assertEquals(list(dependency.installedRequirements(ic, foo)), [blender])
+        self.assertEquals(blender.installedOn, foo)
+        self.assertEquals(ps.installedOn, foo)
+        self.assertEquals(list(ic.installedRequirements(foo)), [blender])
 
     def test_recursiveUninstall(self):
         """
@@ -219,15 +193,15 @@ class DependencyTest(unittest.TestCase):
         """
         foo = Kitchen(store=self.store)
         ic = IceCrusher(store=self.store)
-        dependency.installOn(ic, foo)
+        ic.installOn(foo)
         blender = self.store.findUnique(Blender)
         ps = self.store.findUnique(PowerStrip)
 
-        dependency.uninstallFrom(ic, foo)
+        ic.uninstallFrom(foo)
 
-        self.failIf(dependency.installedOn(blender))
-        self.failIf(dependency.installedOn(ps))
-        self.failIf(dependency.installedOn(ic))
+        self.failIf(blender.installedOn)
+        self.failIf(ps.installedOn)
+        self.failIf(ic.installedOn)
 
     def test_wrongDependsOn(self):
         """
@@ -242,36 +216,3 @@ class DependencyTest(unittest.TestCase):
 
         self.failUnless("power source" in Toaster.powerStrip.doc)
         self.assertEquals(Toaster.breadFactory.whenDeleted, reference.CASCADE)
-
-    def test_powerupInterfaces(self):
-        """
-        Make sure interfaces are powered up and down properly.
-        """
-
-        foo = Kitchen(store=self.store)
-        e = Toaster(store=self.store)
-        f = Blender(store=self.store)
-        dependency.installOn(e, foo)
-        dependency.installOn(f, foo)
-        self.assertEquals(IAppliance(foo), e)
-        self.assertEquals(IBreadConsumer(foo), e)
-        dependency.uninstallFrom(e, foo)
-        self.assertEquals(IAppliance(foo), f)
-        dependency.uninstallFrom(f, foo)
-        self.assertRaises(TypeError, IAppliance, foo)
-
-
-    def test_callbacks(self):
-        """
-        'installed' and 'uninstalled' callbacks should fire on install/uninstall.
-        """
-        foo = Kitchen(store=self.store)
-        e = Toaster(store=self.store)
-        self.installCallbackCalled = False
-        e.callback = lambda _: setattr(self, 'installCallbackCalled', True)
-        dependency.installOn(e, foo)
-        self.failUnless(self.installCallbackCalled)
-        self.uninstallCallbackCalled = False
-        e.callback = lambda _: setattr(self, 'uninstallCallbackCalled', True)
-        dependency.uninstallFrom(e, foo)
-        self.failUnless(self.uninstallCallbackCalled)

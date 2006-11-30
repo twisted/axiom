@@ -189,8 +189,6 @@ class Scheduler(Item, Service, SchedulerMixin):
     typeName = 'axiom_scheduler'
     schemaVersion = 1
 
-    powerupInterfaces = (IService, IScheduler)
-
     parent = inmemory()
     name = inmemory()
     timer = inmemory()
@@ -202,6 +200,7 @@ class Scheduler(Item, Service, SchedulerMixin):
     eventsRun = integer()
     lastEventAt = timestamp()
     nextEventAt = timestamp()
+
 
     class running(descriptor.attribute):
         def get(self):
@@ -225,6 +224,11 @@ class Scheduler(Item, Service, SchedulerMixin):
         self.timer = None
         self.callLater = reactor.callLater
         self.now = Time
+
+
+    def installOn(self, other):
+        other.powerUp(self, IService)
+        other.powerUp(self, IScheduler)
 
     def startService(self):
         super(Scheduler, self).startService()
@@ -284,8 +288,6 @@ class SubScheduler(Item, SchedulerMixin):
     schemaVersion = 1
     typeName = 'axiom_subscheduler'
 
-    powerupInterfaces = (IScheduler,)
-
     eventsRun = integer(default=0)
     lastEventAt = timestamp()
     nextEventAt = timestamp()
@@ -299,6 +301,10 @@ class SubScheduler(Item, SchedulerMixin):
 
     def activate(self):
         self.now = Time
+
+
+    def installOn(self, other):
+        other.powerUp(self, IScheduler)
 
     def _transientSchedule(self, when, now):
         if self.store.parent is not None:

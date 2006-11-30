@@ -27,7 +27,6 @@ from epsilon import extime, process, cooperator, modal, juice
 from axiom import iaxiom, errors as eaxiom, item, attributes
 from axiom.scheduler import Scheduler, SubScheduler
 from axiom.upgrade import registerUpgrader
-from axiom.dependency import installOn, classDependsOn
 
 VERBOSE = False
 
@@ -450,7 +449,7 @@ def upgradeProcessor1to2(oldProcessor):
         else:
             # Substores get subschedulers.
             sch = SubScheduler(store=s)
-        installOn(sch, s)
+        sch.installOn(s)
 
     # And set it up to run.
     sch.schedule(newProcessor, newProcessor.scheduled)
@@ -495,9 +494,6 @@ def processor(forType):
 
             'workUnitType': forType,
 
-            'scheduler': attributes.reference(doc="""
-            Reference to the SubScheduler that runs this processor"""),
-
             'scheduled': attributes.timestamp(doc="""
             The next time at which this processor is scheduled to run.
             """, default=None),
@@ -509,7 +505,7 @@ def processor(forType):
             attrs['__name__'],
             (item.Item, _BatchProcessorMixin),
             attrs)
-        classDependsOn(_processors[forType], SubScheduler, None, attrs['scheduler'])
+
         registerUpgrader(
             upgradeProcessor1to2,
             _processors[forType].typeName,
@@ -1213,9 +1209,10 @@ if manhole_ssh is not None:
 else:
     bases = ()
 
-class BatchManholePowerup(item.Item):
-    dummy = attributes.integer()
+class BatchManholePowerup(item.Item, item.InstallableMixin):
+    #inheritance is a design pattern!@#
 
+    installedOn = attributes.reference()
     original = attributes.inmemory()
     transportFactory = attributes.inmemory()
     chainedProtocolFactory = attributes.inmemory()
@@ -1225,12 +1222,16 @@ class BatchManholePowerup(item.Item):
     height = attributes.inmemory()
     conn = attributes.inmemory()
 
-    powerupInterfaces = (iconch.IConchUser, iconch.ISession)
+    def installOn(self, other):
+        item.InstallableMixin.installOn(self, other)
+        other.powerUp(self, iconch.IConchUser)
+        other.powerUp(self, iconch.ISession)
+
 
     def activate(self):
         if manhole_ssh is not None:
-            manhole_ssh.TerminalSession.__init__(self, self.store)
-            manhole_ssh.TerminalUser.__init__(self, self.store, None)
+            manhole_ssh.TerminalSession.__init__(self, self.installedOn)
+            manhole_ssh.TerminalUser.__init__(self, self.installedOn, None)
 
 
     def chainedProtocolFactory(self):

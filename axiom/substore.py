@@ -7,7 +7,7 @@ from twisted.application import service
 from axiom.iaxiom import IPowerupIndirector
 
 from axiom.store import Store
-from axiom.item import Item
+from axiom.item import Item, InstallableMixin
 from axiom.attributes import path, inmemory, reference
 
 from axiom.upgrade import registerUpgrader
@@ -73,7 +73,7 @@ class SubStore(Item):
 
 
 
-class SubStoreStartupService(Item, service.Service):
+class SubStoreStartupService(Item, service.Service, InstallableMixin):
     """
     This class no longer exists.  It is here simply to trigger an upgrade which
     deletes it.  Ignore it, please.
