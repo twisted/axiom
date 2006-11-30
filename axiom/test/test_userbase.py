@@ -22,7 +22,7 @@ from axiom.item import Item
 from axiom.attributes import integer
 from axiom.scripts import axiomatic
 from axiom import errors
-
+from axiom import dependency
 
 class IGarbage(Interface):
     pass
@@ -31,12 +31,10 @@ class GarbageProtocolHandler(Item):
     schemaVersion = 1
     typeName = 'test_login_garbage'
 
+    powerupInterfaces = (IGarbage)
     garbage = integer()
 
     implements(IGarbage)
-
-    def installOn(self, other):
-        other.powerUp(self, IGarbage)
 
 SECRET = 'bananas'
 
@@ -46,7 +44,7 @@ class UserBaseTest(unittest.TestCase):
         s = Store(self.mktemp())
         def _speedup():
             l = userbase.LoginSystem(store=s)
-            l.installOn(s)
+            dependency.installOn(l, s)
             s.checkpoint()
             p = Portal(IRealm(s),
                        [ICredentialsChecker(s)])
@@ -54,7 +52,7 @@ class UserBaseTest(unittest.TestCase):
             a = l.addAccount(username, 'localhost', SECRET)
             gph = GarbageProtocolHandler(store=a.avatars.open(),
                                          garbage=0)
-            gph.installOn(gph.store)
+            dependency.installOn(gph, gph.store)
             return p, gph
 
         p, gph = s.transact(_speedup)
@@ -114,7 +112,7 @@ class AccountTestCase(unittest.TestCase):
         dbdir = self.mktemp()
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
-        ls.installOn(s)
+        dependency.installOn(ls, s)
         acc = ls.addAccount('username', 'dom.ain', 'password')
         ss = acc.avatars.open()
 
@@ -137,7 +135,7 @@ class AccountTestCase(unittest.TestCase):
         dbdir = self.mktemp()
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
-        ls.installOn(s)
+        dependency.installOn(ls, s)
 
         acc = ls.addAccount('username', 'dom.ain', 'password', protocol=u'speech')
         ss = acc.avatars.open()
@@ -167,7 +165,7 @@ class AccountTestCase(unittest.TestCase):
         dbdir = self.mktemp()
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
-        ls.installOn(s)
+        dependency.installOn(ls, s)
         acc = ls.addAccount('alice', 'dom.ain', 'password')
 
         # this is allowed, if weird
@@ -301,7 +299,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.store = Store(self.dbdir)
         self.ls = userbase.LoginSystem(store=self.store)
         self.scheduler = Scheduler(store=self.store)
-        self.scheduler.installOn(self.store)
+        dependency.installOn(self.scheduler, self.store)
 
         self.account = self.ls.addAccount(u'testuser', u'localhost', u'PASSWORD')
 
@@ -310,7 +308,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         thing = ThingThatMovesAround(store=accountStore,
                                      superValue=self.IMPORTANT_VALUE)
         ss = accountStore.findOrCreate(SubScheduler)
-        ss.installOn(accountStore)
+        dependency.installOn(ss, accountStore)
         ss.schedule(thing, Time() + datetime.timedelta(days=1))
 
         self.origdir = accountStore.dbdir
@@ -358,7 +356,7 @@ class RealmTestCase(unittest.TestCase):
     def setUp(self):
         self.store = Store()
         self.realm = userbase.LoginSystem(store=self.store)
-        self.realm.installOn(self.store)
+        dependency.installOn(self.realm, self.store)
 
 
     def test_powerup(self):
