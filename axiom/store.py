@@ -491,9 +491,15 @@ class ItemQuery(BaseQuery):
         """
         #We can do this the fast way or the slow way.
 
-        #If there's a 'deleted' callback on the Item type, we have to
-        #do it the slow way.
-        if self.tableClass.deleted.im_func is not item.Item.deleted.im_func:
+        # If there's a 'deleted' callback on the Item type or 'deleteFromStore'
+        # is overridden, we have to do it the slow way.
+        deletedOverridden = (
+            self.tableClass.deleted.im_func is not item.Item.deleted.im_func)
+        deleteFromStoreOverridden = (
+            self.tableClass.deleteFromStore.im_func is not
+            item.Item.deleteFromStore.im_func)
+
+        if deletedOverridden or deleteFromStoreOverridden:
             for it in self:
                 it.deleteFromStore()
         else:

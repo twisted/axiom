@@ -422,13 +422,34 @@ class TestFindOrCreate(unittest.TestCase):
         ai2 = s.findFirst(AttributefulItem)
         self.assertEquals(a0, ai2)
 
-class DeleteTrackingItem(item.Item):
 
+
+class DeletedTrackingItem(item.Item):
+    """
+    Helper class for testing that C{deleted} is called by
+    ItemQuery.deleteFromStore.
+    """
     deletedTimes = 0
     value = attributes.integer()
 
     def deleted(self):
-        DeleteTrackingItem.deletedTimes += 1
+        DeletedTrackingItem.deletedTimes += 1
+
+
+
+class DeleteFromStoreTrackingItem(item.Item):
+    """
+    Helper class for testing that C{deleteFromStore} is called by
+    ItemQuery.deleteFromStore.
+    """
+    deletedTimes = 0
+    value = attributes.integer()
+
+    def deleteFromStore(self):
+        DeleteFromStoreTrackingItem.deletedTimes += 1
+        item.Item.deleteFromStore(self)
+
+
 
 class MassInsertDeleteTests(unittest.TestCase):
 
@@ -557,10 +578,20 @@ class MassInsertDeleteTests(unittest.TestCase):
         """
         Ensure that a 'deleted' method on an Item will be called if it exists.
         """
-        for i in xrange(10):
-            it = DeleteTrackingItem(store=self.store, value=i)
-        self.store.query(DeleteTrackingItem).deleteFromStore()
-        self.assertEqual(DeleteTrackingItem.deletedTimes, 10)
+        DeletedTrackingItem(store=self.store)
+        self.store.query(DeletedTrackingItem).deleteFromStore()
+        self.assertEqual(DeletedTrackingItem.deletedTimes, 1)
+
+
+    def test_slowBatchDeleteBecauseDeletedFromStore(self):
+        """
+        Ensure that a 'deleteFromStore' method on an Item will be called if it
+        exists.
+        """
+        DeleteFromStoreTrackingItem(store=self.store)
+        self.store.query(DeleteFromStoreTrackingItem).deleteFromStore()
+        self.assertEqual(DeleteFromStoreTrackingItem.deletedTimes, 1)
+
 
 # Item types we will use to change the underlying database schema (by creating
 # them).
