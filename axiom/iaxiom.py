@@ -174,6 +174,14 @@ class IColumn(Interface):
         contain invalid identifier characters other than '.'.
         """
 
+    def __get__(row):
+        """
+        @return: The value of the column described by this object, for the given
+        row.
+
+        @rtype: depends on the underlying type of the column.
+        """
+
 
 
 class IOrdering(Interface):
