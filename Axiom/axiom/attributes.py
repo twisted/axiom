@@ -16,7 +16,7 @@ from epsilon.extime import Time
 
 from axiom.slotmachine import Attribute as inmemory
 
-from axiom.errors import NoCrossStoreReferences, BrokenReference
+from axiom.errors import NoCrossStoreReferences, ChangeRejected, BrokenReference
 
 from axiom.iaxiom import IComparison, IOrdering, IColumn, IQuery
 
@@ -201,10 +201,6 @@ class SimpleOrdering:
         return [(self.attribute, self.direction)]
 
 
-    def __repr__(self):
-        return repr(self.attribute) + self.direction
-
-
     def __add__(self, other):
         if isinstance(other, SimpleOrdering):
             return CompoundOrdering([self, other])
@@ -231,10 +227,6 @@ class CompoundOrdering:
 
     def __init__(self, seq):
         self.simpleOrderings = list(seq)
-
-
-    def __repr__(self):
-        return self.__class__.__name__ + '(' + repr(self.simpleOrderings) + ')'
 
 
     def __add__(self, other):
