@@ -106,9 +106,6 @@ class _StoreIDComparer(Comparable):
     def __init__(self, type):
         self.type = type
 
-    def __repr__(self):
-        return '<storeID ' + qual(self.type) + '.storeID>'
-
     def fullyQualifiedName(self):
         # XXX: this is an example of silly redundancy, this really ought to be
         # refactored to work like any other attribute (including being
@@ -129,14 +126,6 @@ class _StoreIDComparer(Comparable):
 
     def getColumnName(self, store):
         return store.getColumnName(self)
-
-    # XXX: this is an implicit part of the IColumn API, I think.  Probably
-    # better to completely unify this with _SpecialStoreIDAttribute though.
-    def __get__(self, item, type=None):
-        if item is None:
-            return self
-        else:
-            return getattr(item, 'storeID')
 
 
 class _SpecialStoreIDAttribute(slotmachine.SetOnce):
@@ -875,9 +864,6 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
     def __repr__(self):
         return '<Placeholder %r>' % (self.column,)
 
-
-    def __get__(self, inst):
-        return self.column.__get__(inst)
 
     def fullyQualifiedName(self):
         return self.column.fullyQualifiedName() + '.<placeholder:%s>' % (

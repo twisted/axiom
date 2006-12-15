@@ -237,15 +237,6 @@ class SQLAttributeDummyClass(Item):
 
 
 
-class FullImplementationDummyClass(Item):
-    """
-    Dummy class which L{SQLAttributeTestCase} will poke at to assert various
-    behaviors - SQLAttribute is really an abstract base class, so this uses a
-    concrete attribute (integer) for its assertions.
-    """
-    dummyAttribute = integer()
-
-
 class SQLAttributeTestCase(TestCase):
     """
     Tests for behaviors of the L{axiom.attributes.SQLAttribute} class.
@@ -295,43 +286,6 @@ class SQLAttributeTestCase(TestCase):
             'axiom.test.test_attributes.SQLAttributeDummyClass'
             '.dummyAttribute.<placeholder:%d>' % (ph._placeholderCount,),
             ph.dummyAttribute.fullyQualifiedName())
-
-
-    def test_accessor(self):
-        """
-        Test that the __get__ of SQLAttribute does the obvious thing, and returns
-        its value when given an instance.
-        """
-        dummy = FullImplementationDummyClass(dummyAttribute=1234)
-        self.assertEquals(
-            FullImplementationDummyClass.dummyAttribute.__get__(dummy), 1234)
-        self.assertEquals(dummy.dummyAttribute, 1234)
-
-
-    def test_storeIDAccessor(self):
-        """
-        Test that the __get__ of the IColumn implementation for storeID works
-        the same as that for normal attributes.
-        """
-        s = Store()
-        dummy = FullImplementationDummyClass(store=s)
-        self.assertEquals(dummy.storeID, 1) # not *really* a requirement for
-                                            # the future, but a sanity check
-                                            # for the rest of the test
-        self.assertEquals(
-            FullImplementationDummyClass.storeID.__get__(dummy), 1)
-
-
-    def test_placeholderAccessor(self):
-        """
-        Test that the __get__ of SQLAttribute does the obvious thing, and returns
-        its value when given an instance.
-        """
-        dummy = FullImplementationDummyClass(dummyAttribute=1234)
-        self.assertEquals(
-            Placeholder(FullImplementationDummyClass
-                        ).dummyAttribute.__get__(dummy), 1234)
-        self.assertEquals(dummy.dummyAttribute, 1234)
 
 
     def test_typeAttribute(self):
