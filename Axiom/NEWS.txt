@@ -1,3 +1,7 @@
+0.5.18 (2006-12-08):
+  - Change ItemQuery.deleteFromStore so that it will call deleteFromStore on an
+    Item subclass if it has overridden that method.
+
 0.5.17 (2006-11-20):
   - Added fullyQualifiedName to IColumn, _StoreIDComparer, and _PlaceholderColumn.
   - Added support for distinct Item queries and for counting distinct attribute
