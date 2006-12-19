@@ -174,6 +174,17 @@ class IColumn(Interface):
         contain invalid identifier characters other than '.'.
         """
 
+    def __get__(row):
+        """
+        @param row: an item that has this column.
+        @type row: L{axiom.item.Item}
+
+        @return: The value of the column described by this object, for the given
+        row.
+
+        @rtype: depends on the underlying type of the column.
+        """
+
 
 
 class IOrdering(Interface):
