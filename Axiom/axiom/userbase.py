@@ -369,9 +369,7 @@ class LoginBase:
 
     credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword, IPreauthCredentials)
 
-    def installOn(self, other):
-        other.powerUp(self, IRealm)
-        other.powerUp(self, ICredentialsChecker)
+    powerupInterfaces = (IRealm, ICredentialsChecker)
 
     def accountByAddress(self, username, domain):
         """
