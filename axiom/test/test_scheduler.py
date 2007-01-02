@@ -8,7 +8,6 @@ from twisted.trial.unittest import TestCase
 from twisted.application.service import IService
 from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock
-from twisted.python import log
 
 from epsilon.extime import Time
 
@@ -93,22 +92,20 @@ class SpecialErrorHandler(Item):
         failureObj.trap(SpecialError)
         self.procd = 1
 
-class SchedTest(unittest.TestCase):
-
-    def setUp(self):
-        # self.storePath = self.mktemp()
-        self.store = Store()
-        installOn(Scheduler(store=self.store), self.store)
-        IService(self.store).startService()
-
+class SchedTest:
     def tearDown(self):
-        IService(self.store).stopService()
+        return IService(self.siteStore).stopService()
 
-    def _doTestScheduler(self, s):
+
+    def test_scheduler(self):
+        """
+        Test that the ordering and timing of scheduled calls is correct.
+        """
         # create 3 timed events.  the first one fires.  the second one fires,
         # then reschedules itself.  the third one should never fire because the
         # reactor is shut down first.  assert that the first and second fire
         # only once, and that the third never fires.
+        s = self.store
 
         d = Deferred()
 
@@ -138,7 +135,7 @@ class SchedTest(unittest.TestCase):
         return d
 
 
-    def testUnscheduling(self):
+    def test_unscheduling(self):
         """
         Test the unscheduleFirst method of the scheduler.
         """
@@ -163,10 +160,10 @@ class SchedTest(unittest.TestCase):
         Test that the L{scheduledTimes} method returns an iterable of all the
         times at which a particular item is scheduled to run.
         """
-        now = Time()
+        now = Time() + timedelta(seconds=1)
         off = timedelta(seconds=3)
         sch = IScheduler(self.store)
-        runnable = TestEvent(store=self.store)
+        runnable = TestEvent(store=self.store, name=u'Only event')
         sch.schedule(runnable, now)
         sch.schedule(runnable, now + off)
         sch.schedule(runnable, now + off + off)
@@ -177,7 +174,13 @@ class SchedTest(unittest.TestCase):
 
 
 
-class TopStoreSchedTest(SchedTest):
+class TopStoreSchedTest(SchedTest, TestCase):
+    def setUp(self):
+        # self.storePath = self.mktemp()
+        self.store = self.siteStore = Store()
+        installOn(Scheduler(store=self.store), self.store)
+        IService(self.store).startService()
+
 
     def testBasicScheduledError(self):
         S = IScheduler(self.store)
@@ -193,7 +196,7 @@ class TopStoreSchedTest(SchedTest):
         self.assertEquals(
             self.store.query(TimedEventFailureLog).count(), 0)
         def later(result):
-            errs = log.flushErrors(AttributeError)
+            errs = self.flushLoggedErrors(AttributeError)
             self.assertEquals(len(errs), 1)
             self.assertEquals(self.store.query(TimedEventFailureLog).count(), 1)
         return d.addCallback(later)
@@ -213,39 +216,159 @@ class TopStoreSchedTest(SchedTest):
         self.assertEquals(
             self.store.query(TimedEventFailureLog).count(), 0)
         def later(result):
-            errs = log.flushErrors(SpecialError)
+            errs = self.flushLoggedErrors(SpecialError)
             self.assertEquals(len(errs), 1)
             self.assertEquals(self.store.query(TimedEventFailureLog).count(), 0)
             self.failUnless(spec.procd)
             self.failIf(spec.broken)
         return d.addCallback(later)
 
-    def testScheduler(self):
-        self._doTestScheduler(self.store)
 
-class SubSchedTest(SchedTest):
+
+class SubSchedulerTests(SchedTest, TestCase):
+    """
+    Tests for the substore implementation of IScheduler.
+    """
     def setUp(self):
+        """
+        Create a site store for the substore which will contain the IScheduler
+        being tested.  Start its IService so any scheduled events will run.
+        """
         self.storePath = self.mktemp()
-        self.store = Store(self.storePath)
-        installOn(Scheduler(store=self.store), self.store)
-        self.svc = IService(self.store)
+        self.siteStore = Store(self.storePath)
+        self.svc = IService(self.siteStore)
         self.svc.startService()
 
+        substoreItem = SubStore.createNew(self.siteStore, ['scheduler_test'])
+        self.substore = substoreItem.open()
+        installOn(SubScheduler(store=self.substore), self.substore)
+
+        self.store = self.substore
+
+
+
+class SchedulerStartupTests(TestCase):
+    """
+    Tests for behavior relating to L{Scheduler} service startup.
+    """
+    def setUp(self):
+        self.clock = Clock()
+        self.store = Store()
+
+
     def tearDown(self):
-        return self.svc.stopService()
-
-    def testSubScheduler(self):
-        substoreItem = SubStore.createNew(self.store, ['scheduler_test'])
-        substore = substoreItem.open()
-        installOn(SubScheduler(store=substore), substore)
-
-        return self._doTestScheduler(substore)
+        return self.stopStoreService()
 
 
-class ServiceNotRunningMixin(unittest.TestCase):
+    def now(self):
+        return Time.fromPOSIXTimestamp(self.clock.seconds())
+
+
+    def time(self, offset):
+        return self.now() + timedelta(seconds=offset)
+
+
+    def makeScheduler(self, install=True):
+        """
+        Create, install, and return a Scheduler with a fake callLater.
+        """
+        scheduler = Scheduler(store=self.store)
+        scheduler.callLater = self.clock.callLater
+        scheduler.now = self.now
+        if install:
+            installOn(scheduler, self.store)
+        return scheduler
+
+
+    def startStoreService(self):
+        """
+        Start the Store Service.
+        """
+        service = IService(self.store)
+        service.startService()
+
+
+    def stopStoreService(self):
+        service = IService(self.store)
+        if service.running:
+            return service.stopService()
+
+
+    def test_schedulerWithoutParent(self):
+        """
+        Test that a Scheduler with no Service parent is not running.
+        """
+        self.startStoreService()
+        scheduler = self.makeScheduler(False)
+        self.failIf(
+            scheduler.running, "Parentless service should not be running.")
+
+
+    def test_scheduleWhileStopped(self):
+        """
+        Test that a schedule call on a L{Scheduler} which has not been started
+        does not result in the creation of a transient timed event.
+        """
+        scheduler = self.makeScheduler()
+        scheduler.schedule(TestEvent(store=self.store), self.time(1))
+        self.assertEqual(self.clock.calls, [])
+
+
+    def test_scheduleWithRunningService(self):
+        """
+        Test that if a scheduler is created and installed on a store which has
+        a started service, a transient timed event is created when the scheduler
+        is used.
+        """
+        self.startStoreService()
+        scheduler = self.makeScheduler()
+        scheduler.schedule(TestEvent(store=self.store), self.time(1))
+        self.assertEqual(len(self.clock.calls), 1)
+
+
+    def test_schedulerStartedWithPastEvent(self):
+        """
+        Test that an existing Scheduler with a TimedEvent in the past is
+        started immediately (but does not run the TimedEvent synchronously)
+        when the Store Service is started.
+        """
+        scheduler = self.makeScheduler()
+        scheduler.schedule(TestEvent(store=self.store), self.time(-1))
+        self.assertEqual(self.clock.calls, [])
+        self.startStoreService()
+        self.assertEqual(len(self.clock.calls), 1)
+
+
+    def test_schedulerStartedWithFutureEvent(self):
+        """
+        Test that an existing Scheduler with a TimedEvent in the future is
+        started immediately when the Store Service is started.
+        """
+        scheduler = self.makeScheduler()
+        scheduler.schedule(TestEvent(store=self.store), self.time(1))
+        self.assertEqual(self.clock.calls, [])
+        self.startStoreService()
+        self.assertEqual(len(self.clock.calls), 1)
+
+
+    def test_schedulerStopped(self):
+        """
+        Test that when the Store Service is stopped, the Scheduler's transient
+        timed event is cleaned up.
+        """
+        self.test_scheduleWithRunningService()
+        d = self.stopStoreService()
+        def cbStopped(ignored):
+            self.assertEqual(self.clock.calls, [])
+        d.addCallback(cbStopped)
+        return d
+
+
+
+class MissingService(unittest.TestCase):
     """
     A set of tests to verify that things *aren't* scheduled with the reactor
-    when the scheduling service isn't running, merely persisted to the
+    when the scheduling service doesn't exist, merely persisted to the
     database.
     """
 
