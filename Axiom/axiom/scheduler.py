@@ -10,9 +10,7 @@ from epsilon import descriptor
 
 from axiom.item import Item
 from axiom.attributes import AND, timestamp, reference, integer, inmemory, bytes
-from axiom.dependency import dependsOn, installOn
 from axiom.iaxiom import IScheduler
-from axiom.upgrade import registerUpgrader
 
 VERBOSE = False
 
@@ -207,10 +205,7 @@ class Scheduler(Item, Service, SchedulerMixin):
 
     class running(descriptor.attribute):
         def get(self):
-            return (
-                self.parent is self.store._axiom_service and
-                self.store._axiom_service is not None and
-                self.store._axiom_service.running)
+            return self.store._axiom_service is not None and self.store._axiom_service.running
 
         def set(self, value):
             # Eh whatever
@@ -223,43 +218,27 @@ class Scheduler(Item, Service, SchedulerMixin):
         self.lastEventAt = None
         self.nextEventAt = None
 
-
     def __repr__(self):
         return '<Scheduler>'
-
-
-    def installed(self):
-        self.setServiceParent(IService(self.store))
-
 
     def activate(self):
         self.timer = None
         self.callLater = reactor.callLater
         self.now = Time
 
-
     def startService(self):
-        """
-        Start calling persistent timed events whose time has come.
-        """
         super(Scheduler, self).startService()
-        self._transientSchedule(self.now(), self.now())
-
+        self.tick()
 
     def stopService(self):
-        """
-        Stop calling persistent timed events.
-        """
         super(Scheduler, self).stopService()
         if self.timer is not None:
             self.timer.cancel()
             self.timer = None
 
-
     def tick(self):
         self.timer = None
         return super(Scheduler, self).tick()
-
 
     def _transientSchedule(self, when, now):
         if not self.running:
@@ -280,40 +259,25 @@ class Scheduler(Item, Service, SchedulerMixin):
 
 
 class _SubSchedulerParentHook(Item):
-    schemaVersion = 2
+    schemaVersion = 1
     typeName = 'axiom_subscheduler_parent_hook'
 
     loginAccount = reference()
     scheduledAt = timestamp(default=None)
-
-    scheduler = dependsOn(Scheduler)
 
     def run(self):
         self.scheduledAt = None
         IScheduler(self.loginAccount).tick()
 
     def _schedule(self, when):
+        sch = IScheduler(self.store)
         if self.scheduledAt is not None:
             if when < self.scheduledAt:
-                self.scheduler.reschedule(self, self.scheduledAt, when)
+                sch.reschedule(self, self.scheduledAt, when)
                 self.scheduledAt = when
         else:
-            self.scheduler.schedule(self, when)
+            sch.schedule(self, when)
             self.scheduledAt = when
-
-
-def upgradeParentHook1to2(oldHook):
-    """
-    Add the scheduler attribute to the given L{_SubSchedulerParentHook}.
-    """
-    newHook = oldHook.upgradeVersion(
-        oldHook.typeName, 1, 2,
-        loginAccount=oldHook.loginAccount,
-        scheduledAt=oldHook.scheduledAt,
-        scheduler=oldHook.store.findFirst(Scheduler))
-    return newHook
-
-registerUpgrader(upgradeParentHook1to2, _SubSchedulerParentHook.typeName, 1, 2)
 
 
 class SubScheduler(Item, SchedulerMixin):
@@ -339,10 +303,8 @@ class SubScheduler(Item, SchedulerMixin):
     def _transientSchedule(self, when, now):
         if self.store.parent is not None:
             loginAccount = self.store.parent.getItemByID(self.store.idInParent)
-            hook = self.store.parent.findOrCreate(
-                _SubSchedulerParentHook,
-                lambda hook: installOn(hook, hook.store),
-                loginAccount=loginAccount)
+            hook = self.store.parent.findOrCreate(_SubSchedulerParentHook,
+                                                  loginAccount=loginAccount)
             hook._schedule(when)
 
     def migrateDown(self):
