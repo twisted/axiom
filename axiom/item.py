@@ -974,7 +974,8 @@ def declareLegacyItem(typeName, schemaVersion, attributes, dummyBases=()):
     @param typeName: a string, the Axiom TypeName to have attributes for.
     @param schemaVersion: an int, the (old) version of the schema this is a proxy
     for.
-    @param attributes: a dict mapping {columnName: attr instance}
+    @param attributes: a dict mapping {columnName: attr instance} describing
+    the schema of C{typeName} at C{schemaVersion}.
 
     @param dummyBases: a sequence of 4-tuples of (baseTypeName,
     baseSchemaVersion, baseAttributes, baseBases) representing the dummy bases
