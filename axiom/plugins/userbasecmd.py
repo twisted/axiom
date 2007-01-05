@@ -79,7 +79,10 @@ class List(axiomatic.AxiomaticSubCommand):
     def postOptions(self):
         acc = None
         for acc in self.store.query(userbase.LoginMethod):
-            print acc.localpart + '@' + acc.domain,
+            if acc.domain is None:
+                print acc.localpart,
+            else:
+                print acc.localpart + '@' + acc.domain,
             if acc.account.disabled:
                 print '[DISABLED]'
             else:
