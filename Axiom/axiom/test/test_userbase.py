@@ -1,4 +1,4 @@
-import datetime
+import datetime, StringIO, sys
 
 from zope.interface import Interface, implements
 
@@ -74,32 +74,137 @@ class UserBaseTest(unittest.TestCase):
     def testMixedCaseLogin(self):
         self.logInAndCheck('BoB')
 
+
+
 class CommandTestCase(unittest.TestCase):
-    def testUserBaseInstall(self):
-        dbdir = self.mktemp()
-        axiomatic.main([
-                '-d', dbdir, 'userbase', 'install'])
+    """
+    Integration tests for the 'axiomatic userbase' command.
+    """
 
-        s = Store(dbdir)
-        IRealm(s)
-        ICredentialsChecker(s)
-        s.close()
+    def setUp(self):
+        self.dbdir = self.mktemp()
+        self.store = Store(self.dbdir)
 
-    def testUserCreation(self):
-        dbdir = self.mktemp()
-        axiomatic.main([
-                '-d', dbdir, 'userbase',
-                'create', 'alice', 'localhost', SECRET])
 
-        s = Store(dbdir)
-        cc = ICredentialsChecker(s)
-        p = Portal(IRealm(s), [cc])
+    def tearDown(self):
+        self.store.close()
+
+
+    def _login(self, avatarId, password):
+        cc = ICredentialsChecker(self.store)
+        p = Portal(IRealm(self.store), [cc])
+        return p.login(UsernamePassword(avatarId, password), None,
+                       lambda orig, default: orig)
+
+
+    def assertImplements(self, obj, interface):
+        """
+        Assert that C{obj} can be adapted to C{interface}.
+
+        @param obj: Any Python object.
+        @param interface: A L{zope.interface.Interface} that C{obj} should
+        implement.
+        """
+        self.failUnless(interface.providedBy(interface(obj, None)))
+
+
+    def userbase(self, *args):
+        """
+        Run 'axiomatic userbase' with the given arguments on database at
+        C{dbdir}.
+
+        @return: A list of lines printed to stdout by the axiomatic command.
+        """
+        output = StringIO.StringIO()
+        sys.stdout, stdout = output, sys.stdout
+        try:
+            axiomatic.main(['-d', self.dbdir, 'userbase'] + list(args))
+        finally:
+            sys.stdout = stdout
+        return output.getvalue().splitlines()
+
+
+    def test_install(self):
+        """
+        Create a database, install userbase and check that the store
+        implements L{IRealm} and L{ICredentialsChecker}. i.e. that userbase
+        has been installed. This is an integration test.
+        """
+        self.userbase('install')
+        self.assertImplements(self.store, IRealm)
+        self.assertImplements(self.store, ICredentialsChecker)
+
+
+    def test_userCreation(self):
+        """
+        Create a user on a store, implicitly installing userbase, then try to
+        log in with the user. This is an integration test.
+        """
+        self.userbase('create', 'alice', 'localhost', SECRET)
 
         def cb((interface, avatar, logout)):
+            ss = avatar.avatars.open()
+            self.assertEquals(list(userbase.getAccountNames(ss)),
+                              [(u'alice', u'localhost')])
+            self.assertEquals(avatar.password, SECRET)
             logout()
 
-        return p.login(UsernamePassword('alice@localhost', SECRET), None, lambda orig, default: orig
-                       ).addCallback(cb)
+        d = self._login('alice@localhost', SECRET)
+        return d.addCallback(cb)
+
+
+    def test_listOnClean(self):
+        """
+        Check that we are given friendly and informative output when we use
+        'userbase list' on a fresh store.
+        """
+        output = self.userbase('list')
+        self.assertEquals(output, ['No accounts'])
+
+
+    def test_list(self):
+        """
+        When users exist, 'userbase list' should print their IDs one to a
+        line.
+        """
+        self.userbase('create', 'alice', 'localhost', SECRET)
+        self.userbase('create', 'bob', 'localhost', SECRET)
+        output = self.userbase('list')
+        self.assertEquals(output, ['alice@localhost', 'bob@localhost'])
+
+
+    def test_listWithDisabled(self):
+        """
+        Check that '[DISABLED]' is printed after the ID of users with disabled
+        accounts.
+        """
+        self.userbase('create', 'alice', 'localhost', SECRET)
+        self.userbase('create', 'bob', 'localhost', SECRET)
+
+        def cb((interface, avatar, logout)):
+            avatar.disabled = 1
+            output = self.userbase('list')
+            self.assertEquals(output,
+                              ['alice@localhost', 'bob@localhost [DISABLED]'])
+
+        return self._login('bob@localhost', SECRET).addCallback(cb)
+
+
+    def test_listOffering(self):
+        """
+        Mantissa offerings are added as users with a 'username' but no domain.
+        Check that the 'list' command prints these correctly.
+        """
+        name = 'offering-name'
+        self.userbase('install')
+        realm = IRealm(self.store)
+        substoreItem = SubStore.createNew(self.store, ('app', name))
+        realm.addAccount(name, None, None, internal=True,
+                         avatars=substoreItem)
+        output = self.userbase('list')
+        self.assertEquals(output, [name])
+
+
 
 def pvals(m):
     d = m.persistentValues()
