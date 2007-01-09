@@ -33,11 +33,6 @@ class Create(axiomatic.AxiomaticSubCommand, UserbaseMixin):
         self['password'] = password
 
     def postOptions(self):
-        for ls in self.store.query(userbase.LoginSystem):
-            break
-        else:
-            ls = self.installOn(self.store)
-
         msg = 'Enter new AXIOM password: '
         while not self['password']:
             password = getpass.getpass(msg)
@@ -46,13 +41,32 @@ class Create(axiomatic.AxiomaticSubCommand, UserbaseMixin):
                 self['password'] = password
             else:
                 msg = 'Passwords do not match.  Enter new AXIOM password: '
+        self.addAccount(
+            self.store, self['username'], self['domain'], self['password'])
 
+
+    def addAccount(self, siteStore, username, domain, password):
+        """
+        Create a new account in the given store.
+
+        @param siteStore: A site Store to which login credentials will be
+        added.
+        @param username: Local part of the username for the credentials to add.
+        @param domain: Domain part of the username for the credentials to add.
+        @param password: Password for the credentials to add.
+        @rtype: L{LoginAccount}
+        @return: The added account.
+        """
+        for ls in siteStore.query(userbase.LoginSystem):
+            break
+        else:
+            ls = self.installOn(siteStore)
         try:
-            acc = ls.addAccount(self['username'],
-                                self['domain'],
-                                self['password'])
+            acc = ls.addAccount(username, domain, password)
         except userbase.DuplicateUser:
             raise usage.UsageError("An account by that name already exists.")
+        return acc
+
 
 
 class Disable(axiomatic.AxiomaticSubCommand):
