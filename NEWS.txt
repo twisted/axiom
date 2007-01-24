@@ -1,3 +1,17 @@
+0.5.19 (2007-01-11):
+  - A new method, axiom.store.ItemQuery.paginate, has been added, which splits
+    a query's result-gathering work into multiple "pages" so that we can deal
+    with extremely large result sets.
+  - A dependency management system for Items has been added in
+    axiom.dependency. InstallableMixin has been removed; 
+    axiom.dependency.installOn is now used to install Items and connect powerups.
+    Items can declare their dependence on another item by declaring attributes
+    with axiom.dependency.dependsOn. When items are installed, their dependencies
+    will be created and installed as well. Installation is no longer tracked by 
+    'installedOn' attributes but by _DependencyConnector items.
+  - A bug preventing 'axiomatic userbase list' from working on a fresh
+    mantissa database has been fixed.
+
 0.5.18 (2006-12-08):
   - Change ItemQuery.deleteFromStore so that it will call deleteFromStore on an
     Item subclass if it has overridden that method.
