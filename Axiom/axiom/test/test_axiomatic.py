@@ -3,9 +3,11 @@
 from twisted.application import app
 from twisted.python.reflect import prefixedMethods
 from twisted.trial.unittest import TestCase
+from twisted.plugin import IPlugin
 
 from axiom.store import Store
 from axiom.scripts import axiomatic
+from axiom.iaxiom import IAxiomaticCommand
 
 
 class MockStart(axiomatic.Start):
@@ -100,3 +102,22 @@ class TestStart(TestCase):
         """
         self.start.parseOptions(['--reactor', 'select'])
         self.assertEqual(self.log, [('installReactor', 'select')])
+
+
+class TestMisc(TestCase):
+    """
+    Test things not directly involving running axiomatic commands.
+    """
+    def test_axiomaticCommandProvides(self):
+        """
+        Test that AxiomaticCommand itself does not provide IAxiomaticCommand or
+        IPlugin, but subclasses do.
+        """
+        self.failIf(IAxiomaticCommand.providedBy(axiomatic.AxiomaticCommand), 'IAxiomaticCommand provided')
+        self.failIf(IPlugin.providedBy(axiomatic.AxiomaticCommand), 'IPlugin provided')
+
+        class _TestSubClass(axiomatic.AxiomaticCommand):
+            pass
+
+        self.failUnless(IAxiomaticCommand.providedBy(_TestSubClass), 'IAxiomaticCommand not provided')
+        self.failUnless(IPlugin.providedBy(_TestSubClass), 'IPlugin not provided')

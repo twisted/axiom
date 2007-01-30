@@ -26,7 +26,8 @@ class AxiomaticSubCommandMixin(object):
 class _metaASC(type):
     def __new__(cls, name, bases, attrs):
         newcls = type.__new__(cls, name, bases, attrs)
-        directlyProvides(newcls, plugin.IPlugin, iaxiom.IAxiomaticCommand)
+        if not (newcls.__name__ == 'AxiomaticCommand' and newcls.__module__ == _metaASC.__module__):
+            directlyProvides(newcls, plugin.IPlugin, iaxiom.IAxiomaticCommand)
         return newcls
 
 class AxiomaticSubCommand(usage.Options, AxiomaticSubCommandMixin):
