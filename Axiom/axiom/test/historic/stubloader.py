@@ -41,7 +41,12 @@ def saveStub(funcobj, revision):
 
 
 class StubbedTest(unittest.TestCase):
-    def setUp(self):
+
+    def openLegacyStore(self):
+        """
+        Extract the Store tarball associated with this test, open it, and return
+        it.
+        """
         temp = self.mktemp()
         f = sys.modules[self.__module__].__file__
         dfn = os.path.join(
@@ -51,7 +56,15 @@ class StubbedTest(unittest.TestCase):
         tarball = tarfile.open(arcname, 'r:bz2')
         for member in tarball.getnames():
             tarball.extract(member, temp)
-        self.store = Store(os.path.join(temp, os.path.basename(dfn)))
+        return Store(os.path.join(temp, os.path.basename(dfn)))
+
+
+    def setUp(self):
+        """
+        Prepare to test a stub by opening and then fully upgrading the legacy
+        store.
+        """
+        self.store = self.openLegacyStore()
         self.service = IService(self.store)
         self.service.startService()
         return self.store.whenFullyUpgraded()
