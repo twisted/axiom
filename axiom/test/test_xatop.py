@@ -1,4 +1,3 @@
-
 import sys
 import os
 
@@ -8,6 +7,7 @@ from twisted.python.util import sibpath
 
 from epsilon import extime
 from axiom import attributes, item, store, errors
+from axiom.errors import ItemNotFound
 
 from pysqlite2.dbapi2 import sqlite_version_info
 
@@ -234,6 +234,25 @@ class ItemTests(unittest.TestCase):
         self.store.transact(txn)
         self.assertRaises(KeyError, self.store.getItemByID, sid[0])
         self.assertEquals(list(self.store.query(TestItem)), [])
+
+
+    def test_getNeverInsertedItem(self):
+        """
+        Verify that using getItemByID with a default object to attempt to
+        load by storeID an Item which was created and deleted within a
+        single transaction results in the default object.
+        """
+        def txn():
+            a = TestItem(store=self.store)
+            storeID = a.storeID
+            a.deleteFromStore()
+            del a
+            return storeID
+        storeID = self.store.transact(txn)
+        default = object()
+        result = self.store.getItemByID(storeID, default=default)
+        self.assertIdentical(result, default)
+
 
     def testInMemoryRevert(self):
         item1 = TestItem(
@@ -687,4 +706,3 @@ class ConcurrencyTestCase(unittest.TestCase):
 
         ConcurrentItemA(store=firstStore)
         self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)
-
