@@ -1823,7 +1823,9 @@ class Store(Empowered):
             attrs = self.querySQL(self.getTableQuery(typename, version),
                                   [storeID])
             if len(attrs) != 1:
-                raise errors.ItemNotFound("No results for known-to-be-good object")
+                if default is _noItem:
+                    raise errors.ItemNotFound("No results for known-to-be-good object")
+                return default
             attrs = attrs[0]
             useMostRecent = False
             moreRecentAvailable = False
