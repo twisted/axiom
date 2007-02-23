@@ -1819,14 +1819,11 @@ class Store(Empowered):
             "Database panic: more than one result for TYPEOF!"
         if results:
             typename, module, version = results[0]
-            print typename, module, version
             # for the moment we're going to assume no inheritance
             attrs = self.querySQL(self.getTableQuery(typename, version),
                                   [storeID])
             if len(attrs) != 1:
-                if default is _noItem:
-                    raise errors.ItemNotFound("No results for known-to-be-good object")
-                return default
+                raise errors.ItemNotFound("No results for known-to-be-good object")
             attrs = attrs[0]
             useMostRecent = False
             moreRecentAvailable = False
