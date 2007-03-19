@@ -14,12 +14,11 @@ def registerUpgrader(upgrader, typeName, oldVersion, newVersion):
     exactly one greater than C{oldVersion}.
     """
     # assert (typeName, oldVersion, newVersion) not in _upgradeRegistry, "duplicate upgrader"
-
     # ^ this makes the tests blow up so it's just disabled for now; perhaps we
     # should have a specific test mode
-    assert newVersion - oldVersion == 1, "read the doc string"
+    # assert newVersion - oldVersion == 1, "read the doc string"
     assert isinstance(typeName, str), "read the doc string"
-    _upgradeRegistry[typeName, oldVersion, newVersion] = upgrader
+    _upgradeRegistry[typeName, oldVersion] = upgrader
 
 def registerAttributeCopyingUpgrader(itemType, fromVersion, toVersion):
     """
@@ -52,13 +51,16 @@ def registerDeletionUpgrader(itemType, fromVersion, toVersion):
     registerUpgrader(upgrader, itemType.typeName, fromVersion, toVersion)
 
 
-def upgradeAllTheWay(o, typeName, version):
+def upgradeAllTheWay(o):
+    assert o.__legacy__
     while True:
         try:
-            upgrader = _upgradeRegistry[typeName, version, version + 1]
+            upgrader = _upgradeRegistry[o.typeName, o.schemaVersion]
         except KeyError:
             break
         else:
             o = upgrader(o)
-            version += 1
+            if o is None:
+                # Object was explicitly destroyed during upgrading.
+                break
     return o
