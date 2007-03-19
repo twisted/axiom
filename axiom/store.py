@@ -1046,7 +1046,7 @@ class Store(Empowered):
 
             while upgver < currentType.schemaVersion:
                 # Do we have enough of the schema present to upgrade?
-                if ((typeInQuestion, upgver, upgver+1)
+                if ((typeInQuestion, upgver)
                     not in upgrade._upgradeRegistry):
                     cantUpgradeErrors.append(
                         "No upgrader present for %s (%s) from %d to %d" % (
@@ -1234,7 +1234,7 @@ class Store(Empowered):
                 continue
             o = onething[0]
             self._anyUpgradesThisTypeYet = True
-            self.transact(upgrade.upgradeAllTheWay, o, t0.typeName, t0.schemaVersion)
+            self.transact(upgrade.upgradeAllTheWay, o)
             return True
         return False
 
@@ -1867,7 +1867,7 @@ class Store(Empowered):
                 # upgradeVersion will do caching as necessary, we don't have to
                 # cache here.  (It must, so that app code can safely call
                 # upgradeVersion and get a consistent object out of it.)
-                x = self.transact(upgrade.upgradeAllTheWay, x, typename, x.schemaVersion)
+                x = self.transact(upgrade.upgradeAllTheWay, x)
             elif not x.__legacy__:
                 # We loaded the most recent version of an object
                 self.objectCache.cache(storeID, x)
