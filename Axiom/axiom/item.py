@@ -706,7 +706,6 @@ class Item(Empowered, slotmachine._Strict):
         # functioning as expected
         assert typename == self.typeName, '%r != %r' % (typename, self.typeName)
         assert oldversion == self.schemaVersion
-        assert newversion == oldversion + 1
         key = typename, newversion
         T = None
         if key in _legacyTypes:
