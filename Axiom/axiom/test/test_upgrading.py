@@ -66,10 +66,6 @@ from axiom.test import morenewapp
 
 axiomInvalidateModule(morenewapp)
 
-from axiom.test import onestepapp
-
-axiomInvalidateModule(onestepapp)
-
 from axiom.test import newapp
 
 from axiom.test import oldpath
@@ -91,7 +87,6 @@ def choose(module=None):
     axiomInvalidateModule(oldapp)
     axiomInvalidateModule(toonewapp)
     axiomInvalidateModule(morenewapp)
-    axiomInvalidateModule(onestepapp)
     axiomInvalidateModule(newapp)
 
     if module is not None:
@@ -143,23 +138,6 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             sword = s.getItemByID(swordID, autoUpgrade=False)
             self._testPlayerAndSwordState(player, sword)
         return s.whenFullyUpgraded().addCallback(afterUpgrade)
-
-
-    def test_upgradeSkipVersion(self):
-        """
-        Verify that an upgrader registered to skip a version can execute properly.
-        """
-        playerID, swordID = self._testTwoObjectUpgrade()
-        choose(onestepapp)
-        s = self.openStore()
-        self.startStoreService()
-        def afterUpgrade(result):
-            player = s.getItemByID(playerID, autoUpgrade=False)
-            sword = s.getItemByID(swordID, autoUpgrade=False)
-            self._testPlayerAndSwordState(player, sword)
-        return s.whenFullyUpgraded().addCallback(afterUpgrade)
-
-
 
     def test_loggingAtAppropriateTimes(self):
         """
@@ -233,24 +211,20 @@ class SwordUpgradeTest(SchemaUpgradeTest):
 
         return player.storeID, sword.storeID
 
-
     def testTwoObjectUpgrade_OuterFirst(self):
         playerID, swordID = self._testTwoObjectUpgrade()
         player, sword = self._testLoadPlayerFirst(playerID, swordID)
         self._testPlayerAndSwordState(player, sword)
-
 
     def testTwoObjectUpgrade_InnerFirst(self):
         playerID, swordID = self._testTwoObjectUpgrade()
         player, sword = self._testLoadSwordFirst(playerID, swordID)
         self._testPlayerAndSwordState(player, sword)
 
-
     def testTwoObjectUpgrade_AutoOrder(self):
         playerID, swordID = self._testTwoObjectUpgrade()
         player, sword = self._testAutoUpgrade(playerID, swordID)
         self._testPlayerAndSwordState(player, sword)
-
 
     def testTwoObjectUpgrade_UseService(self):
         playerID, swordID = self._testTwoObjectUpgrade()
@@ -267,7 +241,6 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             self._testPlayerAndSwordState(player, sword)
 
         return s.whenFullyUpgraded().addCallback(afterUpgrade)
-
 
     def _testAutoUpgrade(self, playerID, swordID):
         choose(newapp)
