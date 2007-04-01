@@ -929,6 +929,8 @@ class Placeholder(object):
         self._placeholderCount = _placeholderCount + 1
         _placeholderCount += 1
 
+        self.existingInStore = self._placeholderItemClass.existingInStore
+
 
     def __cmp__(self, other):
         """
@@ -948,8 +950,13 @@ class Placeholder(object):
 
 
     def getSchema(self):
-        return self._placeholderItemClass.getSchema()
-
+        # In a MultipleItemQuery, the same table can appear more than
+        # once in the "SELECT ..." part of the query, determined by
+        # getSchema(). In this case, the correct placeholder names
+        # need to be used.
+        for (name, atr) in self._placeholderItemClass.getSchema():
+            yield name, _PlaceholderColumn(self,
+                                           getattr(self._placeholderItemClass, name))
 
     def getTableName(self, store):
         return self._placeholderItemClass.getTableName(store)
