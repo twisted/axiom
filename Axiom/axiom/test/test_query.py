@@ -409,6 +409,170 @@ class BasicQuery(TestCase):
         s.transact(entesten)
         s.close()
 
+class MultipleQuery(TestCase):
+
+    def test_basicJoin(self):
+        """
+        Verify that querying for multiple Item classes gives
+        us the right number and type of Items, in a plausible order.
+        """
+        s = Store()
+        def entesten():
+            for i in range(3):
+                c = C(store=s, name=u"C.%s" % i)
+                B(store=s, name=u"B.%s" % (2-i), cref=c)
+
+            query = s.query( (B, C),
+                             B.cref == C.storeID,
+                             sort=C.name.ascending)
+
+            self.assertEquals(query.count(), 3)
+
+            result = iter(query).next()
+
+            self.assertEquals(len(result), 2)
+
+            b, c = result
+
+            self.assertTrue(isinstance(b, B))
+            self.assertTrue(isinstance(c, C))
+
+            self.assertEquals(b.name, u"B.2")
+            self.assertEquals(c.name, u"C.0")
+
+        s.transact(entesten)
+        s.close()
+
+    def test_count(self):
+        """
+        Verify that count() gives the right result in the
+        presence of offset and limit.
+        """
+        s = Store()
+        def entesten():
+            for i in range(3):
+                c = C(store=s, name=u"C.%s" % i)
+                B(store=s, name=u"B.%s" % (2-i), cref=c)
+                B(store=s, name=u"B2.%s" % (2-i), cref=c)
+
+            query = s.query( (B, C),
+                             B.cref == C.storeID)
+
+            totalCombinations = 6
+
+            self.assertEquals(query.count(), totalCombinations)
+
+            for offset in range(totalCombinations):
+                for limit in range(totalCombinations + 1):
+                    query = s.query( (B, C),
+                                     B.cref == C.storeID,
+                                     offset=offset, limit=limit )
+                    expectedCount = min((totalCombinations-offset), limit)
+                    actualCount = query.count()
+                    self.assertEquals(actualCount, expectedCount,
+                                      "Got %s results with offset %s, limit %s" % (
+                                      actualCount, offset, limit))
+
+        s.transact(entesten)
+        s.close()
+
+    def test_distinct(self):
+        """
+        Verify that distinct gives the right answers for a multiple
+        item queries.
+        """
+        s = Store()
+        def entesten():
+            for i in range(3):
+                c = C(store=s, name=u"C.%s" % i)
+                b = B(store=s, name=u"B.%s" % i, cref=c)
+                a = A(store=s, type=u"A.%s" % i, reftoc=b)
+                a = A(store=s, type=u"A.%s" % i, reftoc=b)
+
+            query = s.query( (B, C),
+                             AND(B.cref == C.storeID,
+                                 A.reftoc == B.storeID),
+                             sort = C.name.ascending )
+
+            self.assertEquals(query.count(), 6)
+
+            distinct = query.distinct()
+
+            self.assertEquals(distinct.count(), 3)
+
+            for i, (b, c) in enumerate(query.distinct()):
+                self.assertEquals(b.name, u"B.%s" % i)
+                self.assertEquals(c.name, u"C.%s" % i)
+
+        s.transact(entesten)
+        s.close()
+
+    def test_tree(self):
+        """
+        Verify that queries using the same Item class more than
+        once behave correctly.
+        """
+        s = Store()
+        def entesten():
+            pops = B(store=s, name=u"Pops")
+            dad = B(store=s, name=u"Dad", cref=pops)
+            bro = B(store=s, name=u"Bro", cref=dad)
+            sis = B(store=s, name=u"Sis", cref=dad)
+
+            Gen1 = Placeholder(B)
+            Gen2 = Placeholder(B)
+            Gen3 = Placeholder(B)
+
+            query = s.query( (Gen1, Gen2, Gen3),
+                             AND(Gen3.cref == Gen2.storeID,
+                                 Gen2.cref == Gen1.storeID),
+                             sort=Gen3.name.ascending )
+
+            self.assertEquals(query.count(), 2)
+
+            self.assertEquals(tuple(b.name for b in iter(query).next()),
+                              (u"Pops", u"Dad", u"Bro"))
+        s.transact(entesten)
+        s.close()
+
+    def test_oneTuple(self):
+        """
+        Verify that tuples of length one don't do anything crazy.
+        """
+        s = Store()
+        def entesten():
+            for i in range(3):
+                C(store=s, name=u"C.%s" % i)
+
+            query = s.query( (C,),
+                             sort=C.name.ascending)
+
+            self.assertEquals(query.count(), 3)
+
+            results = iter(query)
+
+            for i in range(3):
+                result = results.next()
+                self.assertEquals(len(result), 1)
+                c, = result
+                self.assertTrue(isinstance(c, C), "%s is not a C" % c)
+                self.assertEquals(c.name, u"C.%s" % i, i)
+
+        s.transact(entesten)
+        s.close()
+
+    def test_emptyTuple(self):
+        """
+        Verify that empty tuples don't give SQL crashes.
+        """
+        s = Store()
+        def entesten():
+            self.assertRaises(ValueError, s.query, ())
+
+        s.transact(entesten)
+        s.close()
+
+
 class QueryingTestCase(TestCase):
     def setUp(self):
         s = self.store = Store()
@@ -1421,3 +1585,18 @@ class PlaceholderTestCase(TestCase):
 
         self.assertEquals(sql, expectedSQL)
         self.assertEquals(args, [])
+
+
+    def test_placeholderColumnNamesInQueryTarget(self):
+        """
+        Test that placeholders are used correctly in the 'result'
+        portion of an SQL query.
+        """
+        s = Store()
+        p = Placeholder(PlaceholderTestItem)
+
+        query = ItemQuery(s, p)
+
+        expectedSQL = "placeholder_0.oid, placeholder_0.[attr], placeholder_0.[characters], placeholder_0.[other]"
+
+        self.assertEquals(query._queryTarget, expectedSQL)

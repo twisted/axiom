@@ -182,7 +182,8 @@ class BaseQuery:
         self.limit = limit
         self.offset = offset
         self.sort = iaxiom.IOrdering(sort)
-        self._computeFromClause()
+        tables = self._involvedTables()
+        self._computeFromClause(tables)
 
     def __repr__(self):
         return self.__class__.__name__ + '(' + ', '.join([
@@ -214,10 +215,11 @@ class BaseQuery:
                 self._runQuery('EXPLAIN SELECT', self._queryTarget))
 
 
-    def _computeFromClause(self):
+    def _involvedTables(self):
         """
-        Generate the SQL string which follows the "FROM" string and before the
-        "WHERE" string in the final SQL statement.
+        Return a list of tables involved in this query,
+        first checking that no required tables (those in
+        the query target) have been omitted from the comparison.
         """
         # SQL and arguments
         if self.comparison is not None:
@@ -231,6 +233,13 @@ class BaseQuery:
             raise ValueError(
                 "Comparison omits required reference to result type")
 
+        return tables
+
+    def _computeFromClause(self, tables):
+        """
+        Generate the SQL string which follows the "FROM" string and before the
+        "WHERE" string in the final SQL statement.
+        """
         tableAliases = []
         self.fromClauseParts = []
         for table in tables:
@@ -629,7 +638,119 @@ class ItemQuery(BaseQuery):
             # actually run the DELETE for the items in this query.
             self._runQuery('DELETE', "")
 
+class MultipleItemQuery(BaseQuery):
+    """
+    A query that returns tuples of Items from a join.
+    """
 
+    def __init__(self, *a, **k):
+        """
+        Create a MultipleItemQuery.  This is typically done via L{Store.query}.
+        """
+        BaseQuery.__init__(self, *a, **k)
+
+        # Just in case it's some other kind of iterable.
+        self.tableClass = tuple(self.tableClass)
+
+        if len(self.tableClass) == 0:
+            raise ValueError("Multiple item queries must have "
+                             "at least one table class")
+
+        targets = []
+
+        # Later when we massage data out, we need to slice the row.
+        # This records the slice lengths.
+        self.schemaLengths = []
+
+        # self.tableClass is a tuple of Item classes.
+        for tableClass in self.tableClass:
+
+            schema = tuple(tableClass.getSchema())
+
+            # The extra 1 is oid
+            self.schemaLengths.append(len(schema) + 1)
+
+            targets.append(
+                tableClass.storeID.getColumnName(self.store) + ', ' + (
+                ', '.join(
+                [attrobj.getColumnName(self.store)
+                 for name, attrobj in schema
+                 ])))
+
+        self._queryTarget = ', '.join(targets)
+
+    def _involvedTables(self):
+        """
+        Return a list of tables involved in this query,
+        first checking that no required tables (those in
+        the query target) have been omitted from the comparison.
+        """
+        # SQL and arguments
+        if self.comparison is not None:
+            tables = self.comparison.getInvolvedTables()
+            self.args = self.comparison.getArgs(self.store)
+        else:
+            tables = list(self.tableClass)
+            self.args = []
+
+        for tableClass in self.tableClass:
+            if tableClass not in tables:
+                raise ValueError(
+                    "Comparison omits required reference to result type %s"
+                    % tableClass.typeName)
+
+        return tables
+
+    def _massageData(self, row):
+
+        """
+        Convert a row into a tuple of Item instances, by slicing it
+        according to the number of columns for each instance, and then
+        proceeding as for ItemQuery._massageData.
+
+        @param row: an n-tuple, where n is the total number of columns
+        specified by all the item types in this query.
+
+        @return: a tuple of instances of the types specified by this query.
+        """
+        offset = 0
+        resultBits = []
+
+        for i, tableClass in enumerate(self.tableClass):
+            numAttrs = self.schemaLengths[i]
+
+            result = self.store._loadedItem(self.tableClass[i],
+                                            row[offset],
+                                            row[offset+1:offset+numAttrs])
+            assert result.store is not None, "result %r has funky store" % (result,)
+            resultBits.append(result)
+
+            offset += numAttrs
+
+        return tuple(resultBits)
+
+    def count(self):
+        """
+        Count the number of distinct results of the wrapped query.
+
+        @return: an L{int} representing the number of distinct results.
+        """
+        if not self.store.autocommit:
+            self.store.checkpoint()
+        target = ', '.join([
+            tableClass.storeID.getColumnName(self.store)
+            for tableClass in self.tableClass ])
+        sql, args = self._sqlAndArgs('SELECT', target)
+        sql = 'SELECT COUNT(*) FROM (' + sql + ')'
+        result = self.store.querySQL(sql, args)
+        assert len(result) == 1, 'more than one result: %r' % (result,)
+        return result[0][0] or 0
+
+    def distinct(self):
+        """
+        @return: an L{iaxiom.IQuery} provider whose values are distinct.
+        """
+        return _MultipleItemDistinctQuery(self)
 
 class _DistinctQuery(object):
     """
@@ -643,7 +764,7 @@ class _DistinctQuery(object):
         """
         Create a distinct query, based on another query.
 
-        @param query: an instandce of a L{BaseQuery} subclass.  Note: an IQuery
+        @param query: an instance of a L{BaseQuery} subclass.  Note: an IQuery
         provider is not sufficient, this class relies on implementation details
         of L{BaseQuery}.
         """
@@ -676,6 +797,30 @@ class _DistinctQuery(object):
         assert len(result) == 1, 'more than one result: %r' % (result,)
         return result[0][0] or 0
 
+
+class _MultipleItemDistinctQuery(_DistinctQuery):
+    """
+    Distinct query based on a MultipleItemQuery.
+    """
+
+    def count(self):
+        """
+        Count the number of distinct results of the wrapped query.
+
+        @return: an L{int} representing the number of distinct results.
+        """
+        if not self.query.store.autocommit:
+            self.query.store.checkpoint()
+        target = ', '.join([
+            tableClass.storeID.getColumnName(self.query.store)
+            for tableClass in self.query.tableClass ])
+        sql, args = self.query._sqlAndArgs(
+            'SELECT DISTINCT',
+            target)
+        sql = 'SELECT COUNT(*) FROM (' + sql + ')'
+        result = self.query.store.querySQL(sql, args)
+        assert len(result) == 1, 'more than one result: %r' % (result,)
+        return result[0][0] or 0
 
 
 _noDefault = object()
@@ -1325,9 +1470,11 @@ class Store(Empowered):
     def query(self, tableClass, comparison=None,
               limit=None, offset=None, sort=None):
         """
-        Return a generator of instances of C{tableClass}.
+        Return a generator of instances of C{tableClass},
+        or tuples of instances if C{tableClass} is a
+        tuple of classes.
 
-        Example::
+        Examples::
 
             fastCars = s.query(Vehicle,
                 axiom.attributes.AND(
@@ -1336,11 +1483,22 @@ class Store(Empowered):
                 limit=100,
                 sort=Vehicle.maxKPH.descending)
 
+            quotesByClient = s.query( (Client, Quote),
+                axiom.attributes.AND(
+                    Client.active == True,
+                    Quote.client == Client.storeID,
+                    Quote.created >= someDate),
+                limit=10,
+                sort=(Client.name.ascending,
+                      Quote.created.descending))
 
-        @param tableClass: a subclass of Item to look for instances of.
+        @param tableClass: a subclass of Item to look for instances of,
+        or a tuple of subclasses.
 
-        @param comparison: a provider of L{IComparison}, or None, to match all
-        items available in the store.
+        @param comparison: a provider of L{IComparison}, or None, to match
+        all items available in the store. If tableClass is a tuple, then
+        the comparison must refer to all Item subclasses in that tuple,
+        and specify the relationships between them.
 
         @param limit: an int to limit the total length of the results, or None
         for all available results.
@@ -1351,9 +1509,15 @@ class Store(Empowered):
         @param sort: an L{ISort}, something that comes from an SQLAttribute's
         'ascending' or 'descending' attribute.
 
-        @return: an L{ItemQuery} object, which is an iterable of items.
+        @return: an L{ItemQuery} object, which is an iterable of Items or
+        tuples of Items, according to tableClass.
         """
-        return ItemQuery(self, tableClass, comparison, limit, offset, sort)
+        if isinstance(tableClass, tuple):
+            queryClass = MultipleItemQuery
+        else:
+            queryClass = ItemQuery
+
+        return queryClass(self, tableClass, comparison, limit, offset, sort)
 
     def sum(self, summableAttribute, *a, **k):
         args = (self, summableAttribute.type) + a
