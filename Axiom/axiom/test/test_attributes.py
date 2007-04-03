@@ -220,11 +220,51 @@ class TaggedListyThing(Item):
 
 
 class StringListTestCase(TestCase):
-    def testSimpleListOfStrings(self):
+    def tryRoundtrip(self, value):
+        """
+        Attempt to roundtrip a value through a database store and load, to
+        ensure the representation is not lossy.
+        """
         s = Store()
-        SOME_VALUE = ['abc', 'def, ghi', 'jkl']
-        tlt = TaggedListyThing(store=s, strlist=SOME_VALUE)
-        self.assertEquals(tlt.strlist, SOME_VALUE)
+        tlt = TaggedListyThing(store=s, strlist=value)
+        self.assertEquals(tlt.strlist, value)
+
+        # Force it out of the cache, so it gets reloaded from the store
+        del tlt
+        tlt = s.findUnique(TaggedListyThing)
+        self.assertEquals(tlt.strlist, value)
+
+
+    def test_simpleListOfStrings(self):
+        """
+        Test that a simple list can be stored and retrieved successfully.
+        """
+        SOME_VALUE = [u'abc', u'def, ghi', u'jkl']
+        self.tryRoundtrip(SOME_VALUE)
+
+
+    def test_emptyList(self):
+        """
+        Test that an empty list can be stored and retrieved successfully.
+        """
+        self.tryRoundtrip([])
+
+
+    def test_oldRepresentation(self):
+        """
+        Test that the new code can still correctly load the old representation
+        which could not handle an empty list.
+        """
+
+        oldCases = [
+            (u'foo', [u'foo']),
+            (u'', [u'']),
+            (u'\x1f', [u'', u'']),
+            (u'foo\x1fbar', [u'foo', u'bar']),
+            ]
+
+        for dbval, pyval in oldCases:
+            self.assertEqual(TaggedListyThing.strlist.outfilter(dbval, None), pyval)
 
 
 
