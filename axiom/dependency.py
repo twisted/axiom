@@ -98,9 +98,9 @@ def installOn(self, target):
     uninstallation operations unless it is explicitly removed.
 
     If the type of the object being installed has a
-    "powerupInterfaces" attribute (containing either an interface, a
-    sequence of interfaces, or a sequence of (interface, priority)
-    tuples), the target will be powered up with this object on those
+    "powerupInterfaces" attribute (containing either a sequence of
+    interfaces, or a sequence of (interface, priority) tuples),
+    the target will be powered up with this object on those
     interfaces.
 
     If this object has a "__getPowerupInterfaces__" method, it will
@@ -181,10 +181,10 @@ def uninstallFrom(self, target):
     "pinned" by calling "install", and raising an exception if
     anything still depends on this.
 
-    If the type of the object being uninstalled has a
-    "powerupInterfaces" attribute, (containing either an interface, a
-    sequence of interfaces, or a sequence of (interface, priority)
-    tuples), the target will be powered down with this object on those
+    If the type of the object being installed has a
+    "powerupInterfaces" attribute (containing either a sequence of
+    interfaces, or a sequence of (interface, priority) tuples),
+    the target will be powered down with this object on those
     interfaces.
 
     If this object has a "__getPowerupInterfaces__" method, it will
