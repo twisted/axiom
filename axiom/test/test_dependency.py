@@ -11,9 +11,19 @@ from zope.interface import Interface, implements
 class Kitchen(Item):
     name = text()
 
+
+
+class IPowerSource(Interface):
+    pass
+
+
+
 class PowerStrip(Item):
     "Required for plugging appliances into."
+    implements(IPowerSource)
+
     voltage = integer()
+    powerupInterfaces = (IPowerSource,)
 
     def setForUSElectricity(self):
         if not self.voltage:
@@ -329,3 +339,23 @@ class DependencyTest(unittest.TestCase):
         dependency.onlyInstallPowerups(f, foo)
         self.assertEquals(list(foo.powerupsFor(IBreadConsumer)), [e, f])
         self.assertEquals(list(self.store.query(dependency._DependencyConnector)), [])
+
+    def test_getAllPowerupInterfacesDirectly(self):
+        """
+        Test that L{dependency.getAllPowerupInterfaces} returns interfaces
+        listed in the C{powerupInterfaces} attribute of the item it is passed.
+        """
+        self.assertEquals(
+            dependency.getAllPowerupInterfaces(PowerStrip),
+            set((IPowerSource,)))
+
+
+    def test_getAllPowerupInterfacesChained(self):
+        """
+        Test that L{dependency.getAllPowerupInterfaces} returns
+        interfaces listed in the L{powerupInterfaces} attribute of the item it
+        is passed, and the attributes of all of its dependencies.
+        """
+        self.assertEquals(
+            dependency.getAllPowerupInterfaces(Toaster),
+            set((IPowerSource, IBreadConsumer, IAppliance)))
