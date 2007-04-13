@@ -284,34 +284,3 @@ def onlyInstallPowerups(self, target):
     """
     for iface, priority in _getPowerupInterfaces(self):
         target.powerUp(self, iface, priority)
-
-
-def getAllPowerupInterfaces(itemClass):
-    """
-    Get the interfaces C{item} provides, and the interfaces provided by
-    all of its dependencies, recursively.
-
-    @param itemClass: an item class
-    @type itemClass: L{axiom.item.Item}
-
-    @return: some interfaces
-    @rtype: C{set} of L{zope.interface.Interface}
-    """
-    pups = set()
-    def visit(itemClass):
-        #if hasattr(itemClass, '__getPowerupInterfaces__'):
-            # XXX what should be done here?  PrivateApplication uses
-            # this...
-        # can't call _getPowerupInterfaces() because it also wants an
-        # instance
-        for iface in getattr(itemClass, 'powerupInterfaces', ()):
-            if not isinstance(iface, type(Interface)):
-                (iface, _priority) = iface
-            pups.add(iface)
-        # getting hairy!
-        if itemClass not in _globalDependencyMap:
-            return
-        for (cls, _customizer, _ref) in _globalDependencyMap[itemClass]:
-            visit(cls)
-    visit(itemClass)
-    return pups
