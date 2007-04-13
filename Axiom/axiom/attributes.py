@@ -1076,7 +1076,10 @@ class reference(integer):
     def reprFor(self, oself):
         obj = getattr(oself, self.underlying, None)
         if obj is not None:
-            return 'reference(%d)' % (obj.storeID,)
+            if obj.storeID is not None:
+                return 'reference(%d)' % (obj.storeID,)
+            else:
+                return 'reference(unstored@%d)' % (id(obj),)
         sid = getattr(oself, self.dbunderlying, None)
         if sid is None:
             return 'None'
