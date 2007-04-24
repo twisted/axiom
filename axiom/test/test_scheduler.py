@@ -174,6 +174,33 @@ class SchedTest:
 
 
 
+    def test_deletedRunnable(self):
+        """
+        Verify that if a scheduled item is deleted,
+        L{TimedEvent.invokeRunnable} just deletes the L{TimedEvent} without
+        raising an exception.
+        """
+        now = Time()
+        scheduler = IScheduler(self.store)
+        runnable = TestEvent(store=self.store, name=u'Only event')
+        scheduler.schedule(runnable, now)
+
+        runnable.deleteFromStore()
+
+        # Invoke it manually to avoid timing complexity.
+        timedEvent = self.store.findUnique(
+            TimedEvent, TimedEvent.runnable == runnable)
+        timedEvent.invokeRunnable()
+
+        self.assertEqual(
+            self.store.findUnique(
+                TimedEvent,
+                TimedEvent.runnable == runnable,
+                default=None),
+            None)
+
+
+
 class TopStoreSchedTest(SchedTest, TestCase):
     def setUp(self):
         # self.storePath = self.mktemp()
