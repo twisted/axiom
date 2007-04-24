@@ -50,7 +50,11 @@ class TimedEvent(Item):
         Run my runnable, and reschedule or delete myself based on its result.
         Must be run in a transaction.
         """
-        self._rescheduleFromRun(self.runnable.run())
+        runnable = self.runnable
+        if runnable is None:
+            self.deleteFromStore()
+        else:
+            self._rescheduleFromRun(runnable.run())
 
 
     def handleError(self, now, failureObj):
