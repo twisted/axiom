@@ -1,3 +1,12 @@
+0.5.20 (2007-02-23):
+  - AxiomaticCommand is no longer itself an axiom plugin.
+  - axiom.test.historic.stubloader.StubbedTest now has an
+    'openLegacyStore' method, for opening the unupgraded store
+    multiple times.
+  - The default argument to Store.getItemByID is now respected in the
+    case where an attempt is made to load an item which was created
+    and deleted within a single transaction.
+
 0.5.19 (2007-01-11):
   - A new method, axiom.store.ItemQuery.paginate, has been added, which splits
     a query's result-gathering work into multiple "pages" so that we can deal
