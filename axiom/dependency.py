@@ -1,10 +1,6 @@
 # -*- test-case-name: axiom.test.test_dependency -*-
 """
 A dependency management system for items.
-
-This module provides C{DependencyMixin}, which enables dependency
-management on items that subclass it, and C{dependsOn}, an attribute
-that provides automatic loading of dependent items.
 """
 
 import sys, itertools
@@ -30,13 +26,13 @@ def dependsOn(itemType, itemCustomizer=None, doc='',
     """
     This function behaves like L{axiom.attributes.reference} but with
     an extra behaviour: when this item is installed (via
-    L{axiom.dependency.DependencyMixin.install} on a target item, the
+    L{axiom.dependency.installOn} on a target item, the
     type named here will be instantiated and installed on the target
     as well.
-
+    
     For example::
 
-      class Foo(Item, DependencyMixin):
+      class Foo(Item):
           counter = integer()
           thingIDependOn = dependsOn(Baz, lambda baz: baz.setup())
 
