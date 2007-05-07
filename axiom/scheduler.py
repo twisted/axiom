@@ -1,5 +1,7 @@
 # -*- test-case-name: axiom.test.test_scheduler -*-
 
+from zope.interface import implements
+
 from twisted.internet import reactor
 
 from twisted.application.service import Service, IService
@@ -191,9 +193,13 @@ class SchedulerMixin:
 _EPSILON = 1e-20      # A very small amount of time.
 
 class Scheduler(Item, Service, SchedulerMixin):
-
+    """
+    Track and execute persistent timed events for a I{site} store.
+    """
     typeName = 'axiom_scheduler'
     schemaVersion = 1
+
+    implements(IService, IScheduler)
 
     powerupInterfaces = (IService, IScheduler)
 
@@ -321,8 +327,13 @@ registerUpgrader(upgradeParentHook1to2, _SubSchedulerParentHook.typeName, 1, 2)
 
 
 class SubScheduler(Item, SchedulerMixin):
+    """
+    Track and execute persistent timed events for a substore.
+    """
     schemaVersion = 1
     typeName = 'axiom_subscheduler'
+
+    implements(IScheduler)
 
     powerupInterfaces = (IScheduler,)
 
