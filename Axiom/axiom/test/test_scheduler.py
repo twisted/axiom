@@ -97,6 +97,13 @@ class SchedTest:
         return IService(self.siteStore).stopService()
 
 
+    def test_implementsSchedulerInterface(self):
+        """
+        Verify that IScheduler is declared as implemented.
+        """
+        self.failUnless(IScheduler.providedBy(IScheduler(self.store)))
+
+
     def test_scheduler(self):
         """
         Test that the ordering and timing of scheduled calls is correct.
