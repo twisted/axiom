@@ -1,3 +1,14 @@
+0.5.21 (2007-04-27):
+  - Multi-version upgraders are now supported: an upgrader function
+    can upgrade items more than a single version at a time.
+  - Multi-item-class queries now supported: Store.query takes a tuple
+    as its first argument, similar to a comma-separated column clause
+    for a SELECT statement in SQL.
+  - Empty textlists are now properly distinguished from a textlist
+    containing a single empty string.
+  - Handling of items scheduled to run with axiom.scheduler being
+    deleted before they run has been fixed.
+
 0.5.20 (2007-02-23):
   - AxiomaticCommand is no longer itself an axiom plugin.
   - axiom.test.historic.stubloader.StubbedTest now has an
