@@ -366,15 +366,20 @@ class SubScheduler(Item, SchedulerMixin):
         """
         loginAccount = self.store.parent.getItemByID(self.store.idInParent)
         ssph = self.store.parent.findUnique(_SubSchedulerParentHook,
-                          _SubSchedulerParentHook.loginAccount == loginAccount)
-        te = self.store.parent.findUnique(TimedEvent,
-                                          TimedEvent.runnable == ssph)
-        te.deleteFromStore()
-        ssph.deleteFromStore()
+                           _SubSchedulerParentHook.loginAccount == loginAccount,
+                                            default=None)
+        if ssph is not None:
+            te = self.store.parent.findUnique(TimedEvent,
+                                              TimedEvent.runnable == ssph,
+                                              default=None)
+            if te is not None:
+                te.deleteFromStore()
+            ssph.deleteFromStore()
 
     def migrateUp(self):
         """
         Recreate the hooks in the site store to trigger this SubScheduler.
         """
         te = self.store.findFirst(TimedEvent, sort=TimedEvent.time.descending)
-        self._transientSchedule(te.time, Time)
+        if te is not None:
+            self._transientSchedule(te.time, Time)

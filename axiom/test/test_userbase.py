@@ -408,18 +408,28 @@ class SubStoreMigrationTestCase(unittest.TestCase):
 
         self.account = self.ls.addAccount(u'testuser', u'localhost', u'PASSWORD')
 
-        accountStore = self.account.avatars.open()
+        self.accountStore = self.account.avatars.open()
 
-        thing = ThingThatMovesAround(store=accountStore,
-                                     superValue=self.IMPORTANT_VALUE)
-        ss = accountStore.findOrCreate(SubScheduler)
-        dependency.installOn(ss, accountStore)
-        ss.schedule(thing, Time() + datetime.timedelta(days=1))
+        self.ss = self.accountStore.findOrCreate(SubScheduler)
+        dependency.installOn(self.ss, self.accountStore)
 
-        self.origdir = accountStore.dbdir
+        self.origdir = self.accountStore.dbdir
         self.destdir = FilePath(self.mktemp())
 
-    def testExtraction(self):
+    def test_extraction(self):
+        """
+        Ensure that user store extraction works correctly,
+        particularly in the presence of timed events.
+        """
+        thing = ThingThatMovesAround(store=self.accountStore,
+                                     superValue=self.IMPORTANT_VALUE)
+        self.ss.schedule(thing, Time() + datetime.timedelta(days=1))
+        self.test_noTimedEventsExtraction()
+    def test_noTimedEventsExtraction(self):
+        """
+        Ensure that user store extraction works correctly if no timed
+        events are present.
+        """
         userbase.extractUserStore(self.account, self.destdir)
         self.assertEquals(
             self.ls.accountByAddress(u'testuser', u'localhost'),
@@ -430,14 +440,25 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.failIf(self.origdir.exists())
         self.failIf(list(self.store.query(_SubSchedulerParentHook)))
 
-    def testInsertion(self, _deleteDomainDirectory=False):
-        self.testExtraction()
 
-        if _deleteDomainDirectory:
-            self.store.filesdir.child('account').child('localhost').remove()
 
-        userbase.insertUserStore(self.store, self.destdir)
-        insertedStore = self.ls.accountByAddress(u'testuser', u'localhost').avatars.open()
+    def test_noTimedEventsInsertion(self):
+        """
+        Test that inserting a user store succeeds if it contains no
+        timed events.
+        """
+        self.test_noTimedEventsExtraction()
+        self._testInsertion()
+
+    def test_insertion(self, _deleteDomainDirectory=False):
+        """
+        Test that inserting a user store succeeds and that the right
+        items are placed in the site store as a result.
+        """
+        self.test_extraction()
+        self._testInsertion(_deleteDomainDirectory)
+        insertedStore = self.ls.accountByAddress(u'testuser',
+                                                 u'localhost').avatars.open()
         self.assertEquals(
             insertedStore.findUnique(ThingThatMovesAround).superValue,
             self.IMPORTANT_VALUE)
@@ -449,9 +470,22 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.failUnless(self.store.findUnique(TimedEvent,
                                               TimedEvent.runnable == ssph))
 
-    def testInsertionWithNoDomainDirectory(self):
-        self.testInsertion(True)
 
+    def _testInsertion(self, _deleteDomainDirectory=False):
+        """
+        Helper method for inserting a user store.
+        """
+        if _deleteDomainDirectory:
+            self.store.filesdir.child('account').child('localhost').remove()
+
+        userbase.insertUserStore(self.store, self.destdir)
+
+    def test_insertionWithNoDomainDirectory(self):
+        """
+        Test that inserting a user store succeeds even if it is the
+        first one in that domain to be inserted.
+        """
+        self.test_insertion(True)
 
 
 class RealmTestCase(unittest.TestCase):
