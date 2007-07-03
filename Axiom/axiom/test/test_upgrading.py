@@ -80,6 +80,10 @@ from axiom.test import newpath
 
 axiomInvalidateModule(newpath)
 
+from axiom.test import path_postcopy
+
+axiomInvalidateModule(path_postcopy)
+
 
 def choose(module=None):
     """
@@ -346,12 +350,16 @@ class SubStoreCompat(SwordUpgradeTest):
         svc.startService()
 
 class PathUpgrade(SchemaUpgradeTest):
-    def testUpgradePath(self):
+    """
+    Tests for items with path attributes, using
+    registerAttributeCopyingUpgrader.
+    """
+    def _runPathUpgrade(self, module):
         """
-        Verify that you can upgrade a path attribute in the simplest possible
-        way.
+        Load the 'oldpath' module, then upgrade items created from it to the
+        versions in the specified module.
         """
-        axiomInvalidateModule(newpath)
+        axiomInvalidateModule(module)
         reload(oldpath)
         self.openStore()
         nfp = self.currentStore.newFilePath("pathname")
@@ -359,15 +367,37 @@ class PathUpgrade(SchemaUpgradeTest):
                      thePath=nfp)
         self.closeStore()
         axiomInvalidateModule(oldpath)
-        reload(newpath)
+        reload(module)
         self.openStore()
+        self.startStoreService()
+        return nfp, self.currentStore.whenFullyUpgraded()
+
+
+    def testUpgradePath(self):
+        """
+        Verify that you can upgrade a path attribute in the simplest possible
+        way.
+        """
+        nfp, d = self._runPathUpgrade(newpath)
         def checkPathEquivalence(n):
             self.assertEquals(
                 self.currentStore.findUnique(newpath.Path).thePath.path,
                 nfp.path)
-        self.startStoreService()
-        return self.currentStore.whenFullyUpgraded().addCallback(
-            checkPathEquivalence)
+        return d.addCallback(checkPathEquivalence)
+
+
+    def test_postCopy(self):
+        """
+        Ensure that a post-copy function, if specified to
+        registerAttributeCopyingUpgrader, is run after item upgrade.
+        """
+        nfp, d = self._runPathUpgrade(path_postcopy)
+        path2 = nfp.child("foo")
+        def checkPath(_):
+            self.assertEquals(
+                self.currentStore.findUnique(path_postcopy.Path).thePath.path,
+                path2.path)
+        return d.addCallback(checkPath)
 
 
 from axiom.test import oldcirc
