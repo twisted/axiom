@@ -1,3 +1,7 @@
+0.5.23 (2006-06-06):
+  - Fixed a bug where user store insertion/extraction failed if a
+    SubScheduler was installed but no TimedEvents existed.
+
 0.5.22 (2007-05-24):
   - Fixed docstrings in axiom.dependency.
   - Scheduler and SubScheduler now declared to implement IScheduler.
