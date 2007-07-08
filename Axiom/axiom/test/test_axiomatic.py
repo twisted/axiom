@@ -1,6 +1,5 @@
 # Copyright 2006 Divmod, Inc.  See LICENSE file for details
 
-from twisted.python.log import theLogPublisher
 from twisted.application import app
 from twisted.python.reflect import prefixedMethods
 from twisted.trial.unittest import TestCase
@@ -19,12 +18,7 @@ class MockStart(axiomatic.Start):
     def _startApplication(self):
         pass
 
-
     def _removePID(self):
-        pass
-
-
-    def _startLogging(self):
         pass
 
 
@@ -34,13 +28,14 @@ class TestStart(TestCase):
     """
 
     # app methods
+    def app_initialLog(self):
+        pass
+
     def app_installReactor(self, name):
         self.log.append(('installReactor', name))
 
-
     def app_reportProfile(self, profile, processName):
         pass
-
 
     def app_runReactorWithLogging(self, options, stdout, stderr):
         pass
@@ -91,20 +86,6 @@ class TestStart(TestCase):
 
     def tearDown(self):
         self._restoreAppMethods(self._oldMethods)
-
-
-    def test_loggingStubbed(self):
-        """
-        The test fixture should avoid actually adding an observer to the
-        real logging system.
-        """
-        observers = theLogPublisher.observers[:]
-        self.start.parseOptions([])
-        self.failIf([
-            x
-            for x
-            in theLogPublisher.observers
-            if x not in observers])
 
 
     def test_noReactorSpecified(self):
