@@ -129,6 +129,21 @@ class IScheduler(Interface):
 
 
 class IQuery(Interface):
+    """
+    An object that represents a query that can be performed against a database.
+    """
+
+    limit = Attribute(
+        """
+        An integer representing the maximum number of rows to be returned from
+        this query, or None, if the query is unlimited.
+        """)
+
+    store = Attribute(
+        """
+        The Axiom store that this query will return results from.
+        """)
+
     def __iter__():
         """
         Retrieve an iterator for the results of this query.
@@ -140,6 +155,27 @@ class IQuery(Interface):
     def count():
         """
         Return the number of results in this query.
+
+        NOTE: In most cases, this will have to load all of the rows in this
+        query.  It is therefore very slow and should generally be considered
+        discouraged.  Call with caution!
+        """
+
+
+    def cloneQuery(limit):
+        """
+        Create a similar-but-not-identical copy of this query with certain
+        attributes changed.
+
+        (Currently this only supports the manipulation of the "limit"
+        parameter, but it is the intent that with a richer query-introspection
+        interface, this signature could be expanded to support many different
+        attributes.)
+
+        @param limit: an integer, representing the maximum number of rows that
+        this query should return.
+
+        @return: an L{IQuery} provider with the new limit.
         """
 
 
