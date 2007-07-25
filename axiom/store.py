@@ -135,6 +135,8 @@ def _typeIsTotallyUnknown(typename, version):
     return ((typename not in _typeNameToMostRecentClass)
             and ((typename, version) not in _legacyTypes))
 
+
+
 class BaseQuery:
     """
     This is the abstract base implementation of query logic shared between item
@@ -184,6 +186,19 @@ class BaseQuery:
         self.sort = iaxiom.IOrdering(sort)
         tables = self._involvedTables()
         self._computeFromClause(tables)
+
+
+    _cloneAttributes = 'store tableClass comparison limit offset sort'.split()
+
+    # IQuery
+    def cloneQuery(self, limit=_noItem):
+        clonekw = {}
+        for attr in self._cloneAttributes:
+            clonekw[attr] = getattr(self, attr)
+        if limit is not _noItem:
+            clonekw['limit'] = limit
+        return self.__class__(**clonekw)
+
 
     def __repr__(self):
         return self.__class__.__name__ + '(' + ', '.join([
@@ -769,6 +784,17 @@ class _DistinctQuery(object):
         of L{BaseQuery}.
         """
         self.query = query
+        self.store = query.store
+        self.limit = query.limit
+
+
+    def cloneQuery(self, limit=_noItem):
+        """
+        Clone the original query which this distinct query wraps, and return a new
+        wrapper around that clone.
+        """
+        newq = self.query.cloneQuery(limit=limit)
+        return self.__class__(newq)
 
 
     def __iter__(self):
@@ -826,6 +852,11 @@ class _MultipleItemDistinctQuery(_DistinctQuery):
 _noDefault = object()
 
 class AttributeQuery(BaseQuery):
+    """
+    A query for the value of a single attribute from an item class, so as to
+    load only a single value rather than an instantiating an entire item when
+    the value is all that is needed.
+    """
     def __init__(self,
                  store,
                  tableClass,
@@ -833,14 +864,15 @@ class AttributeQuery(BaseQuery):
                  offset=None, sort=None,
                  attribute=None,
                  raw=False):
-        assert attribute.type is tableClass
-        assert attribute is not None
         BaseQuery.__init__(self, store, tableClass,
                            comparison, limit,
                            offset, sort)
         self.attribute = attribute
         self.raw = raw
         self._queryTarget = attribute.getColumnName(self.store)
+
+
+    _cloneAttributes = BaseQuery._cloneAttributes + 'attribute raw'.split()
 
 
     def _massageData(self, row):

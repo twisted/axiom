@@ -388,6 +388,109 @@ class BasicQuery(TestCase):
         s.close()
 
 
+    def test_itemQueryLimitAttribute(self):
+        """
+        L{ItemQuery} implements LI{IQuery} and should provide a 'limit'
+        attribute depending on how it was created.
+        """
+        s = Store()
+        q = s.query(C, limit=3)
+        self.assertEqual(q.limit, 3)
+
+
+    def test_itemQueryClone(self):
+        """
+        L{ItemQuery.cloneQuery} should return a new L{ItemQuery} which is
+        equivalent, but not identical, to the original query.
+        """
+        s = Store()
+        q1 = s.query(C, limit=3)
+        q2 = q1.cloneQuery()
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, q1.limit)
+        self.assertNotIdentical(q1, q2)
+
+
+    def test_itemQueryLimitSetToNone(self):
+        """
+        L{ItemQuery.cloneQuery} should set the limit attribute back to None when
+        None is passed.  (e.g. it should not use None as the default value.
+        HAX!)
+        """
+        s = Store()
+        q1 = s.query(C, limit=3)
+        q2 = q1.cloneQuery(limit=None)
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, None)
+
+
+    def test_itemQueryCloneLimit(self):
+        """
+        L{ItemQuery} implements L{IQuery} and should provide a 'cloneQuery'
+        method which can accept a 'limit' parameter to change its limit.
+        """
+        s = Store()
+        q1 = s.query(C, limit=3)
+        q2 = q1.cloneQuery(5)
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, 5)
+
+
+    def test_itemQueryStoreAttribute(self):
+        """
+        L{ItemQuery} implements L{IQuery} and should provide a 'store' attribute
+        that points to the store it will yield items from.
+        """
+        s = Store()
+        q = s.query(C)
+        self.assertEqual(q.store, s)
+
+
+    def test_itemQueryDistinctLimitAttribute(self):
+        """
+        L{_DistinctQuery} implements L{IQuery} and should provide a 'limit'
+        attribute depending on how it was created.
+        """
+        s = Store()
+        q = s.query(C, limit=3).distinct()
+        self.assertEqual(q.limit, 3)
+
+
+    def test_itemQueryDistinctClone(self):
+        """
+        L{_DistinctQuery.cloneQuery} should return a new L{ItemQuery} which is
+        equivalent, but not identical, to the original query.
+        """
+        s = Store()
+        q1 = s.query(C, limit=3).distinct()
+        q2 = q1.cloneQuery()
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, q1.limit)
+
+
+    def test_itemQueryDistinctCloneLimit(self):
+        """
+        L{_DistinctQuery} implements L{IQuery} and should provide a 'cloneQuery'
+        method which can accept a 'limit' parameter to change its limit.
+        """
+        s = Store()
+        q1 = s.query(C, limit=3).distinct()
+        q2 = q1.cloneQuery(5)
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, 5)
+
+
+    def test_itemQueryDistinctStoreAttribute(self):
+        """
+        L{_DistinctQuery} implements L{IQuery} and should provide a 'store' attribute
+        that points to the store it will yield items from.
+        """
+        s = Store()
+        q = s.query(C).distinct()
+        self.assertEqual(q.store, s)
+
+
+
     def testAttributeQueryMinMax(self):
         s = Store()
         def entesten():
@@ -409,7 +512,57 @@ class BasicQuery(TestCase):
         s.transact(entesten)
         s.close()
 
+    def test_attributeQueryLimitAttribute(self):
+        """
+        L{AttributeQuery} implements LI{IQuery} and should provide a 'limit'
+        attribute depending on how it was created.
+        """
+        s = Store()
+        q = s.query(C, limit=3).getColumn('name')
+        self.assertEqual(q.limit, 3)
+
+
+    def test_attributeQueryClone(self):
+        """
+        L{AttributeQuery.cloneQuery} should return a new L{AttributeQuery}
+        which is equivalent, but not identical, to the original query.
+        """
+        s = Store()
+        q1 = s.query(C, limit=3).getColumn('name')
+        q2 = q1.cloneQuery()
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, q1.limit)
+
+
+    def test_attributeQueryCloneLimit(self):
+        """
+        L{AttributeQuery} implements L{IQuery} and should provide a 'cloneQuery'
+        method which can accept a 'limit' parameter to change its limit.
+        """
+        s = Store()
+        q1 = s.query(C, limit=3).getColumn('name')
+        q2 = q1.cloneQuery(5)
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, 5)
+        self.assertEqual(q1.attribute, q2.attribute)
+        self.assertEqual(q1.raw, q2.raw)
+
+
+    def test_attributeQueryStoreAttribute(self):
+        """
+        L{AttributeQuery} implements L{IQuery} and should provide a 'store' attribute
+        that points to the store it will yield attributes from.
+        """
+        s = Store()
+        q = s.query(C).getColumn('name')
+        self.assertEqual(q.store, s)
+
+
+
 class MultipleQuery(TestCase):
+    """
+    Test cases for queries that yield multiple item types.
+    """
 
     def test_basicJoin(self):
         """
@@ -571,6 +724,98 @@ class MultipleQuery(TestCase):
 
         s.transact(entesten)
         s.close()
+
+
+    def test_limitAttribute(self):
+        """
+        L{MultipleItemQuery} implements LI{IQuery} and should provide a 'limit'
+        attribute depending on how it was created.
+        """
+        s = Store()
+        q = s.query((B, C), limit=3)
+        self.assertEqual(q.limit, 3)
+
+
+    def test_clone(self):
+        """
+        L{MultipleItemQuery.cloneQuery} should return a new L{MultipleItemQuery}
+        which is equivalent, but not identical, to the original query.
+        """
+        s = Store()
+        q1 = s.query((B, C), limit=3)
+        q2 = q1.cloneQuery()
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, q1.limit)
+
+
+    def test_cloneLimit(self):
+        """
+        L{MultipleItemQuery} implements L{IQuery} and should provide a 'cloneQuery'
+        method which can accept a 'limit' parameter to change its limit.
+        """
+        s = Store()
+        q1 = s.query((B, C), limit=3)
+        q2 = q1.cloneQuery(5)
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, 5)
+
+
+    def test_storeAttribute(self):
+        """
+        L{MultipleItemQuery} implements L{IQuery} and should provide a 'store' attribute
+        that points to the store it will yield attributes from.
+        """
+        s = Store()
+        q = s.query((B, C))
+        self.assertEqual(q.store, s)
+
+
+    def test_limitAttributeDistinct(self):
+        """
+        L{_MultipleItemDistinctQuery} implements LI{IQuery} and should provide a
+        'limit' attribute depending on how it was created.
+        """
+        s = Store()
+        q = s.query((B, C), limit=3)
+        self.assertEqual(q.limit, 3)
+
+
+    def test_cloneDistinct(self):
+        """
+        L{_MultipleItemDistinctQuery.cloneQuery} should return a new
+        L{MultipleItemQuery} which is equivalent, but not identical, to the
+        original query.
+        """
+        s = Store()
+        q1 = s.query((B, C), limit=3).distinct()
+        q2 = q1.cloneQuery()
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, q1.limit)
+
+
+    def test_cloneLimitDistinct(self):
+        """
+        L{_MultipleItemDistinctQuery} implements L{IQuery} and should provide a
+        'cloneQuery' method which can accept a 'limit' parameter to change its
+        limit.
+        """
+        s = Store()
+        q1 = s.query((B, C), limit=3).distinct()
+        q2 = q1.cloneQuery(5)
+        self.assertEqual(q1.store, q2.store)
+        self.assertEqual(q2.limit, 5)
+
+
+    def test_storeAttributeDistinct(self):
+        """
+        L{_MultipleItemDistinctQuery} implements L{IQuery} and should provide a
+        'store' attribute that points to the store it will yield attributes
+        from.
+        """
+        s = Store()
+        q = s.query((B, C)).distinct()
+        self.assertEqual(q.store, s)
+
 
 
 class QueryingTestCase(TestCase):
