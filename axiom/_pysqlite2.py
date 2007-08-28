@@ -21,12 +21,26 @@ class Connection(object):
 
 
     def fromDatabaseName(cls, dbFilename, timeout=None, isolationLevel=None):
-        return cls(dbapi2.connect(dbFilename, timeout=0, isolation_level=isolationLevel))
+        return cls(dbapi2.connect(dbFilename, timeout=0,
+                                  isolation_level=isolationLevel))
     fromDatabaseName = classmethod(fromDatabaseName)
 
 
     def cursor(self):
         return Cursor(self, self._timeout)
+
+
+    def identifySQLError(self, sql, args, e):
+        """
+        Identify an appropriate SQL error object for the given message for the
+        supported versions of sqlite.
+
+        @return: an SQLError
+        """
+        message = e.args[0]
+        if message.startswith("table") and message.endswith("already exists"):
+            return errors.TableAlreadyExists(sql, args, e)
+        return errors.SQLError(sql, args, e)
 
 
 
@@ -114,7 +128,7 @@ class Cursor(object):
         except (dbapi2.ProgrammingError,
                 dbapi2.InterfaceError,
                 dbapi2.OperationalError), e:
-            raise errors.SQLError(sql, args, e)
+            raise self._connection.identifySQLError(sql, args, e)
 
 
     def lastRowID(self):
