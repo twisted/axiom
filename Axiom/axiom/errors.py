@@ -76,6 +76,13 @@ class SQLError(RuntimeError):
             self.underlying.__class__, self.underlying)
 
 
+class TableAlreadyExists(SQLError):
+    """
+    Axiom internally created a table at the same time as another database.
+    (User code should not need to catch this exception.)
+    """
+
+
 
 class UnknownItemType(Exception):
     """

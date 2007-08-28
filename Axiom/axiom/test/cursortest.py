@@ -1,5 +1,6 @@
+# -*- test-case-name: axiom.test.test_pysqlite2,axiom.test.test_apsw -*-
 
-from axiom.errors import TimeoutError
+from axiom.errors import TimeoutError, TableAlreadyExists, SQLError
 
 class StubCursor(object):
     """
@@ -70,6 +71,35 @@ class ConnectionTestCaseMixin:
 
     def createStubConnection(self):
         raise NotImplementedError("Cannot create Axiom Connection instance.")
+
+
+    def createRealConnection(self):
+        """
+        Create a memory-backed database connection for integration testing.
+        """
+        raise NotImplementedError("Real connection creation not implemented.")
+
+
+    def test_identifyTableCreationError(self):
+        """
+        When the same table is created twice, we should get a TableAlreadyExists
+        exception.
+        """
+        con = self.createRealConnection()
+        cur = con.cursor()
+        CREATE_TABLE = "create table foo (bar integer)"
+        cur.execute(CREATE_TABLE)
+        e = self.assertRaises(TableAlreadyExists, cur.execute, CREATE_TABLE)
+
+
+    def test_identifyGenericError(self):
+        """
+        When invalid SQL is issued, we should get a SQLError exception.
+        """
+        con = self.createRealConnection()
+        cur = con.cursor()
+        INVALID_STATEMENT = "not an SQL string"
+        e = self.assertRaises(SQLError, cur.execute, INVALID_STATEMENT)
 
 
     def test_cursor(self):

@@ -24,3 +24,10 @@ class ConnectionTestCase(ConnectionTestCaseMixin, TestCase):
 
     def createAxiomConnection(self, underlyingConnection, *a, **kw):
         return Connection(underlyingConnection, *a, **kw)
+
+
+    def createRealConnection(self):
+        """
+        Create a memory-backed connection for integration testing.
+        """
+        return Connection.fromDatabaseName(":memory:")

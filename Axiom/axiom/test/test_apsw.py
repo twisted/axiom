@@ -27,7 +27,7 @@ class APSWStubConnection(StubConnection):
 
 
 class ConnectionTestCase(ConnectionTestCaseMixin, TestCase):
-    skip = "APSW is dumb."
+    skip = "The APSW backend is currently unmaintained."
 
     expectedUnderlyingExceptionClass = LockedError
 

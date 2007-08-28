@@ -966,6 +966,12 @@ class Store(Empowered):
 
         Store("/path/to/file.axiom") # create an on-disk database in the
                                      # directory /path/to/file.axiom
+
+    @ivar typeToTableNameCache: a dictionary mapping Item subclass type objects
+    to the fully-qualified sqlite table name where items of that type are
+    stored.  This cache is generated from the saved schema metadata when this
+    store is opened and updated when schema changes from other store objects
+    (such as in other processes) are detected.
     """
 
     aggregateInterfaces = {
@@ -1864,35 +1870,33 @@ class Store(Empowered):
                tableClass.schemaVersion)
         if key in self.typenameAndVersionToID:
             return self.typenameAndVersionToID[key]
-
-        # We may need to create a table.  Although we don't have a memory of
-        # this table from the last time we called "_startup()", another process
-        # may have updated the schema since then.  Let's give it a chance to
-        # update the in-memory schema if it has changed on disk.
-        self._startup()
-
-        if key in self.typenameAndVersionToID:
-            return self.typenameAndVersionToID[key]
-        return self.transact(self._actualTableCreation, tableClass, key)
+        return self.transact(self._maybeCreateTable, tableClass, key)
 
 
-    def _actualTableCreation(self, tableClass, key):
+    def _maybeCreateTable(self, tableClass, key):
         """
-        In the event that an Item subclass which has never before been added to
-        the schema of our SQLite database, create the table, update the schema,
-        and return the typeID.  This is internal to the implementation of
-        getTypeID.  It must be run in a transaction.
+        A type ID has been requested for an Item subclass whose table was not
+        present when this Store was opened.  Attempt to create the table, and
+        if that fails because another Store object (perhaps in another process)
+        has created the table, re-read the schema.  When that's done, return
+        the typeID.
+
+        This method is internal to the implementation of getTypeID.  It must be
+        run in a transaction.
 
         @param tableClass: an Item subclass
         @param key: a 2-tuple of the tableClass's typeName and schemaVersion
 
-        @return: a typeID
+        @return: a typeID for the table; a new one if no table exists, or the
+        existing one if the table was created by another Store object
+        referencing this database.
         """
         sqlstr = []
         sqlarg = []
 
         # needs to be calculated including version
-        tableName = self._tableNameFor(tableClass.typeName, tableClass.schemaVersion)
+        tableName = self._tableNameFor(tableClass.typeName,
+                                       tableClass.schemaVersion)
 
         sqlstr.append("CREATE TABLE %s (" % tableName)
 
@@ -1908,7 +1912,15 @@ class Store(Empowered):
         sqlstr.append(', '.join(sqlarg))
         sqlstr.append(')')
 
-        self.createSQL(''.join(sqlstr))
+        try:
+            self.createSQL(''.join(sqlstr))
+        except errors.TableAlreadyExists:
+            # Although we don't have a memory of this table from the last time
+            # we called "_startup()", another process has updated the schema
+            # since then.
+            self._startup()
+            return self.typenameAndVersionToID[key]
+
 
         typeID = self.executeSchemaSQL(_schema.CREATE_TYPE,
                                        [tableClass.typeName,
