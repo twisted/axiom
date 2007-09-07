@@ -1,3 +1,7 @@
+0.5.26 (2007-09-05):
+  - A bug where exceptions were raised when tables were created concurrently is
+    now fixed.
+
 0.5.25 (2007-08-01):
   - Added the beginnings of a query introspection API.
 
