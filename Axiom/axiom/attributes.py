@@ -420,7 +420,6 @@ class SQLAttribute(inmemory, Comparable):
             return self
 
         pyval = getattr(oself, self.underlying, _NEEDS_FETCH)
-        st = getattr(oself, 'store')
         if pyval is _NEEDS_FETCH:
             dbval = getattr(oself, self.dbunderlying, _NEEDS_FETCH)
             if dbval is _NEEDS_FETCH:

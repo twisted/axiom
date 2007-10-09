@@ -455,13 +455,7 @@ class Item(Empowered, slotmachine._Strict):
         L.append('(')
         A = []
         for nam, atr in sorted(self.getSchema()):
-            try:
-                V = atr.reprFor(self)
-            except:
-                import traceback
-                import sys
-                traceback.print_exc(file=sys.stdout)
-                V = "<error>"
+            V = atr.reprFor(self)
             A.append('%s=%s' % (nam, V))
         A.append('storeID=' + str(self.storeID))
         L.append(', '.join(A))
