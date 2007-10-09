@@ -109,7 +109,41 @@ class ItemWithDefault(item.Item):
     """
     value = integer(default=10)
 
+
+
 class ItemTestCase(unittest.TestCase):
+    """
+    Tests for L{Item}.
+    """
+
+    def test_repr(self):
+        """
+        L{Item.__repr__} should return a C{str} giving the name of the
+        subclass and the names and values of all the item's attributes.
+        """
+        reprString = repr(ItemWithDefault(value=123))
+        self.assertIn('value=123', reprString)
+        self.assertIn('storeID=None', reprString)
+        self.assertIn('ItemWithDefault', reprString)
+
+        store = Store()
+        item = ItemWithDefault(store=store, value=321)
+        reprString = repr(item)
+        self.assertIn('value=321', reprString)
+        self.assertIn('storeID=%d' % (item.storeID,), reprString)
+        self.assertIn('ItemWithDefault', reprString)
+
+
+    def test_partiallyInitializedRepr(self):
+        """
+        L{Item.__repr__} should return a C{str} giving some information,
+        even if called before L{Item.__init__} has run completely.
+        """
+        item = ItemWithDefault.__new__(ItemWithDefault)
+        reprString = repr(item)
+        self.assertIn('ItemWithDefault', reprString)
+
+
     def test_itemClassOrdering(self):
         """
         Test that L{Item} subclasses (not instances) sort by the Item's
@@ -132,6 +166,7 @@ class ItemTestCase(unittest.TestCase):
         st = store.Store()
         self.assertRaises(item.CantInstantiateItem, item.Item, store=st)
 
+
     def testCreateItemWithDefault(self):
         """
         Test that attributes with default values can be set to None properly.
@@ -140,6 +175,7 @@ class ItemTestCase(unittest.TestCase):
         it = ItemWithDefault()
         it.value = None
         self.assertEqual(it.value, None)
+
 
     def test_storedCallbackAfterActivateCallback(self):
         """
