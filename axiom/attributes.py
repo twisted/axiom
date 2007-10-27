@@ -1287,3 +1287,141 @@ class money(point4decimal):
 
     (This does not, however, include features such as currency.)
     """
+
+
+class M2N(object):
+    """
+    A property for specifying M:N relations.
+    """
+    def __init__(self, LinkClass, thisAttr, otherAttr):
+        """
+        @param LinkClass: The class which links objects of this type
+            with objects of another.
+
+        @param thisAttr: The attribute of C{LinkClass} which is a
+            L{reference<axiom.attributes.reference>} to this side.
+
+        @param otherAttr: The attribute of C{LinkClass} which is a
+            L{reference} to the other side.
+        """
+        self._LinkClass = LinkClass
+        self._thisAttr = thisAttr
+        self._otherAttr = otherAttr
+
+    def __get__(self, thisItem, type=None):
+        """
+        Return a L{BoundM2NReferenceSet} representing objects relating
+        to C{thisItem}.
+        """
+        return BoundM2NReferenceSet(thisItem, self._LinkClass,
+                                    self._thisAttr, self._otherAttr)
+
+
+
+class BoundM2NReferenceSet(object):
+    """
+    A representation of a set of objects that are related to a
+    particular Item via a link table.
+    """
+
+    def __init__(self, thisItem, LinkClass, thisAttr, otherAttr):
+        self._LinkClass = LinkClass
+        self._thisItem = thisItem
+        self._thisAttr = thisAttr
+        self._otherAttr = otherAttr
+
+
+    def __iter__(self):
+        """
+        Return an iterator of all objects which are related to this Item.
+        """
+        return iter(self.query())
+
+
+    def add(self, item):
+        """
+        Add an item to this set of objects related to this Item; a new
+        instance of the link class will be created.
+        """
+        kwargs = {}
+        kwargs[self._thisAttr.attrname] = self._thisItem
+        kwargs[self._otherAttr.attrname] = item
+        self._LinkClass(store=self._thisItem.store, **kwargs)
+
+
+    def remove(self, item):
+        """
+        Delete the link item which associates this object to the given item.
+        """
+        self._thisItem.store.query(self._LinkClass,
+                                   AND(self._thisAttr == self._thisItem,
+                                       self._otherAttr == item)
+                                   ).deleteFromStore()
+
+
+    def unlinkAll(self):
+        """
+        Delete all the link items which associate this object to any other Item.
+        """
+        self._thisItem.store.query(self._LinkClass,
+                                   self._thisAttr == self._thisItem
+                                   ).deleteFromStore()
+
+
+    def query(self, customQuery=None, sort=None, limit=None, offset=None):
+        """
+        Perform a query for related objects, perhaps customizing that query.
+
+        @parm customQuery: An optional Axiom comparison to be added to
+            the query.
+        """
+        OtherClass = self._otherAttr.reftype
+        query = AND(self._thisAttr == self._thisItem,
+                  self._otherAttr == OtherClass.storeID)
+        if customQuery is not None:
+            query = AND(query, customQuery)
+        return self._thisItem.store.query(OtherClass, query,
+                                          sort=sort, limit=limit, offset=offset)
+
+
+class N2One(object):
+    """
+    A property for specifying N:1 relations.
+    """
+    def __init__(self, OtherClass, backRef):
+        self._OtherClass = OtherClass
+        self._backRef = backRef
+
+    def __get__(self, thisItem, type=None):
+        """
+        Return a L{BoundN2OneReferenceSet} representing objects relating
+        to C{thisItem}.
+        """
+        return BoundN2OneReferenceSet(thisItem, self._OtherClass, self._backRef)
+
+
+class BoundN2OneReferenceSet(object):
+    """
+    A representation of a set of objects that are directly related to
+    a particular Item.
+    """
+    def __init__(self, thisItem, OtherClass, backRef):
+        self._thisItem = thisItem
+        self._OtherClass = OtherClass
+        self._backRef = backRef
+
+    def __iter__(self):
+        return iter(self.query())
+
+    def query(self, customQuery=None, sort=None, limit=None, offset=None):
+        """
+        Perform a query for related objects, perhaps customizing that query.
+
+        @parm customQuery: An optional Axiom comparison to be added to
+            the query.
+        """
+        query = (self._backRef == self._thisItem)
+        if customQuery is not None:
+            query = AND(query, customQuery)
+        return self._thisItem.store.query(self._OtherClass, query,
+                                          sort=sort, limit=limit, offset=offset)
