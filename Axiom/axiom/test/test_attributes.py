@@ -8,12 +8,13 @@ from epsilon.extime import Time
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
 
-from axiom.store import Store
+from axiom.store import Store, ItemQuery
 from axiom.item import Item, normalize, Placeholder
 
-from axiom.attributes import Comparable, SQLAttribute, integer, timestamp, textlist
+from axiom.attributes import Comparable, SQLAttribute, integer, timestamp, textlist, reference
 
-from axiom.attributes import ieee754_double, point1decimal, money
+from axiom.attributes import ieee754_double, point1decimal, money, M2N, N2One
+
 
 class Number(Item):
     typeName = 'test_number'
@@ -410,3 +411,249 @@ class SQLAttributeTestCase(TestCase):
         self.assertIn(
             normalize(qual(SQLAttributeDummyClass)),
             s.getColumnName(SQLAttributeDummyClass.dummyAttribute))
+
+
+
+class Whatever(Item):
+    """
+    A sample Item that will has a M2N to other L{Whatever}s.
+
+    @ivar related: An L{M2N} to other L{Whatever} objects.
+    @ivar score: Some integer which can be set and queried for.
+    """
+    score = integer()
+
+
+
+class WhateverWhatever(Item):
+    """
+    A sample Item that links L{Whatever}s to L{Whatever}s.
+    """
+    a = reference(reftype=Whatever)
+    b = reference(reftype=Whatever)
+
+Whatever.related = M2N(WhateverWhatever, WhateverWhatever.a, WhateverWhatever.b)
+
+
+
+class M2NTest(TestCase):
+    """
+    Tests for the L{M2N} property.
+    """
+
+    def setUp(self):
+        self.store = Store()
+
+
+    def test_add_iter(self):
+        """
+        Iterating the result of a a M2N property should give objects
+        that have been added to it.
+        """
+        what1 = Whatever(store=self.store)
+        what2 = Whatever(store=self.store)
+
+        self.assertEquals(list(what1.related), [])
+        what1.related.add(what2)
+        self.assertEquals(list(what1.related), [what2])
+
+
+    def test_unlinkAll(self):
+        """
+        It's possible to delete all relations to other objects.
+        """
+        what1 = Whatever(store=self.store)
+        what2 = Whatever(store=self.store)
+        what1.related.add(what2)
+        what1.related.unlinkAll()
+        self.assertEquals(list(what1.related), [])
+        self.assertEquals(what2.store, self.store)
+
+
+    def test_remove(self):
+        """
+        It's possible to explicitly remove one item from a relation
+        with another.
+        """
+        what1 = Whatever(store=self.store)
+        what2 = Whatever(store=self.store)
+        what1.related.add(what2)
+        what1.related.remove(what2)
+        self.assertEquals(list(what1.related), [])
+        self.assertEquals(what2.store, self.store)
+
+
+    def test_query(self):
+        """
+        It's possible to restrict the query used to find related objects.
+        """
+        what1 = Whatever(store=self.store)
+        what2 = Whatever(store=self.store, score=2)
+        what22 = Whatever(store=self.store, score=2)
+        what3 = Whatever(store=self.store, score=3)
+        for x in (what2, what22, what3):
+            what1.related.add(x)
+        self.assertEquals(set(what1.related.query(Whatever.score == 2)),
+                          set([what2, what22]))
+
+
+    def test_item_query(self):
+        """
+        The object returned from C{query} should be an L{ItemQuery} to
+        allow for further customization such as C{count}, C{paginate}
+        etc.
+        """
+        what = Whatever(store=self.store)
+        self.assertTrue(isinstance(what.related.query(), ItemQuery))
+
+
+    def test_sort(self):
+        """
+        The C{query} method should take a C{sort} argument, just like
+        L{Store.query}.
+        """
+        what = Whatever(store=self.store)
+        what3 = Whatever(store=self.store, score=3)
+        what1 = Whatever(store=self.store, score=1)
+        what2 = Whatever(store=self.store, score=2)
+        for x in (what3, what1, what2):
+            what.related.add(x)
+        self.assertEquals(
+            list(what.related.query(sort=Whatever.score.ascending)),
+            [what1, what2, what3])
+
+
+    def test_item_query_limit(self):
+        """
+        The C{query} method should take a C{limit} argument, just like
+        L{Store.query}.
+        """
+        what = Whatever(store=self.store)
+        what3 = Whatever(store=self.store, score=3)
+        what1 = Whatever(store=self.store, score=1)
+        what2 = Whatever(store=self.store, score=2)
+        for x in (what3, what1, what2):
+            what.related.add(x)
+        self.assertEquals(
+            list(what.related.query(sort=Whatever.score.ascending, limit=2)),
+            [what1, what2])
+
+
+    def test_item_query_offset(self):
+        """
+        The C{query} method should take an C{offset} argument, just like
+        L{Store.query}.
+        """
+        what = Whatever(store=self.store)
+        what3 = Whatever(store=self.store, score=3)
+        what1 = Whatever(store=self.store, score=1)
+        what2 = Whatever(store=self.store, score=2)
+        for x in (what3, what1, what2):
+            what.related.add(x)
+        self.assertEquals(
+            list(what.related.query(sort=Whatever.score.ascending,
+                                    limit=1, offset=1)),
+            [what2])
+
+
+
+class SampleN21(Item):
+    """
+    A sample item that has a 1:N relationship with L{Other}s.
+    """
+    UNUSED = integer()
+
+
+class Other(Item):
+    """
+    A sample item that has a reference to L{SampleN21}.
+    """
+    score = integer()
+    sample = reference(reftype=SampleN21)
+
+SampleN21.others = N2One(Other, Other.sample)
+
+
+
+class N2OneTest(TestCase):
+    """
+    Tests for the L{N2One} property.
+    """
+    def setUp(self):
+        self.store = Store()
+
+
+    def test_iter(self):
+        """
+        Iterating the L{N2One} should yield related objects.
+        """
+        samp = SampleN21(store=self.store)
+        self.assertEquals(list(samp.others), [])
+        unrelated = Other(store=self.store)
+        self.assertEquals(list(samp.others), [])
+        related = Other(store=self.store, sample=samp)
+        self.assertEquals(list(samp.others), [related])
+
+    def test_query(self):
+        """
+        It's possible to restrict the query used to find related objects.
+        """
+        samp = SampleN21(store=self.store)
+        other1 = Other(store=self.store, score=1, sample=samp)
+        other12 = Other(store=self.store, score=1, sample=samp)
+        other2 = Other(store=self.store, score=2, sample=samp)
+        unrelated = Other(store=self.store, score=1)
+        self.assertEquals(set(samp.others.query(Other.score == 1)),
+                          set([other1, other12]))
+
+    def test_item_query(self):
+        """
+        The object returned from C{query} should be an L{ItemQuery} to
+        allow for further customization such as C{count}, C{paginate}
+        etc.
+        """
+        samp = SampleN21(store=self.store)
+        self.assertTrue(isinstance(samp.others.query(), ItemQuery))
+
+
+    def test_sort(self):
+        """
+        The C{query} method should take a C{sort} argument, just like
+        L{Store.query}.
+        """
+        samp = SampleN21(store=self.store)
+        other3 = Other(store=self.store, score=3, sample=samp)
+        other1 = Other(store=self.store, score=1, sample=samp)
+        other2 = Other(store=self.store, score=2, sample=samp)
+        self.assertEquals(
+            list(samp.others.query(sort=Other.score.ascending)),
+            [other1, other2, other3])
+
+
+    def test_item_query_limit(self):
+        """
+        The C{query} method should take a C{limit} argument, just like
+        L{Store.query}.
+        """
+        samp = SampleN21(store=self.store)
+        other3 = Other(store=self.store, score=3, sample=samp)
+        other1 = Other(store=self.store, score=1, sample=samp)
+        other2 = Other(store=self.store, score=2, sample=samp)
+        self.assertEquals(
+            list(samp.others.query(sort=Other.score.ascending, limit=2)),
+            [other1, other2])
+
+
+    def test_item_query_offset(self):
+        """
+        The C{query} method should take an C{offset} argument, just like
+        L{Store.query}.
+        """
+        samp = SampleN21(store=self.store)
+        other3 = Other(store=self.store, score=3, sample=samp)
+        other1 = Other(store=self.store, score=1, sample=samp)
+        other2 = Other(store=self.store, score=2, sample=samp)
+        self.assertEquals(
+            list(samp.others.query(sort=Other.score.ascending,
+                                    limit=1, offset=1)),
+            [other2])
