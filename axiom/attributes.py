@@ -1289,7 +1289,7 @@ class money(point4decimal):
     """
 
 
-class M2N(object):
+class ManyToMany(object):
     """
     A property for specifying M:N relations.
     """
@@ -1310,15 +1310,15 @@ class M2N(object):
 
     def __get__(self, thisItem, type=None):
         """
-        Return a L{BoundM2NReferenceSet} representing objects relating
+        Return a L{BoundManyToManyReferenceSet} representing objects relating
         to C{thisItem}.
         """
-        return BoundM2NReferenceSet(thisItem, self._LinkClass,
-                                    self._thisAttr, self._otherAttr)
+        return BoundManyToManyReferenceSet(thisItem, self._LinkClass,
+                                           self._thisAttr, self._otherAttr)
 
 
 
-class BoundM2NReferenceSet(object):
+class BoundManyToManyReferenceSet(object):
     """
     A representation of a set of objects that are related to a
     particular Item via a link table.
@@ -1384,7 +1384,7 @@ class BoundM2NReferenceSet(object):
                                           sort=sort, limit=limit, offset=offset)
 
 
-class N2One(object):
+class ManyToOne(object):
     """
     A property for specifying N:1 relations.
     """
@@ -1394,13 +1394,14 @@ class N2One(object):
 
     def __get__(self, thisItem, type=None):
         """
-        Return a L{BoundN2OneReferenceSet} representing objects relating
+        Return a L{BoundManyToOneReferenceSet} representing objects relating
         to C{thisItem}.
         """
-        return BoundN2OneReferenceSet(thisItem, self._OtherClass, self._backRef)
+        return BoundManyToOneReferenceSet(thisItem,
+                                            self._OtherClass, self._backRef)
 
 
-class BoundN2OneReferenceSet(object):
+class BoundManyToOneReferenceSet(object):
     """
     A representation of a set of objects that are directly related to
     a particular Item.

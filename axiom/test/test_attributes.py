@@ -11,9 +11,10 @@ from twisted.python.reflect import qual
 from axiom.store import Store, ItemQuery
 from axiom.item import Item, normalize, Placeholder
 
-from axiom.attributes import Comparable, SQLAttribute, integer, timestamp, textlist, reference
+from axiom.attributes import (
+    Comparable, SQLAttribute, integer, timestamp, textlist, reference,
+    ieee754_double, point1decimal, money, ManyToMany, ManyToOne)
 
-from axiom.attributes import ieee754_double, point1decimal, money, M2N, N2One
 
 
 class Number(Item):
@@ -416,9 +417,9 @@ class SQLAttributeTestCase(TestCase):
 
 class Whatever(Item):
     """
-    A sample Item that will has a M2N to other L{Whatever}s.
+    A sample Item that will has a many-to-many relation to other L{Whatever}s.
 
-    @ivar related: An L{M2N} to other L{Whatever} objects.
+    @ivar related: A L{ManyToMany} to other L{Whatever} objects.
     @ivar score: Some integer which can be set and queried for.
     """
     score = integer()
@@ -432,13 +433,14 @@ class WhateverWhatever(Item):
     a = reference(reftype=Whatever)
     b = reference(reftype=Whatever)
 
-Whatever.related = M2N(WhateverWhatever, WhateverWhatever.a, WhateverWhatever.b)
+Whatever.related = ManyToMany(WhateverWhatever,
+                              WhateverWhatever.a, WhateverWhatever.b)
 
 
 
-class M2NTest(TestCase):
+class ManyToManyTest(TestCase):
     """
-    Tests for the L{M2N} property.
+    Tests for the L{ManyToMany} property.
     """
 
     def setUp(self):
@@ -447,7 +449,7 @@ class M2NTest(TestCase):
 
     def test_add_iter(self):
         """
-        Iterating the result of a a M2N property should give objects
+        Iterating the result of a a L{ManyToMany} property should give objects
         that have been added to it.
         """
         what1 = Whatever(store=self.store)
@@ -571,13 +573,13 @@ class Other(Item):
     score = integer()
     sample = reference(reftype=SampleN21)
 
-SampleN21.others = N2One(Other, Other.sample)
+SampleN21.others = ManyToOne(Other, Other.sample)
 
 
 
-class N2OneTest(TestCase):
+class ManyToOneTest(TestCase):
     """
-    Tests for the L{N2One} property.
+    Tests for the L{ManyToOne} property.
     """
     def setUp(self):
         self.store = Store()
@@ -585,7 +587,7 @@ class N2OneTest(TestCase):
 
     def test_iter(self):
         """
-        Iterating the L{N2One} should yield related objects.
+        Iterating the L{ManyToOne} should yield related objects.
         """
         samp = SampleN21(store=self.store)
         self.assertEquals(list(samp.others), [])
