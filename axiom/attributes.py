@@ -1289,31 +1289,31 @@ class money(point4decimal):
     """
 
 
-class ManyToMany(object):
+class manyToMany(object):
     """
     A property for specifying M:N relations.
     """
-    def __init__(self, LinkClass, thisAttr, otherAttr):
+
+    def __init__(self, linkClass, thisAttr, otherAttr):
         """
-        @param LinkClass: The class which links objects of this type
+        @param linkClass: The class which links objects of this type
             with objects of another.
-
-        @param thisAttr: The attribute of C{LinkClass} which is a
-            L{reference<axiom.attributes.reference>} to this side.
-
-        @param otherAttr: The attribute of C{LinkClass} which is a
+        @param thisAttr: The attribute of C{linkClass} which is a
+            L{reference} to this side.
+        @param otherAttr: The attribute of C{linkClass} which is a
             L{reference} to the other side.
         """
-        self._LinkClass = LinkClass
+        self._linkClass = linkClass
         self._thisAttr = thisAttr
         self._otherAttr = otherAttr
+
 
     def __get__(self, thisItem, type=None):
         """
         Return a L{BoundManyToManyReferenceSet} representing objects relating
         to C{thisItem}.
         """
-        return BoundManyToManyReferenceSet(thisItem, self._LinkClass,
+        return BoundManyToManyReferenceSet(thisItem, self._linkClass,
                                            self._thisAttr, self._otherAttr)
 
 
@@ -1324,8 +1324,18 @@ class BoundManyToManyReferenceSet(object):
     particular Item via a link table.
     """
 
-    def __init__(self, thisItem, LinkClass, thisAttr, otherAttr):
-        self._LinkClass = LinkClass
+    def __init__(self, thisItem, linkClass, thisAttr, otherAttr):
+        """
+        @param thisItem: The object with which the items in this set are
+            related.
+        @param linkClass: The class which links the objects in this set to
+            C{thisItem}.
+        @param thisAttr: The attribute of C{linkClass} which is a
+            L{reference<axiom.attributes.reference>} to C{thisItem}.
+        @param otherAttr: The attribute of C{linkClass} which is a
+            L{reference} to the items in this set.
+        """
+        self._linkClass = linkClass
         self._thisItem = thisItem
         self._thisAttr = thisAttr
         self._otherAttr = otherAttr
@@ -1346,14 +1356,14 @@ class BoundManyToManyReferenceSet(object):
         kwargs = {}
         kwargs[self._thisAttr.attrname] = self._thisItem
         kwargs[self._otherAttr.attrname] = item
-        self._LinkClass(store=self._thisItem.store, **kwargs)
+        self._linkClass(store=self._thisItem.store, **kwargs)
 
 
     def remove(self, item):
         """
         Delete the link item which associates this object to the given item.
         """
-        self._thisItem.store.query(self._LinkClass,
+        self._thisItem.store.query(self._linkClass,
                                    AND(self._thisAttr == self._thisItem,
                                        self._otherAttr == item)
                                    ).deleteFromStore()
@@ -1363,7 +1373,7 @@ class BoundManyToManyReferenceSet(object):
         """
         Delete all the link items which associate this object to any other Item.
         """
-        self._thisItem.store.query(self._LinkClass,
+        self._thisItem.store.query(self._linkClass,
                                    self._thisAttr == self._thisItem
                                    ).deleteFromStore()
 
@@ -1375,22 +1385,25 @@ class BoundManyToManyReferenceSet(object):
         @parm customQuery: An optional Axiom comparison to be added to
             the query.
         """
-        OtherClass = self._otherAttr.reftype
+        otherClass = self._otherAttr.reftype
         query = AND(self._thisAttr == self._thisItem,
-                  self._otherAttr == OtherClass.storeID)
+                  self._otherAttr == otherClass.storeID)
         if customQuery is not None:
             query = AND(query, customQuery)
-        return self._thisItem.store.query(OtherClass, query,
+        return self._thisItem.store.query(otherClass, query,
                                           sort=sort, limit=limit, offset=offset)
 
 
-class ManyToOne(object):
+
+class manyToOne(object):
     """
     A property for specifying N:1 relations.
     """
-    def __init__(self, OtherClass, backRef):
-        self._OtherClass = OtherClass
+
+    def __init__(self, otherClass, backRef):
+        self._otherClass = otherClass
         self._backRef = backRef
+
 
     def __get__(self, thisItem, type=None):
         """
@@ -1398,7 +1411,8 @@ class ManyToOne(object):
         to C{thisItem}.
         """
         return BoundManyToOneReferenceSet(thisItem,
-                                            self._OtherClass, self._backRef)
+                                          self._otherClass, self._backRef)
+
 
 
 class BoundManyToOneReferenceSet(object):
@@ -1406,13 +1420,26 @@ class BoundManyToOneReferenceSet(object):
     A representation of a set of objects that are directly related to
     a particular Item.
     """
-    def __init__(self, thisItem, OtherClass, backRef):
+
+    def __init__(self, thisItem, otherClass, backRef):
+        """
+        @param thisItem: The object with which the items in this set are
+            related.
+        @param otherClass: The class which has a reference to C{thisItem}.
+        @param backRef: The L{reference} declared on C{otherClass} which refers
+            to C{thisItem}.
+        """
         self._thisItem = thisItem
-        self._OtherClass = OtherClass
+        self._otherClass = otherClass
         self._backRef = backRef
 
+
     def __iter__(self):
+        """
+        Return an iterator of all objects which are related to this Item.
+        """
         return iter(self.query())
+
 
     def query(self, customQuery=None, sort=None, limit=None, offset=None):
         """
@@ -1424,5 +1451,5 @@ class BoundManyToOneReferenceSet(object):
         query = (self._backRef == self._thisItem)
         if customQuery is not None:
             query = AND(query, customQuery)
-        return self._thisItem.store.query(self._OtherClass, query,
+        return self._thisItem.store.query(self._otherClass, query,
                                           sort=sort, limit=limit, offset=offset)
