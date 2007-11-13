@@ -485,9 +485,9 @@ class manyToManyTest(TestCase):
         self.assertEquals(what2.store, self.store)
 
 
-    def test_query(self):
+    def test_refine(self):
         """
-        It's possible to restrict the query used to find related objects.
+        It's possible to refine the query used to find related objects.
         """
         what1 = Whatever(store=self.store)
         what2 = Whatever(store=self.store, score=2)
@@ -495,23 +495,23 @@ class manyToManyTest(TestCase):
         what3 = Whatever(store=self.store, score=3)
         for x in (what2, what22, what3):
             what1.related.add(x)
-        self.assertEquals(set(what1.related.query(Whatever.score == 2)),
+        self.assertEquals(set(what1.related.refine(Whatever.score == 2)),
                           set([what2, what22]))
 
 
-    def test_item_query(self):
+    def test_item_refine(self):
         """
-        The object returned from C{query} should be an L{ItemQuery} to
+        The object returned from C{refine} should be an L{ItemQuery} to
         allow for further customization such as C{count}, C{paginate}
         etc.
         """
         what = Whatever(store=self.store)
-        self.assertTrue(isinstance(what.related.query(), ItemQuery))
+        self.assertTrue(isinstance(what.related.refine(), ItemQuery))
 
 
     def test_sort(self):
         """
-        The C{query} method should take a C{sort} argument, just like
+        The C{refine} method should take a C{sort} argument, just like
         L{Store.query}.
         """
         what = Whatever(store=self.store)
@@ -521,13 +521,13 @@ class manyToManyTest(TestCase):
         for x in (what3, what1, what2):
             what.related.add(x)
         self.assertEquals(
-            list(what.related.query(sort=Whatever.score.ascending)),
+            list(what.related.refine(sort=Whatever.score.ascending)),
             [what1, what2, what3])
 
 
-    def test_item_query_limit(self):
+    def test_item_refine_limit(self):
         """
-        The C{query} method should take a C{limit} argument, just like
+        The C{refine} method should take a C{limit} argument, just like
         L{Store.query}.
         """
         what = Whatever(store=self.store)
@@ -537,13 +537,13 @@ class manyToManyTest(TestCase):
         for x in (what3, what1, what2):
             what.related.add(x)
         self.assertEquals(
-            list(what.related.query(sort=Whatever.score.ascending, limit=2)),
+            list(what.related.refine(sort=Whatever.score.ascending, limit=2)),
             [what1, what2])
 
 
-    def test_item_query_offset(self):
+    def test_item_refine_offset(self):
         """
-        The C{query} method should take an C{offset} argument, just like
+        The C{refine} method should take an C{offset} argument, just like
         L{Store.query}.
         """
         what = Whatever(store=self.store)
@@ -553,8 +553,8 @@ class manyToManyTest(TestCase):
         for x in (what3, what1, what2):
             what.related.add(x)
         self.assertEquals(
-            list(what.related.query(sort=Whatever.score.ascending,
-                                    limit=1, offset=1)),
+            list(what.related.refine(sort=Whatever.score.ascending,
+                                     limit=1, offset=1)),
             [what2])
 
 
@@ -596,31 +596,31 @@ class manyToOneTest(TestCase):
         related = Other(store=self.store, sample=samp)
         self.assertEquals(list(samp.others), [related])
 
-    def test_query(self):
+    def test_refine(self):
         """
-        It's possible to restrict the query used to find related objects.
+        It's possible to refine the query used to find related objects.
         """
         samp = SampleN21(store=self.store)
         other1 = Other(store=self.store, score=1, sample=samp)
         other12 = Other(store=self.store, score=1, sample=samp)
         other2 = Other(store=self.store, score=2, sample=samp)
         unrelated = Other(store=self.store, score=1)
-        self.assertEquals(set(samp.others.query(Other.score == 1)),
+        self.assertEquals(set(samp.others.refine(Other.score == 1)),
                           set([other1, other12]))
 
-    def test_item_query(self):
+    def test_item_refine(self):
         """
-        The object returned from C{query} should be an L{ItemQuery} to
+        The object returned from C{refine} should be an L{ItemQuery} to
         allow for further customization such as C{count}, C{paginate}
         etc.
         """
         samp = SampleN21(store=self.store)
-        self.assertTrue(isinstance(samp.others.query(), ItemQuery))
+        self.assertTrue(isinstance(samp.others.refine(), ItemQuery))
 
 
     def test_sort(self):
         """
-        The C{query} method should take a C{sort} argument, just like
+        The C{refine} method should take a C{sort} argument, just like
         L{Store.query}.
         """
         samp = SampleN21(store=self.store)
@@ -628,13 +628,13 @@ class manyToOneTest(TestCase):
         other1 = Other(store=self.store, score=1, sample=samp)
         other2 = Other(store=self.store, score=2, sample=samp)
         self.assertEquals(
-            list(samp.others.query(sort=Other.score.ascending)),
+            list(samp.others.refine(sort=Other.score.ascending)),
             [other1, other2, other3])
 
 
-    def test_item_query_limit(self):
+    def test_item_refine_limit(self):
         """
-        The C{query} method should take a C{limit} argument, just like
+        The C{refine} method should take a C{limit} argument, just like
         L{Store.query}.
         """
         samp = SampleN21(store=self.store)
@@ -642,13 +642,13 @@ class manyToOneTest(TestCase):
         other1 = Other(store=self.store, score=1, sample=samp)
         other2 = Other(store=self.store, score=2, sample=samp)
         self.assertEquals(
-            list(samp.others.query(sort=Other.score.ascending, limit=2)),
+            list(samp.others.refine(sort=Other.score.ascending, limit=2)),
             [other1, other2])
 
 
-    def test_item_query_offset(self):
+    def test_item_refine_offset(self):
         """
-        The C{query} method should take an C{offset} argument, just like
+        The C{refine} method should take an C{offset} argument, just like
         L{Store.query}.
         """
         samp = SampleN21(store=self.store)
@@ -656,6 +656,6 @@ class manyToOneTest(TestCase):
         other1 = Other(store=self.store, score=1, sample=samp)
         other2 = Other(store=self.store, score=2, sample=samp)
         self.assertEquals(
-            list(samp.others.query(sort=Other.score.ascending,
+            list(samp.others.refine(sort=Other.score.ascending,
                                     limit=1, offset=1)),
             [other2])
