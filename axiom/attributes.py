@@ -1404,7 +1404,7 @@ class BoundManyToManyReferenceSet(object):
 
 
 
-class manyToOne(object):
+class oneToMany(object):
     """
     A property for specifying N:1 relations.
     """
@@ -1416,15 +1416,15 @@ class manyToOne(object):
 
     def __get__(self, thisItem, type=None):
         """
-        Return a L{BoundManyToOneReferenceSet} representing objects relating
+        Return a L{BoundOneToManyReferenceSet} representing objects relating
         to C{thisItem}.
         """
-        return BoundManyToOneReferenceSet(thisItem,
+        return BoundOneToManyReferenceSet(thisItem,
                                           self._otherClass, self._backRef)
 
 
 
-class BoundManyToOneReferenceSet(object):
+class BoundOneToManyReferenceSet(object):
     """
     A representation of a set of objects that are directly related to
     a particular Item.
