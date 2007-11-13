@@ -13,7 +13,7 @@ from axiom.item import Item, normalize, Placeholder
 
 from axiom.attributes import (
     Comparable, SQLAttribute, integer, timestamp, textlist, reference,
-    ieee754_double, point1decimal, money, ManyToMany, ManyToOne)
+    ieee754_double, point1decimal, money, manyToMany, manyToOne)
 
 
 
@@ -419,7 +419,7 @@ class Whatever(Item):
     """
     A sample Item that will has a many-to-many relation to other L{Whatever}s.
 
-    @ivar related: A L{ManyToMany} to other L{Whatever} objects.
+    @ivar related: A L{manyToMany} to other L{Whatever} objects.
     @ivar score: Some integer which can be set and queried for.
     """
     score = integer()
@@ -433,14 +433,14 @@ class WhateverWhatever(Item):
     a = reference(reftype=Whatever)
     b = reference(reftype=Whatever)
 
-Whatever.related = ManyToMany(WhateverWhatever,
+Whatever.related = manyToMany(WhateverWhatever,
                               WhateverWhatever.a, WhateverWhatever.b)
 
 
 
-class ManyToManyTest(TestCase):
+class manyToManyTest(TestCase):
     """
-    Tests for the L{ManyToMany} property.
+    Tests for the L{manyToMany} property.
     """
 
     def setUp(self):
@@ -449,7 +449,7 @@ class ManyToManyTest(TestCase):
 
     def test_add_iter(self):
         """
-        Iterating the result of a a L{ManyToMany} property should give objects
+        Iterating the result of a a L{manyToMany} property should give objects
         that have been added to it.
         """
         what1 = Whatever(store=self.store)
@@ -573,13 +573,13 @@ class Other(Item):
     score = integer()
     sample = reference(reftype=SampleN21)
 
-SampleN21.others = ManyToOne(Other, Other.sample)
+SampleN21.others = manyToOne(Other, Other.sample)
 
 
 
-class ManyToOneTest(TestCase):
+class manyToOneTest(TestCase):
     """
-    Tests for the L{ManyToOne} property.
+    Tests for the L{manyToOne} property.
     """
     def setUp(self):
         self.store = Store()
@@ -587,7 +587,7 @@ class ManyToOneTest(TestCase):
 
     def test_iter(self):
         """
-        Iterating the L{ManyToOne} should yield related objects.
+        Iterating the L{manyToOne} should yield related objects.
         """
         samp = SampleN21(store=self.store)
         self.assertEquals(list(samp.others), [])
