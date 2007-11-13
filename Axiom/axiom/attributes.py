@@ -1345,12 +1345,12 @@ class BoundManyToManyReferenceSet(object):
         """
         Return an iterator of all objects which are related to this Item.
         """
-        return iter(self.query())
+        return iter(self.refine())
 
 
     def add(self, item):
         """
-        Add an item to this set of objects related to this Item; a new
+        Add an item to this set of objects related to C{thisItem}; a new
         instance of the link class will be created.
         """
         kwargs = {}
@@ -1378,12 +1378,21 @@ class BoundManyToManyReferenceSet(object):
                                    ).deleteFromStore()
 
 
-    def query(self, customQuery=None, sort=None, limit=None, offset=None):
+    def refine(self, customQuery=None, sort=None, limit=None, offset=None):
         """
-        Perform a query for related objects, perhaps customizing that query.
+        Return a refined set of objects related to C{thisItem}.
 
         @parm customQuery: An optional Axiom comparison to be added to
             the query.
+        @param limit: An int to limit the total length of the results, or None
+            for all available results.
+        @param offset: An int to specify a starting point within the available
+            results, or None to start at 0.
+        @param sort: An L{ISort}, something that comes from an SQLAttribute's
+            'ascending' or 'descending' attribute.
+
+        @return: An L{ItemQuery} object, which is an iterable of Items or
+            tuples of Items, according to tableClass.
         """
         otherClass = self._otherAttr.reftype
         query = AND(self._thisAttr == self._thisItem,
@@ -1438,15 +1447,24 @@ class BoundManyToOneReferenceSet(object):
         """
         Return an iterator of all objects which are related to this Item.
         """
-        return iter(self.query())
+        return iter(self.refine())
 
 
-    def query(self, customQuery=None, sort=None, limit=None, offset=None):
+    def refine(self, customQuery=None, sort=None, limit=None, offset=None):
         """
-        Perform a query for related objects, perhaps customizing that query.
+        Return a refined set of items related to C{thisItem}.
 
         @parm customQuery: An optional Axiom comparison to be added to
             the query.
+        @param limit: An int to limit the total length of the results, or None
+            for all available results.
+        @param offset: An int to specify a starting point within the available
+            results, or None to start at 0.
+        @param sort: An L{ISort}, something that comes from an SQLAttribute's
+            'ascending' or 'descending' attribute.
+
+        @return: An L{ItemQuery} object, which is an iterable of Items or
+            tuples of Items, according to tableClass.
         """
         query = (self._backRef == self._thisItem)
         if customQuery is not None:
