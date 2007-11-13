@@ -1410,64 +1410,19 @@ class oneToMany(object):
     """
 
     def __init__(self, otherClass, backRef):
+        """
+        @param otherClass: The type of the objects which refer to instances of
+            the class this property is being defined on.
+        @param backRef: The attribute by which C{otherClass} refers to
+            instances of the class this property is being defined on.
+        """
         self._otherClass = otherClass
         self._backRef = backRef
 
 
     def __get__(self, thisItem, type=None):
         """
-        Return a L{BoundOneToManyReferenceSet} representing objects relating
-        to C{thisItem}.
+        Return an L{IQuery} provider which represents the set of objects that
+        are related to C{thisItem}.
         """
-        return BoundOneToManyReferenceSet(thisItem,
-                                          self._otherClass, self._backRef)
-
-
-
-class BoundOneToManyReferenceSet(object):
-    """
-    A representation of a set of objects that are directly related to
-    a particular Item.
-    """
-
-    def __init__(self, thisItem, otherClass, backRef):
-        """
-        @param thisItem: The object with which the items in this set are
-            related.
-        @param otherClass: The class which has a reference to C{thisItem}.
-        @param backRef: The L{reference} declared on C{otherClass} which refers
-            to C{thisItem}.
-        """
-        self._thisItem = thisItem
-        self._otherClass = otherClass
-        self._backRef = backRef
-
-
-    def __iter__(self):
-        """
-        Return an iterator of all objects which are related to this Item.
-        """
-        return iter(self.refine())
-
-
-    def refine(self, customQuery=None, sort=None, limit=None, offset=None):
-        """
-        Return a refined set of items related to C{thisItem}.
-
-        @parm customQuery: An optional Axiom comparison to be added to
-            the query.
-        @param limit: An int to limit the total length of the results, or None
-            for all available results.
-        @param offset: An int to specify a starting point within the available
-            results, or None to start at 0.
-        @param sort: An L{ISort}, something that comes from an SQLAttribute's
-            'ascending' or 'descending' attribute.
-
-        @return: An L{ItemQuery} object, which is an iterable of Items or
-            tuples of Items, according to tableClass.
-        """
-        query = (self._backRef == self._thisItem)
-        if customQuery is not None:
-            query = AND(query, customQuery)
-        return self._thisItem.store.query(self._otherClass, query,
-                                          sort=sort, limit=limit, offset=offset)
+        return thisItem.store.query(self._otherClass, self._backRef == thisItem)
