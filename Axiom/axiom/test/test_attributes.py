@@ -13,7 +13,7 @@ from axiom.item import Item, normalize, Placeholder
 
 from axiom.attributes import (
     Comparable, SQLAttribute, integer, timestamp, textlist, reference,
-    ieee754_double, point1decimal, money, manyToMany, manyToOne)
+    ieee754_double, point1decimal, money, manyToMany, oneToMany)
 
 
 
@@ -573,13 +573,13 @@ class Other(Item):
     score = integer()
     sample = reference(reftype=SampleN21)
 
-SampleN21.others = manyToOne(Other, Other.sample)
+SampleN21.others = oneToMany(Other, Other.sample)
 
 
 
-class manyToOneTest(TestCase):
+class oneToManyTest(TestCase):
     """
-    Tests for the L{manyToOne} property.
+    Tests for the L{oneToMany} property.
     """
     def setUp(self):
         self.store = Store()
@@ -587,7 +587,7 @@ class manyToOneTest(TestCase):
 
     def test_iter(self):
         """
-        Iterating the L{manyToOne} should yield related objects.
+        Iterating the L{oneToMany} should yield related objects.
         """
         samp = SampleN21(store=self.store)
         self.assertEquals(list(samp.others), [])
