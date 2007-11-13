@@ -566,6 +566,7 @@ class SampleN21(Item):
     UNUSED = integer()
 
 
+
 class Other(Item):
     """
     A sample item that has a reference to L{SampleN21}.
@@ -596,66 +597,11 @@ class oneToManyTest(TestCase):
         related = Other(store=self.store, sample=samp)
         self.assertEquals(list(samp.others), [related])
 
-    def test_refine(self):
+
+    def test_is_query(self):
         """
-        It's possible to refine the query used to find related objects.
+        The object returned from the property should be an L{ItemQuery} to
+        allow for further customization such as C{count}, C{paginate} etc.
         """
         samp = SampleN21(store=self.store)
-        other1 = Other(store=self.store, score=1, sample=samp)
-        other12 = Other(store=self.store, score=1, sample=samp)
-        other2 = Other(store=self.store, score=2, sample=samp)
-        unrelated = Other(store=self.store, score=1)
-        self.assertEquals(set(samp.others.refine(Other.score == 1)),
-                          set([other1, other12]))
-
-    def test_item_refine(self):
-        """
-        The object returned from C{refine} should be an L{ItemQuery} to
-        allow for further customization such as C{count}, C{paginate}
-        etc.
-        """
-        samp = SampleN21(store=self.store)
-        self.assertTrue(isinstance(samp.others.refine(), ItemQuery))
-
-
-    def test_sort(self):
-        """
-        The C{refine} method should take a C{sort} argument, just like
-        L{Store.query}.
-        """
-        samp = SampleN21(store=self.store)
-        other3 = Other(store=self.store, score=3, sample=samp)
-        other1 = Other(store=self.store, score=1, sample=samp)
-        other2 = Other(store=self.store, score=2, sample=samp)
-        self.assertEquals(
-            list(samp.others.refine(sort=Other.score.ascending)),
-            [other1, other2, other3])
-
-
-    def test_item_refine_limit(self):
-        """
-        The C{refine} method should take a C{limit} argument, just like
-        L{Store.query}.
-        """
-        samp = SampleN21(store=self.store)
-        other3 = Other(store=self.store, score=3, sample=samp)
-        other1 = Other(store=self.store, score=1, sample=samp)
-        other2 = Other(store=self.store, score=2, sample=samp)
-        self.assertEquals(
-            list(samp.others.refine(sort=Other.score.ascending, limit=2)),
-            [other1, other2])
-
-
-    def test_item_refine_offset(self):
-        """
-        The C{refine} method should take an C{offset} argument, just like
-        L{Store.query}.
-        """
-        samp = SampleN21(store=self.store)
-        other3 = Other(store=self.store, score=3, sample=samp)
-        other1 = Other(store=self.store, score=1, sample=samp)
-        other2 = Other(store=self.store, score=2, sample=samp)
-        self.assertEquals(
-            list(samp.others.refine(sort=Other.score.ascending,
-                                    limit=1, offset=1)),
-            [other2])
+        self.assertTrue(isinstance(samp.others, ItemQuery))
