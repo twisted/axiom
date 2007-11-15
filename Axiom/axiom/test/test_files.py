@@ -56,6 +56,13 @@ class InStoreFilesTest(unittest.TestCase):
         s = Store()
         self.assertRaises(RuntimeError, s.newFile, "test", "whatever.txt")
 
+    def test_newTemporaryFilePath(self):
+        """
+        Ensure that C{Store.newTemporaryFilePath} works for in-memory stores.
+        """
+        s = Store(filesdir=self.mktemp())
+        s.newTemporaryFilePath("foo")
+
 class PathAttributesTest(unittest.TestCase):
     def testRelocatingPaths(self):
         spath = self.mktemp()

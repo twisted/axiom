@@ -1319,7 +1319,13 @@ class Store(Empowered):
         return p
 
     def newTemporaryFilePath(self, *path):
-        p = self.dbdir.child('temp')
+        """
+        Return a FilePath located in the temp directory of this store.
+        """
+        if self.dbdir is not None:
+            p = self.dbdir.child('temp')
+        else:
+           p = self.filesdir.child('temp')
         for subdir in path:
             p = p.child(subdir)
         return p
