@@ -18,9 +18,13 @@ class PathTesterItem(Item):
 
 
 class InStoreFilesTest(unittest.TestCase):
-
-    def testCreateFile(self):
-        s = Store(self.mktemp())
+    """
+    Tests for files managed by the store.
+    """
+    def _testFile(self, s):
+        """
+        Shared part of file creation tests.
+        """
         f = s.newFile('test', 'whatever.txt')
         f.write('crap')
         def cb(fpath):
@@ -28,6 +32,29 @@ class InStoreFilesTest(unittest.TestCase):
 
         return f.close().addCallback(cb)
 
+
+    def test_createFile(self):
+        """
+        Ensure that file creation works for on-disk stores.
+        """
+        s = Store(self.mktemp())
+        return self._testFile(s)
+
+
+    def test_createFileInMemory(self):
+        """
+        Ensure that file creation works for in-memory stores as well.
+        """
+        s = Store(filesdir=self.mktemp())
+        return self._testFile(s)
+
+
+    def test_noFiledir(self):
+        """
+        File creation should raise an error if the store has no file directory.
+        """
+        s = Store()
+        self.assertRaises(RuntimeError, s.newFile, "test", "whatever.txt")
 
 class PathAttributesTest(unittest.TestCase):
     def testRelocatingPaths(self):

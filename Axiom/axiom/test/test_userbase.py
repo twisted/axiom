@@ -39,9 +39,23 @@ class GarbageProtocolHandler(Item):
 SECRET = 'bananas'
 
 class UserBaseTest(unittest.TestCase):
+    """
+    Tests for L{axiom.userbase} with an on-disk store.
+    @ivar store: The C{Store} object for the items tested.
+    """
+    def setUp(self):
+        """
+        Set up for testing with an on-disk store.
+        """
+        self.store = Store(self.mktemp())
+
 
     def logInAndCheck(self, username, domain='localhost'):
-        s = Store(self.mktemp())
+        """
+        Ensure that logging in via cred succeeds based on the accounts
+        managed by L{axiom.userbase.LoginSystem}.
+        """
+        s = self.store
         def _speedup():
             l = userbase.LoginSystem(store=s)
             dependency.installOn(l, s)
@@ -74,6 +88,17 @@ class UserBaseTest(unittest.TestCase):
     def testMixedCaseLogin(self):
         self.logInAndCheck('BoB')
 
+
+class MemoryUserBaseTest(UserBaseTest):
+    """
+    Tests for L{axiom.userbase} with an in-memory store.
+    @ivar store: The C{Store} object for the items tested.
+    """
+    def setUp(self):
+        """
+        Set up for testing with an in-memory store.
+        """
+        self.store = Store()
 
 
 class CommandTestCase(unittest.TestCase):

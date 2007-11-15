@@ -7,7 +7,6 @@ from twisted.python.util import sibpath
 
 from epsilon import extime
 from axiom import attributes, item, store, errors
-from axiom.errors import ItemNotFound
 
 from pysqlite2.dbapi2 import sqlite_version_info
 
@@ -56,6 +55,14 @@ class StoreTests(unittest.TestCase):
         s.close()
         s = store.Store(dbdir)
         s.close()
+
+
+    def test_onlyOneDir(self):
+        """
+        A Store should raise an error if both dbdir and filesdir are specified.
+        """
+        self.assertRaises(ValueError, store.Store,
+                          self.mktemp(), filesdir=self.mktemp())
 
 
     def testTableQueryCaching(self):

@@ -1,4 +1,3 @@
-
 from twisted.application.service import Service, IService
 
 from twisted.trial import unittest
@@ -43,8 +42,15 @@ class YouShouldStartThis(Item, Service):
 
 
 class SubStoreTest(unittest.TestCase):
+    """
+    Test on-disk creation of substores.
+    """
 
     def testOneThing(self):
+        """
+        Ensure that items can be inserted into substores and
+        subsequently retrieved.
+        """
         topdb = self.mktemp()
         s = Store(topdb)
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
@@ -65,6 +71,60 @@ class SubStoreTest(unittest.TestCase):
         self.assertEquals(reopenssd.a, u'hello world')
         self.assertEquals(reopenssd.b, 'what, its text')
 
+    def test_oneThingMemory(self):
+        """
+        Ensure that items put into in-memory substores are retrievable.
+        """
+        s = Store()
+        ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
+        s2 = ss.open()
+
+        ssd = SubStored(store=s2, a=u'hello world', b='what, its text')
+        oid = ss.storeID
+        oid2 = ssd.storeID
+
+        s2.close()
+        self.assertIdentical(s.getItemByID(oid), ss)
+        self.assertIdentical(ss.open(), s2)
+        item = s2.getItemByID(oid2)
+        self.assertEquals(item.a, u'hello world')
+        self.assertEquals(item.b, 'what, its text')
+
+
+    def test_hereTodayGoneTomorrow(self):
+        """
+        Ensure that substores exist after closing them.
+        """
+        s = Store()
+        ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
+        s2 = ss.open()
+
+        ssd = SubStored(store=s2, a=u'hello world', b='what, its text')
+        oid = ss.storeID
+        oid2 = ssd.storeID
+        s2.close()
+        #the following is done to mimic garbage collection of objects holding
+        #on to substores
+        del s2._openSubStore
+        ss = s.getItemByID(oid)
+        s2 = ss.open()
+        item = s2.getItemByID(oid2)
+        self.assertEquals(item.a, u'hello world')
+        self.assertEquals(item.b, 'what, its text')
+
+    def test_memorySubstoreFile(self):
+        """
+        In-memory substores whose stores have file directories should be able
+        to create files.
+        """
+        filesdir = self.mktemp()
+        s = Store(filesdir=filesdir)
+        ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
+        s2 = ss.open()
+        f = s2.newFile("test.txt")
+        f.write("yay")
+        f.close()
+        self.assertEqual(open(f.finalpath.path).read(), "yay")
 
 class SubStoreStartupSemantics(unittest.TestCase):
     """

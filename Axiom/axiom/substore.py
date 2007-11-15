@@ -26,8 +26,11 @@ class SubStore(Item):
         """
         Create a new SubStore, allocating a new file space for it.
         """
-        storepath = store.newDirectory(*pathSegments)
-        self = cls(store=store, storepath=storepath)
+        if store.dbdir is None:
+            self = cls(store=store, storepath=None)
+        else:
+            storepath = store.newDirectory(*pathSegments)
+            self = cls(store=store, storepath=storepath)
         self.open()
         self.close()
         return self
@@ -43,13 +46,32 @@ class SubStore(Item):
         if hasattr(self, 'substore'):
             return self.substore
         else:
-            s = self.substore = Store(self.storepath.path,
-                                      parent=self.store,
-                                      idInParent=self.storeID,
-                                      debug=debug)
+            s = self.substore = self.createStore(debug)
             s._openSubStore = self # don't fall out of cache as long as the
                                    # store is alive!
             return s
+
+    def createStore(self, debug):
+        """
+        Create the actual Store this Substore represents.
+        """
+        if self.storepath is None:
+            self.store._memorySubstores.append(self) # don't fall out of cache
+            if self.store.filesdir is None:
+                filesdir = None
+            else:
+                filesdir = (self.store.filesdir.child("_substore_files")
+                                               .child(str(self.storeID))
+                                               .path)
+            return Store(parent=self.store,
+                         filesdir=filesdir,
+                         idInParent=self.storeID,
+                         debug=debug)
+        else:
+            return Store(self.storepath.path,
+                         parent=self.store,
+                         idInParent=self.storeID,
+                         debug=debug)
 
     def __conform__(self, interface):
         """
@@ -70,7 +92,6 @@ class SubStore(Item):
         additional item type for each interface that we might wish to adapt to.
         """
         return interface(self)
-
 
 
 class SubStoreStartupService(Item, service.Service):
