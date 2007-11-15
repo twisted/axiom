@@ -7,12 +7,7 @@ This module holds the Axiom Store class and related classes, such as queries.
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
-import time
-import os
-import itertools
-import warnings
-import sys
-import operator
+import time, os, itertools, warnings, sys, operator
 
 from zope.interface import implements
 
@@ -1013,13 +1008,17 @@ class Store(Empowered):
         else:
             return False
 
-    def __init__(self, dbdir=None, debug=False, parent=None, idInParent=None):
+    def __init__(self, dbdir=None, filesdir=None, debug=False, parent=None, idInParent=None):
         """
         Create a store.
 
         @param dbdir: A name of an existing Axiom directory, or the name of a
         directory that does not exist yet which will be created as this Store
         is instantiated.  If unspecified, this database will be kept in memory.
+
+        @param filesdir: A name of a directory to keep files in for in-memory
+        stores. An exception will be raised if both this attribute and C{dbdir}
+        are specified.
 
         @param debug: set to True if this Store should print out every SQL
         statement it sends to SQLite.
@@ -1030,6 +1029,8 @@ class Store(Empowered):
         @param idInParent: (internal) If this is opened using an
         L{axiom.substore.Substore}, the storeID of the item within its parent
         which opened it.
+
+        @raises: C{ValueError} if both C{dbdir} and C{filesdir} are specified.
         """
         if parent is not None or idInParent is not None:
             assert parent is not None
@@ -1087,7 +1088,16 @@ class Store(Empowered):
         if dbdir is None:
             self._initdb(IN_MEMORY_DATABASE)
             self._initSchema()
+            self._memorySubstores = []
+            if filesdir is not None:
+                self.filesdir = filepath.FilePath(filesdir)
+                if not self.filesdir.isdir():
+                    self.filesdir.makedirs()
+                    self.filesdir.child("temp").createDirectory()
         else:
+            if filesdir is not None:
+                raise ValueError("Only one of dbdir and filesdir"
+                                 " may be specified")
             if not isinstance(dbdir, filepath.FilePath):
                 dbdir = filepath.FilePath(dbdir)
                 # required subdirs: files, temp, run
@@ -1322,13 +1332,18 @@ class Store(Empowered):
 
         @return: an L{AtomicFile}.
         """
-        assert self.dbdir is not None, "Cannot create files in in-memory Stores (yet)"
         assert len(path) > 0, "newFile requires a nonzero number of segments"
-        tmpname = self.dbdir.child('temp').child(str(tempCounter.next()) + ".tmp")
+        if self.dbdir is None:
+            if self.filesdir is None:
+                raise RuntimeError("This in-memory store has no file directory")
+            else:
+                tmpbase = self.filesdir
+        else:
+            tmpbase = self.dbdir
+        tmpname = tmpbase.child('temp').child(str(tempCounter.next()) + ".tmp")
         return AtomicFile(tmpname.path, self.newFilePath(*path))
 
     def newDirectory(self, *path):
-        assert self.dbdir is not None, "Cannot create directories in in-memory Stores (yet)"
         p = self.filesdir
         for subdir in path:
             p = p.child(subdir)
