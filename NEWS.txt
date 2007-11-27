@@ -1,3 +1,6 @@
+0.5.27 (2007-11-27):
+  - Substores and file storage for in-memory stores are now supported.
+
 0.5.26 (2007-09-05):
   - A bug where exceptions were raised when tables were created concurrently is
     now fixed.
