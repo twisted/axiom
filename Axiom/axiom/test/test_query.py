@@ -6,6 +6,7 @@ from twisted.trial.unittest import TestCase, SkipTest
 from axiom.iaxiom import IComparison, IColumn
 from axiom.store import Store, ItemQuery
 from axiom.item import Item, Placeholder
+from axiom.test.util import QueryCounter
 
 from axiom import errors
 from axiom.attributes import (
@@ -1012,36 +1013,12 @@ class QueryComplexity(TestCase):
     def setUp(self):
         self.store = Store()
         self.query = self.store.query(FirstType, self.comparison)
-        class counter:
-            count = 0
-            def increment(self):
-                self.count += 1
-                return 0
-        self.counter = counter()
-
-        store = self.store
-        connection = store.connection
-        _connection = connection._connection
-        try:
-            self.setProgressHandler = _connection.set_progress_handler
-        except AttributeError:
-            raise SkipTest(
-                "Axiom missing setProgressHandler, cannot run bytecode "
-                "execution-counting tests.")
 
         # Make one of each to get any initialization taken care of so it
         # doesn't pollute our numbers below.
         FirstType(store=self.store)
         SecondType(store=self.store)
 
-        self.setProgressHandler(self.counter.increment)
-
-
-    def _countQuery(self):
-        for i in range(10):
-            self.counter.count = 0
-            list(self.query)
-            yield self.counter.count
 
     def test_firstTableOuterLoop(self):
         """
@@ -1052,9 +1029,10 @@ class QueryComplexity(TestCase):
         Test this by inserting rows into the first table and checking that the
         number of bytecodes executed increased.
         """
+        counter = QueryCounter(self.store)
         counts = []
-        for c in self._countQuery():
-            counts.append(c)
+        for c in range(10):
+            counts.append(counter.measure(list, self.query))
             FirstType(store=self.store)
 
         # Make sure they're not all the same
@@ -1074,8 +1052,10 @@ class QueryComplexity(TestCase):
         condition.  This should mean that rows from the second table are
         never examined.
         """
+        counter = QueryCounter(self.store)
         count = None
-        for c in self._countQuery():
+        for i in range(10):
+            c = counter.measure(list, self.query)
             if count is None:
                 count = c
             self.assertEqual(count, c)
