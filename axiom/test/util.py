@@ -97,11 +97,10 @@ class QueryCounter:
         sph = getattr(c, "set_progress_handler", None)
         if sph is None:
             raise SkipTest(
-                "Your version of PySQLite does not expose the "
-                "set_progress_handler API.  A patch which does so "
-                "is available from "
-                "http://initd.org/tracker/pysqlite/ticket/182")
-        sph(self.progressHandler)
+                "QueryCounter requires PySQLite 2.4 or newer, or a patch "
+                "(see <http://initd.org/tracker/pysqlite/ticket/182>) to "
+                "expose the set_progress_handler API.")
+        sph(self.progressHandler, 1)
 
     def progressHandler(self):
         """
