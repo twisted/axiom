@@ -1042,6 +1042,8 @@ class Store(Empowered):
         self.queryTimes = []
         self.execTimes = []
 
+        self._inMemoryPowerups = {}
+
         self._attachedChildren = {} # database name => child store object
 
         self.statementCache = {} # non-normalized => normalized qmark SQL

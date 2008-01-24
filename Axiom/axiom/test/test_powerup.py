@@ -179,3 +179,30 @@ class SpecialCaseTest(unittest.TestCase):
         self.assertEquals(ss.running, 0)
 
 
+
+class InMemoryPowerupTests(unittest.TestCase):
+    """
+    Tests for the behavior of powerups which are not database-resident.
+    """
+    def test_powerupsFor(self):
+        """
+        L{Item.powerupsFor} returns a list the first element of which is the
+        object previously passed to L{Item.inMemoryPowerUp}.
+        """
+        powerup = object()
+        item = SumContributor(store=Store())
+        item.inMemoryPowerUp(powerup, ISumProducer)
+        self.assertEqual(list(item.powerupsFor(ISumProducer)), [powerup])
+
+
+    def test_inMemoryPriority(self):
+        """
+        Adapting an L{Item} to an interface results in the in-memory powerup on
+        that item for that interface even if there are database-resident
+        powerups on that item for that interface.
+        """
+        powerup = object()
+        item = SumContributor(store=Store())
+        item.inMemoryPowerUp(powerup, ISumProducer)
+        item.powerUp(item, ISumProducer)
+        self.assertIdentical(ISumProducer(item), powerup)
