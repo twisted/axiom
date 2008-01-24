@@ -170,10 +170,38 @@ def serviceSpecialCase(item, pups):
 
 
 class Empowered(object):
+    """
+    An object which can have powerups.
+
+    @type store: L{axiom.store.Store}
+    @ivar store: Persistence object to which powerups can be added for later
+        retrieval.
+
+    @type aggregateInterfaces: C{dict}
+    @ivar aggregateInterfaces: Mapping from interface classes to callables
+        which will be used to produce corresponding powerups.  The callables
+        will be invoked with two arguments, the L{Empowered} for which powerups
+        are being loaded and with a list of powerups found in C{store}.  The
+        return value is the powerup.  These are used only by the callable
+        interface adaption API, not C{powerupsFor}.
+    """
 
     aggregateInterfaces = {
         IService: serviceSpecialCase,
         IServiceCollection: serviceSpecialCase}
+
+    def inMemoryPowerUp(self, powerup, interface):
+        """
+        Install an arbitrary object as a powerup on an item or store.
+
+        Powerups installed using this method will only exist as long as this
+        object remains in memory.  They will also take precedence over powerups
+        installed with L{powerUp}.
+
+        @param interface: a zope interface
+        """
+        self._inMemoryPowerups[interface] = powerup
+
 
     def powerUp(self, powerup, interface, priority=0):
         """
@@ -253,6 +281,7 @@ class Empowered(object):
         for p in pups:
             return p
 
+
     def powerupsFor(self, interface):
         """
         Returns powerups installed using C{powerUp}, in order of descending
@@ -262,6 +291,9 @@ class Empowered(object):
         powerupsFor iteration, during an upgrader, or previously, will not be
         returned.
         """
+        inMemoryPowerup = self._inMemoryPowerups.get(interface, None)
+        if inMemoryPowerup is not None:
+            yield inMemoryPowerup
         name = unicode(qual(interface), 'ascii')
         for cable in self.store.query(
             _PowerupConnector,
@@ -280,6 +312,13 @@ class Empowered(object):
                     yield pup
 
     def interfacesFor(self, powerup):
+        """
+        Return an iterator of the interfaces for which the given powerup is
+        installed on this object.
+
+        This is not implemented for in-memory powerups.  It will probably fail
+        in an unpredictable, implementation-dependent way if used on one.
+        """
         pc = _PowerupConnector
         for iface in self.store.query(pc,
                                       AND(pc.item == self,
@@ -381,6 +420,9 @@ class Item(Empowered, slotmachine._Strict):
     _storeIDComparer = None
     _axiom_service = inmemory()
 
+    # A mapping from interfaces to in-memory powerups.
+    _inMemoryPowerups = inmemory()
+
     def _currentlyValidAsReferentFor(self, store):
         """
         Is this object currently valid as a reference?  Objects which will be
@@ -470,6 +512,7 @@ class Item(Empowered, slotmachine._Strict):
         instantiation or loading from the database.
         """
         self._axiom_service = None
+        self._inMemoryPowerups = {}
         self.__dirty__ = {}
         to__store = kw.pop('__store', None)
         to__everInserted = kw.pop('__everInserted', False)
