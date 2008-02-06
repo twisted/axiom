@@ -16,13 +16,14 @@ from axiom.errors import (
 from axiom.scheduler import IScheduler
 from axiom import upgrade, iaxiom
 
-from zope.interface import implements, Interface, Attribute
+from zope.interface import implements, Interface
 
 ANY_PROTOCOL = u'*'
 
 def dflip(x):
     warnings.warn("Don't use dflip no more", stacklevel=2)
     return x
+
 
 class AllNamesConflict(Exception):
     """
@@ -33,6 +34,7 @@ class AllNamesConflict(Exception):
     and the site database is not modified.
     """
 
+
 class DatabaseDirectoryConflict(Exception):
     """
     When inserting a SubStore into a site store, the selected ultimate location
@@ -42,24 +44,41 @@ class DatabaseDirectoryConflict(Exception):
     and the site database is not modified.
     """
 
+
+
 class IPreauthCredentials(Interface):
     """
-    Credentials used to indicate the user has indeed authenticated
-    already, even though we have no credentials to present at the moment.
+    Deprecated.  Don't use this.  If you wrote a checker which can check this
+    interface, make it check one of the interfaces L{Preauthenticated}
+    implements, instead.
     """
-    username = Attribute("username@domain-style string")
+
 
 
 class Preauthenticated(object):
-    implements(IPreauthCredentials)
+    """
+    A credentials object of multiple types which has already been authenticated
+    somehow.
+
+    Credentials interfaces methods are implemented to behave as if the correct
+    credentials had been supplied.
+    """
+    implements(IUsernamePassword, IUsernameHashedPassword)
 
     def __init__(self, username):
         self.username = username
 
+
     def checkPassword(self, password):
-        # XXX should we really be implementing this here?  hmm.  sip tests
-        # require it but it seems wrong.
+        """
+        The password checks out.
+        """
         return True
+
+
+    def __repr__(self):
+        return '<Preauthenticated: %s>' % (self.username,)
+
 
 
 class LoginMethod(Item):
@@ -367,7 +386,7 @@ class LoginBase:
     """
     implements(IRealm, ICredentialsChecker)
 
-    credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword, IPreauthCredentials)
+    credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword)
 
     powerupInterfaces = (IRealm, ICredentialsChecker)
 
@@ -485,15 +504,12 @@ class LoginBase:
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:
-            if IPreauthCredentials.providedBy(credentials):
+            password = acct.password
+            if credentials.checkPassword(password):
                 return acct.storeID
             else:
-                password = acct.password
-                if credentials.checkPassword(password):
-                    return acct.storeID
-                else:
-                    self.failedLogins += 1
-                    raise BadCredentials()
+                self.failedLogins += 1
+                raise BadCredentials()
 
         self.failedLogins += 1
         raise NoSuchUser(credentials.username)

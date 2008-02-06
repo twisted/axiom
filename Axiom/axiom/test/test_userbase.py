@@ -1,12 +1,20 @@
+
+"""
+Tests for L{axiom.userbase}.
+"""
+
 import datetime, StringIO, sys
 
 from zope.interface import Interface, implements
+from zope.interface.verify import verifyObject
 
 from twisted.trial import unittest
 from twisted.internet.defer import maybeDeferred
 
 from twisted.cred.portal import Portal, IRealm
 from twisted.cred.checkers import ICredentialsChecker
+from twisted.cred.error import UnauthorizedLogin
+from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.credentials import UsernamePassword
 
 from twisted.python.filepath import FilePath
@@ -424,6 +432,9 @@ class SubStoreMigrationTestCase(unittest.TestCase):
 
     IMPORTANT_VALUE = 159
 
+    localpart = u'testuser'
+    domain = u'example.com'
+
     def setUp(self):
         self.dbdir = self.mktemp()
         self.store = Store(self.dbdir)
@@ -431,7 +442,8 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.scheduler = Scheduler(store=self.store)
         dependency.installOn(self.scheduler, self.store)
 
-        self.account = self.ls.addAccount(u'testuser', u'localhost', u'PASSWORD')
+        self.account = self.ls.addAccount(
+            self.localpart, self.domain, u'PASSWORD')
 
         self.accountStore = self.account.avatars.open()
 
@@ -440,6 +452,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
 
         self.origdir = self.accountStore.dbdir
         self.destdir = FilePath(self.mktemp())
+
 
     def test_extraction(self):
         """
@@ -450,6 +463,8 @@ class SubStoreMigrationTestCase(unittest.TestCase):
                                      superValue=self.IMPORTANT_VALUE)
         self.ss.schedule(thing, Time() + datetime.timedelta(days=1))
         self.test_noTimedEventsExtraction()
+
+
     def test_noTimedEventsExtraction(self):
         """
         Ensure that user store extraction works correctly if no timed
@@ -457,14 +472,13 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         """
         userbase.extractUserStore(self.account, self.destdir)
         self.assertEquals(
-            self.ls.accountByAddress(u'testuser', u'localhost'),
+            self.ls.accountByAddress(self.localpart, self.domain),
             None)
 
         self.failIf(list(self.store.query(SubStore, SubStore.storepath == self.origdir)))
         self.origdir.restat(False)
         self.failIf(self.origdir.exists())
         self.failIf(list(self.store.query(_SubSchedulerParentHook)))
-
 
 
     def test_noTimedEventsInsertion(self):
@@ -475,6 +489,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.test_noTimedEventsExtraction()
         self._testInsertion()
 
+
     def test_insertion(self, _deleteDomainDirectory=False):
         """
         Test that inserting a user store succeeds and that the right
@@ -482,8 +497,8 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         """
         self.test_extraction()
         self._testInsertion(_deleteDomainDirectory)
-        insertedStore = self.ls.accountByAddress(u'testuser',
-                                                 u'localhost').avatars.open()
+        insertedStore = self.ls.accountByAddress(self.localpart,
+                                                 self.domain).avatars.open()
         self.assertEquals(
             insertedStore.findUnique(ThingThatMovesAround).superValue,
             self.IMPORTANT_VALUE)
@@ -501,9 +516,10 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         Helper method for inserting a user store.
         """
         if _deleteDomainDirectory:
-            self.store.filesdir.child('account').child('localhost').remove()
+            self.store.filesdir.child('account').child(self.domain).remove()
 
         userbase.insertUserStore(self.store, self.destdir)
+
 
     def test_insertionWithNoDomainDirectory(self):
         """
@@ -517,6 +533,10 @@ class RealmTestCase(unittest.TestCase):
     """
     Tests for the L{IRealm} implementation in L{axiom.userbase}.
     """
+    localpart = u'testuser'
+    domain = u'example.com'
+    password = u'password'
+
     def setUp(self):
         self.store = Store()
         self.realm = userbase.LoginSystem(store=self.store)
@@ -530,14 +550,18 @@ class RealmTestCase(unittest.TestCase):
         self.assertIdentical(self.realm, IRealm(self.store))
 
 
+    def _requestAvatarId(self, credentials):
+        return maybeDeferred(self.realm.requestAvatarId, credentials)
+
+
     def test_requestNonexistentAvatarId(self):
         """
         Test that trying to authenticate as a user who does not exist fails
         with a L{NoSuchUser} exception.
         """
-        d = maybeDeferred(
-            self.realm.requestAvatarId,
-            UsernamePassword(u'testuser@example.com', u'password'))
+        username = u'%s@%s' % (self.localpart, self.domain)
+        d = self._requestAvatarId(
+            UsernamePassword(username, self.password))
         return self.assertFailure(d, errors.NoSuchUser)
 
 
@@ -546,7 +570,92 @@ class RealmTestCase(unittest.TestCase):
         Test that trying to authenticate as a user without specifying a
         hostname fails with a L{NoSuchUser} exception.
         """
-        d = maybeDeferred(
-            self.realm.requestAvatarId,
-            UsernamePassword(u'testuser', u'password'))
+        d = self._requestAvatarId(
+            UsernamePassword(self.localpart, self.password))
         return self.assertFailure(d, errors.MissingDomainPart)
+
+
+    def test_usernamepassword(self):
+        """
+        L{LoginSystem.requestAvatarId} returns the store identifier of the
+        L{LoginAccount} associated with a L{UsernamePassword} credentials
+        object if the username and password identify an existing account.
+        """
+        account = self.realm.addAccount(
+            self.localpart, self.domain, self.password)
+        username = u'%s@%s' % (self.localpart, self.domain)
+        d = self._requestAvatarId(UsernamePassword(username, self.password))
+        d.addCallback(self.assertEqual, account.storeID)
+        return d
+
+
+    def test_usernamepasswordInvalid(self):
+        """
+        L{LoginSystem.requestAvatarId} fails with L{UnauthorizedLogin} if
+        the password supplied with the L{UsernamePassword} credentials is
+        not valid for the provided username.
+        """
+        account = self.realm.addAccount(
+            self.localpart, self.domain, self.password)
+        username = u'%s@%s' % (self.localpart, self.domain)
+        d = self._requestAvatarId(UsernamePassword(username, u'blahblah'))
+        self.assertFailure(d, UnauthorizedLogin)
+        return d
+
+    def test_preauthenticated(self):
+        """
+        L{LoginSystem.requestAvatarId} returns the store identifier of the
+        L{LoginAccount} associated with a L{Preauthenticated} credentials
+        object.
+        """
+        account = self.realm.addAccount(
+            self.localpart, self.domain, self.password)
+        username = u'%s@%s' % (self.localpart, self.domain)
+        d = self._requestAvatarId(userbase.Preauthenticated(username))
+        d.addCallback(self.assertEqual, account.storeID)
+        return d
+
+
+
+class PreauthenticatedTests(unittest.TestCase):
+    """
+    Tests for L{userbase.Preauthenticated}.
+    """
+    def test_repr(self):
+        """
+        L{userbase.Preauthenticated} has a repr which identifies its type and
+        its user.
+        """
+        self.assertEqual(
+            repr(userbase.Preauthenticated(u'foo@bar')),
+            '<Preauthenticated: foo@bar>')
+
+
+    def test_usernamepassword(self):
+        """
+        L{Preauthenticated} implements L{IUsernamePassword} and succeeds all
+        authentication checks.
+        """
+        creds = userbase.Preauthenticated(u'foo@bar')
+        self.assertTrue(
+            verifyObject(IUsernamePassword, creds),
+            "Preauthenticated does not implement IUsernamePassword")
+        self.assertTrue(
+            creds.checkPassword('random string'),
+            "Preauthenticated did not accept an arbitrary password.")
+
+
+    def test_usernamehashedpassword(self):
+        """
+        L{Preauthenticated} implements L{IUsernameHashedPassword} and succeeds
+        all authentication checks.
+        """
+        creds = userbase.Preauthenticated(u'foo@bar')
+        self.assertTrue(
+            verifyObject(IUsernameHashedPassword, creds),
+            "Preauthenticated does not implement IUsernameHashedPassword")
+        self.assertTrue(
+            creds.checkPassword('arbitrary bytes'),
+            "Preauthenticated did not accept an arbitrary password.")
+
+
