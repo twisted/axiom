@@ -1,11 +1,18 @@
-# -*- test-case-name: axiom.test.test_upgrading -*-
+
+"""
+Tests for the Axiom upgrade system.
+"""
+
+from zope.interface import Interface
+
 from twisted.trial import unittest
 
 from axiom import store, upgrade, item, errors, attributes
+from axiom.substore import SubStore
 
 from twisted.application.service import IService
 from twisted.internet.defer import maybeDeferred
-
+from twisted.python.reflect import namedModule
 from twisted.python import log
 
 def axiomInvalidate(itemClass):
@@ -50,40 +57,13 @@ def axiomInvalidateModule(moduleObject):
         if isinstance(v, item.MetaItem):
             axiomInvalidate(v)
 
-from axiom.test import oldapp
+schemaModules = []
 
-axiomInvalidateModule(oldapp)
-
-from axiom.test import brokenapp
-
-axiomInvalidateModule(brokenapp)
-
-from axiom.test import toonewapp
-
-axiomInvalidateModule(toonewapp)
-
-from axiom.test import morenewapp
-
-axiomInvalidateModule(morenewapp)
-
-from axiom.test import onestepapp
-
-axiomInvalidateModule(onestepapp)
-
-from axiom.test import newapp
-
-from axiom.test import oldpath
-
-axiomInvalidateModule(oldpath)
-
-from axiom.test import newpath
-
-axiomInvalidateModule(newpath)
-
-from axiom.test import path_postcopy
-
-axiomInvalidateModule(path_postcopy)
-
+def loadSchemaModule(name):
+    schemaModules.append(namedModule(name))
+    result = schemaModules[-1]
+    choose(None)
+    return result
 
 def choose(module=None):
     """
@@ -91,15 +71,30 @@ def choose(module=None):
 
     @param module: the module object which should next be treated as "current".
     """
-
-    axiomInvalidateModule(oldapp)
-    axiomInvalidateModule(toonewapp)
-    axiomInvalidateModule(morenewapp)
-    axiomInvalidateModule(onestepapp)
-    axiomInvalidateModule(newapp)
+    for old in schemaModules:
+        axiomInvalidateModule(old)
 
     if module is not None:
         reload(module)
+
+oldapp = loadSchemaModule('axiom.test.oldapp')
+
+brokenapp = loadSchemaModule('axiom.test.brokenapp')
+
+toonewapp = loadSchemaModule('axiom.test.toonewapp')
+
+morenewapp = loadSchemaModule('axiom.test.morenewapp')
+
+onestepapp = loadSchemaModule('axiom.test.onestepapp')
+
+newapp = loadSchemaModule('axiom.test.newapp')
+
+oldpath = loadSchemaModule('axiom.test.oldpath')
+
+newpath = loadSchemaModule('axiom.test.newpath')
+
+path_postcopy = loadSchemaModule('axiom.test.path_postcopy')
+
 
 class SchemaUpgradeTest(unittest.TestCase):
     def setUp(self):
@@ -320,8 +315,6 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         self.assertEquals(player.activated, 1)
 
 
-from axiom.substore import SubStore
-
 class SubStoreCompat(SwordUpgradeTest):
     def setUp(self):
         self.topdbdir = self.mktemp()
@@ -400,19 +393,14 @@ class PathUpgrade(SchemaUpgradeTest):
         return d.addCallback(checkPath)
 
 
-from axiom.test import oldcirc
-axiomInvalidateModule(oldcirc)
-from axiom.test import newcirc
-axiomInvalidateModule(newcirc)
+oldcirc = loadSchemaModule('axiom.test.oldcirc')
 
+newcirc = loadSchemaModule('axiom.test.newcirc')
 
-from axiom.test import oldobsolete
-axiomInvalidateModule(oldobsolete)
+oldobsolete = loadSchemaModule('axiom.test.oldobsolete')
 
-from axiom.test import newobsolete
-axiomInvalidateModule(newobsolete)
+newobsolete = loadSchemaModule('axiom.test.newobsolete')
 
-from zope.interface import Interface
 
 class IObsolete(Interface):
     """
@@ -484,3 +472,108 @@ class DeletionTest(SchemaUpgradeTest):
         self.assertEquals(IObsolete(self.currentStore, None), None)
         self.closeStore()
         axiomInvalidateModule(newobsolete)
+
+
+
+two_upgrades_old = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.two_upgrades_old')
+
+two_upgrades_new = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.two_upgrades_new')
+
+reentrant_old = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.reentrant_old')
+
+reentrant_new = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.reentrant_new')
+
+override_init_old = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.override_init_old')
+
+override_init_new = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.override_init_new')
+
+
+class DuringUpgradeTests(unittest.TestCase):
+    """
+    Tests for upgraders' interactions with each other and with the Store while
+    an upgrader is running.
+    """
+    def tearDown(self):
+        choose(None)
+
+
+    dbdir = None
+    currentStore = None
+
+    def storeWithVersion(self, chosenModule):
+        """
+        Open a store with a particular module chosen, closing the old store if
+        it was open already.
+        """
+        choose(chosenModule)
+        if self.currentStore is not None:
+            self.currentStore.close()
+        if self.dbdir is None:
+            self.dbdir = self.mktemp()
+        self.currentStore = store.Store(self.dbdir)
+        return self.currentStore
+
+
+    def test_upgradeLegacyReference(self):
+        """
+        Let a and b be two items which are being upgraded, instances of item
+        types A and B respectively.  a has a reference attribute, x, which
+        points to b.  In A's 1to2 upgrader, newA.x is set to oldA.x, which is
+        (at that time) a DummyItem, i.e. an item with __legacy__ set to True.
+
+        This is a regression test for a bug in this scenario where caching was
+        too aggressive, and a.x would still refer to a legacy item after the
+        upgrade was finished.  After performing this upgrade, a.x should refer
+        to a B v2, i.e. an upgraded version of b.
+        """
+        old = self.storeWithVersion(two_upgrades_old)
+        storeID = two_upgrades_old.Referrer(
+            store=old,
+            referee=two_upgrades_old.Referee(store=old)).storeID
+
+        new = self.storeWithVersion(two_upgrades_new)
+        referrer = new.getItemByID(storeID)
+        referee = referrer.referee
+        self.assertTrue(
+            isinstance(referee, two_upgrades_new.Referee),
+            "%r is a %r but should be %r" % (
+                referee, type(referee), two_upgrades_new.Referee))
+
+
+    def test_reentrantUpgraderFailure(self):
+        """
+        If, while an upgrader is running, it triggers its own upgrade, there
+        should be a loud failure; it's already hard enough to deal with upgrade
+        ordering and querying for legacy items; upgraders cannot reasonably be
+        written to be correct in the face of reentrancy.
+        """
+        old = self.storeWithVersion(reentrant_old)
+        storeID = reentrant_old.Simple(store=old).storeID
+        new = self.storeWithVersion(reentrant_new)
+        self.assertRaises(errors.UpgraderRecursion, new.getItemByID, storeID)
+        # A whitebox flourish to make sure our state tracking is correct:
+        self.failIf(new._currentlyUpgrading,
+                    "No upgraders should currently be in progress.")
+
+
+    def test_overridenInitializerInUpgrader(self):
+        """
+        A subclass of Item which overrides __init__ should be cached by the end
+        of Item.__init__, so that logic written by the subclass has normal
+        caching semantics.
+        """
+        old = self.storeWithVersion(override_init_old)
+        storeID = override_init_old.Simple(store=old).storeID
+        new = self.storeWithVersion(override_init_new)
+        upgraded = new.getItemByID(storeID)
+        simpleSelf, simpleGotItem = upgraded.verify
+        self.assertIdentical(upgraded, simpleSelf)
+        self.assertIdentical(upgraded, simpleGotItem)
+
+

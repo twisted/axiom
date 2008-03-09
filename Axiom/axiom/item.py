@@ -466,7 +466,8 @@ class Item(Empowered, slotmachine._Strict):
             self.__store = store
             oid = self.storeID = self.store.executeSchemaSQL(
                 _schema.CREATE_OBJECT, [self.store.getTypeID(type(self))])
-            store.objectCache.cache(oid, self)
+            if not self.__legacy__:
+                store.objectCache.cache(oid, self)
             if store.autocommit:
                 log.msg(interface=iaxiom.IStatEvent,
                         name='database', stat_autocommits=1)
@@ -541,10 +542,17 @@ class Item(Empowered, slotmachine._Strict):
 
                 self._schemaPrepareInsert(tostore)
                 self.__store = tostore
+
+                # However, setting the store would normally cache this item as
+                # well, so we need to cache it here - unless this is actually a
+                # dummy class which isn't real!  In that case don't.
+                if not self.__legacy__:
+                    tostore.objectCache.cache(self.storeID, self)
                 if tostore.autocommit:
                     self.checkpoint()
             else:
                 self.store = tostore
+
 
     def __init__(self, **kw):
         """
@@ -564,8 +572,10 @@ class Item(Empowered, slotmachine._Strict):
         self.__justCreated = True
         self.__subinit__(**kw)
 
+
     def __finalizer__(self):
         return noop
+
 
     def existingInStore(cls, store, storeID, attrs):
         """Create and return a new instance from a row from the store."""
@@ -764,11 +774,6 @@ class Item(Empowered, slotmachine._Strict):
 
         new.touch()
         new.activate()
-
-        # XXX TODO; this needs to be forced to fall out of cache in the case of
-        # an in memory revert
-        if not new.__legacy__:
-            self.store.objectCache.cache(self.storeID, new)
 
         self.store.executeSchemaSQL(_schema.CHANGE_TYPE,
                                     [newTypeID, self.storeID])
