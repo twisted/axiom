@@ -155,3 +155,10 @@ class BrokenReference(DataIntegrityError):
     A reference to a nonexistent item was detected when this should be
     impossible.
     """
+
+
+class UpgraderRecursion(RuntimeError):
+    """
+    Upgraders are not allowed to recurse.
+    """
+

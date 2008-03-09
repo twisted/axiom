@@ -3,11 +3,10 @@ import gc
 from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
-from axiom.item import Item
+from axiom.upgrade import registerUpgrader
+from axiom.item import Item, declareLegacyItem
 from axiom.attributes import integer, reference
 from axiom.errors import BrokenReference, DeletionDisallowed
-
-from axiom.test.test_upgrading import axiomInvalidate
 
 class Referee(Item):
     schemaVersion = 1
@@ -160,3 +159,59 @@ class BadReferenceTestCase(TestCase):
         sid = dep.storeID
         store.query(Referee).deleteFromStore()
         self.assertRaises(KeyError, store.getItemByID, sid)
+
+
+    def test_dummyItemReference(self):
+        """
+        Getting the value of a reference attribute which has previously been
+        set to a legacy item results in an instance of the most recent type for
+        that item.
+        """
+        store = Store()
+        referent = SimpleReferent(store=store)
+        oldReferee = nonUpgradedItem(store=store)
+        referent.ref = oldReferee
+        newReferee = referent.ref
+        self.assertTrue(
+            isinstance(newReferee, UpgradedItem),
+            "%r was instance of %r, expected %r" % (newReferee,
+                                                    type(newReferee),
+                                                    UpgradedItem))
+
+    def test_dummyItemGetItemByID(self):
+        """
+        Instantiating a dummy item and then getting it by its storeID should
+        upgrade it.
+        """
+        store = Store()
+        t = nonUpgradedItem(store=store)
+        self.assertEquals(t.__legacy__, True)
+        self.assertFalse(store.objectCache.has(t.storeID))
+        t2 = store.getItemByID(t.storeID)
+        self.assertNotIdentical(t, t2)
+        self.assertTrue(isinstance(t2, UpgradedItem))
+
+
+
+class UpgradedItem(Item):
+    """
+    A simple item which is the current version of L{nonUpgradedItem}.
+    """
+    schemaVersion = 2
+    dummy = integer()
+
+
+
+nonUpgradedItem = declareLegacyItem(
+    UpgradedItem.typeName, 1,
+    dict(dummy=integer()))
+
+
+
+def item1to2(old):
+    """
+    Upgrade an nonUpgradedItem to UpgradedItem
+    """
+    return old.upgradeVersion(UpgradedItem.typeName, 1, 2, dummy=old.dummy)
+
+registerUpgrader(item1to2, UpgradedItem.typeName, 1, 2)

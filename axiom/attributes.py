@@ -1,4 +1,4 @@
-# -*- test-case-name: axiom.test.test_attributes -*-
+# -*- test-case-name: axiom.test.test_attributes,axiom.test.test_reference -*-
 
 import os
 
@@ -454,6 +454,14 @@ class SQLAttribute(inmemory, Comparable):
         return pyval
 
     def loaded(self, oself, dbval):
+        """
+        This method is invoked when the item is loaded from the database, and
+        when a transaction is reverted which restores this attribute's value.
+
+        @param oself: an instance of an item which has this attribute.
+
+        @param dbval: the underlying database value which was retrieved.
+        """
         setattr(oself, self.dbunderlying, dbval)
         delattr(oself, self.underlying) # member_descriptors don't raise
                                         # attribute errors; what gives?  good
@@ -461,7 +469,9 @@ class SQLAttribute(inmemory, Comparable):
 
     def _convertPyval(self, oself, pyval):
         """
-        Convert a Python value to a value suitable for inserting into the database.
+        Convert a Python value to a value suitable for inserting into the
+        database.
+
         @param oself: The object on which this descriptor is an attribute.
         @param pyval: The value to be converted.
         @return: A value legal for this column in the database.
@@ -480,6 +490,7 @@ class SQLAttribute(inmemory, Comparable):
         oself.__dirty__[self.attrname] = self, dbval
         oself.touch()
         setattr(oself, self.underlying, pyval)
+        setattr(oself, self.dbunderlying, dbval)
         if st is not None and st.autocommit:
             st._rejectChanges += 1
             try:
@@ -1084,7 +1095,13 @@ class reference(integer):
             return 'None'
         return 'reference(%d)' % (sid,)
 
+
     def __get__(self, oself, type=None):
+        """
+        Override L{integer.__get__} to verify that the value to be returned is
+        currently a valid item in the same store, and to make sure that legacy
+        items are upgraded if they happen to have been cached.
+        """
         rv = super(reference, self).__get__(oself, type)
         if rv is self:
             # If it's an attr lookup on the class, just do that.
@@ -1100,6 +1117,9 @@ class reference(integer):
             assert self.whenDeleted is reference.NULLIFY, (
                 "not sure what to do if not...")
             return None
+        if rv.__legacy__:
+            delattr(oself, self.underlying)
+            return super(reference, self).__get__(oself, type)
         return rv
 
     def prepareInsert(self, oself, store):

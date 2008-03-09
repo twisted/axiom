@@ -41,6 +41,10 @@ from axiom.item import \
 
 IN_MEMORY_DATABASE = ':memory:'
 
+# The special storeID used to mark the store itself as the target of a
+# reference.
+STORE_SELF_ID = -1
+
 tempCounter = itertools.count()
 
 class NoEmptyItems(Exception):
@@ -967,6 +971,15 @@ class Store(Empowered):
     stored.  This cache is generated from the saved schema metadata when this
     store is opened and updated when schema changes from other store objects
     (such as in other processes) are detected.
+
+    @cvar __legacy__: an L{Item} may refer to a L{Store} via a L{reference},
+    and this attribute tells the item reference system that the store itself is
+    not an old version of an item; i.e. it does not need to have its upgraders
+    invoked.
+
+    @cvar storeID: an L{Item} may refer to a L{Store} via a L{reference}, and
+    this attribute tells the item reference system that the L{Store} has a
+    special ID that to use (which is never allocated to any item).
     """
 
     aggregateInterfaces = {
@@ -978,9 +991,6 @@ class Store(Empowered):
 
     transaction = None          # set of objects changed in the current transaction
     touched = None              # set of objects changed since the last checkpoint
-
-    storeID = -1                # I have a StoreID so that things can reference
-                                # me
 
     databaseName = 'main'       # can differ if database is attached to another
                                 # database.
@@ -1000,13 +1010,30 @@ class Store(Empowered):
     # non-zero will reject database changes with a ChangeRejected exception.
     _rejectChanges = 0
 
+    # The following method and attributes are the ad-hoc interface required as
+    # targets of attributes.reference attributes.  (In other words, the store
+    # is a little bit like a fake item.)  These should probably eventually be
+    # on an interface somewhere, and be better named.
+
     def _currentlyValidAsReferentFor(self, store):
-        """necessary because I can be a target of attributes.reference()
+        """
+        Check to see if this store is currently valid as a target of a
+        reference from an item in the given L{Store}.  This is true iff the
+        given L{Store} is this L{Store}.
+
+        @param store: the store that the referring item is present in.
+
+        @type store: L{Store}
         """
         if store is self:
             return True
         else:
             return False
+
+    __legacy__ = False
+
+    storeID = STORE_SELF_ID
+
 
     def __init__(self, dbdir=None, filesdir=None, debug=False, parent=None, idInParent=None):
         """
@@ -1072,6 +1099,10 @@ class Store(Empowered):
         self._oldTypesRemaining = [] # a list of old types which have not been
                                      # fully upgraded in this database.
 
+        self._currentlyUpgrading = {} # a map of storeIDs to items currently in
+                                      # the middle of an upgrader.  Used to
+                                      # make sure we don't upgrade the same
+                                      # item reentrantly.
         self._axiom_service = None
 
 
@@ -1434,9 +1465,27 @@ class Store(Empowered):
                 continue
             o = onething[0]
             self._anyUpgradesThisTypeYet = True
-            self.transact(upgrade.upgradeAllTheWay, o)
+            self._upgradeThisItem(o)
             return True
         return False
+
+
+    def _upgradeThisItem(self, thisItem):
+        """
+        Upgrade a legacy item.
+
+        @raise UpgraderRecursion: If the given item is already in the process
+        of being upgraded.
+        """
+        sid = thisItem.storeID
+        if sid in self._currentlyUpgrading:
+            raise errors.UpgraderRecursion()
+        self._currentlyUpgrading[sid] = thisItem
+        try:
+            return self.transact(upgrade.upgradeAllTheWay, thisItem)
+        finally:
+            self._currentlyUpgrading.pop(sid)
+
 
     def _upgradeEverything(self):
         didAny = False
@@ -1643,6 +1692,12 @@ class Store(Empowered):
 
 
     def changed(self, item):
+        """
+        An item in this store was changed.  Add it to the current transaction's
+        list of changed items, if a transaction is currently underway, or raise
+        an exception if this L{Store} is currently in a state which does not
+        allow changes.
+        """
         if self._rejectChanges:
             raise errors.ChangeRejected()
         if self.transaction is not None:
@@ -2034,7 +2089,7 @@ class Store(Empowered):
         if not isinstance(storeID, (int, long)):
             raise TypeError("storeID *must* be an int or long, not %r" % (
                     type(storeID).__name__,))
-        if storeID == -1:
+        if storeID == STORE_SELF_ID:
             return self
         if self.objectCache.has(storeID):
             return self.objectCache.get(storeID)
@@ -2092,7 +2147,7 @@ class Store(Empowered):
                 # upgradeVersion will do caching as necessary, we don't have to
                 # cache here.  (It must, so that app code can safely call
                 # upgradeVersion and get a consistent object out of it.)
-                x = self.transact(upgrade.upgradeAllTheWay, x)
+                x = self._upgradeThisItem(x)
             elif not x.__legacy__:
                 # We loaded the most recent version of an object
                 self.objectCache.cache(storeID, x)
