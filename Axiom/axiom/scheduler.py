@@ -95,11 +95,6 @@ class _WackyControlFlow(Exception):
 MAX_WORK_PER_TICK = 10
 
 class SchedulerMixin:
-    def now(self):
-        # Testing hook
-        return Time()
-
-
     def _oneTick(self, now):
         theEvent = self._getNextEvent(now)
         if theEvent is None:
@@ -115,7 +110,7 @@ class SchedulerMixin:
     def _getNextEvent(self, now):
         # o/` gonna party like it's 1984 o/`
         theEventL = list(self.store.query(TimedEvent,
-                                          TimedEvent.time < now,
+                                          TimedEvent.time <= now,
                                           sort=TimedEvent.time.ascending,
                                           limit=1))
         if theEventL:
@@ -342,6 +337,7 @@ class SubScheduler(Item, SchedulerMixin):
     nextEventAt = timestamp()
 
     # Also testing hooks
+    callLater = inmemory()
     now = inmemory()
 
     def __repr__(self):
@@ -349,6 +345,7 @@ class SubScheduler(Item, SchedulerMixin):
 
 
     def activate(self):
+        self.callLater = reactor.callLater
         self.now = Time
 
     def _transientSchedule(self, when, now):
@@ -382,4 +379,4 @@ class SubScheduler(Item, SchedulerMixin):
         """
         te = self.store.findFirst(TimedEvent, sort=TimedEvent.time.descending)
         if te is not None:
-            self._transientSchedule(te.time, Time)
+            self._transientSchedule(te.time, self.now)
