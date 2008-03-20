@@ -25,21 +25,16 @@ class TestEvent(Item):
     typeName = 'test_event'
     schemaVersion = 1
 
-    deferred = inmemory()       # these won't fall out of memory due to
+    testCase = inmemory()       # this won't fall out of memory due to
                                 # caching, thanks.
-    testCase = inmemory()
-
     name = text()
 
-    maxRunCount = integer()     # fail the test if we run more than this many
-                                # times
     runCount = integer()
     runAgain = integer()        # milliseconds to add, then run again
     winner = integer(default=0) # is this the event that is supposed to
                                 # complete the test successfully?
 
     def __init__(self, **kw):
-        self.deferred = None
         super(TestEvent, self).__init__(**kw)
         self.runCount = 0
 
@@ -58,19 +53,15 @@ class TestEvent(Item):
                 return self.fail("Too many TimedEvents for the SubStore", count)
 
         self.runCount += 1
-        if self.runCount > self.maxRunCount:
-            return self.fail("%s ran too many times"% (self.name))
         if self.runAgain is not None:
-            result = Time() + timedelta(milliseconds=self.runAgain)
+            result = self.testCase.now() + timedelta(seconds=self.runAgain)
             self.runAgain = None
         else:
-            if self.winner and self.deferred is not None:
-                self.deferred.callback('done')
             result = None
         return result
 
     def fail(self, *msg):
-        self.deferred.errback(self.testCase.failureException(*msg))
+        self.testCase.fail(*msg)
 
 
 class NotActuallyRunnable(Item):
@@ -97,6 +88,24 @@ class SchedTest:
         return IService(self.siteStore).stopService()
 
 
+    def setUp(self):
+        self.clock = Clock()
+
+        scheduler = Scheduler(store=self.siteStore)
+        self.stubTime(scheduler)
+        installOn(scheduler, self.siteStore)
+        IService(self.siteStore).startService()
+
+
+    def now(self):
+        return Time.fromPOSIXTimestamp(self.clock.seconds())
+
+
+    def stubTime(self, scheduler):
+        scheduler.callLater = self.clock.callLater
+        scheduler.now = self.now
+
+
     def test_implementsSchedulerInterface(self):
         """
         Verify that IScheduler is declared as implemented.
@@ -114,52 +123,48 @@ class SchedTest:
         # only once, and that the third never fires.
         s = self.store
 
-        d = Deferred()
-
-        interval = 30
-
         t1 = TestEvent(testCase=self,
                        name=u't1',
-                       store=s, maxRunCount=1, runAgain=None, deferred=d)
+                       store=s, runAgain=None)
         t2 = TestEvent(testCase=self,
                        name=u't2',
-                       store=s, maxRunCount=2, runAgain=interval, deferred=d, winner=True)
+                       store=s, runAgain=2)
         t3 = TestEvent(testCase=self,
                        name=u't3',
-                       store=s, maxRunCount=0, runAgain=None, deferred=d)
+                       store=s, runAgain=None)
 
-        now = Time()
+        now = self.now()
         self.ts = [t1, t2, t3]
 
         S = IScheduler(s)
 
         # Schedule them out of order to make sure behavior doesn't
         # depend on tasks arriving in soonest-to-latest order.
-        S.schedule(t2, now + timedelta(milliseconds=interval * 2))
-        S.schedule(t1, now + timedelta(milliseconds=interval * 1))
-        S.schedule(t3, now + timedelta(milliseconds=interval * 100))
+        S.schedule(t2, now + timedelta(seconds=3))
+        S.schedule(t1, now + timedelta(seconds=1))
+        S.schedule(t3, now + timedelta(seconds=100))
 
-        return d
+        self.clock.pump([2, 2, 2])
+        self.assertEqual(t1.runCount, 1)
+        self.assertEqual(t2.runCount, 2)
+        self.assertEqual(t3.runCount, 0)
 
 
     def test_unscheduling(self):
         """
         Test the unscheduleFirst method of the scheduler.
         """
-        now = Time()
         d = Deferred()
         sch = IScheduler(self.store)
-        t1 = TestEvent(testCase=self, name=u't1', store=self.store, maxRunCount=0)
-        t2 = TestEvent(testCase=self, name=u't2', store=self.store, maxRunCount=1, runAgain=None, winner=True, deferred=d)
+        t1 = TestEvent(testCase=self, name=u't1', store=self.store)
+        t2 = TestEvent(testCase=self, name=u't2', store=self.store, runAgain=None)
 
-        # Make sure the inmemory attributes hang around
-        self.ts = [t1, t2]
-
-        sch.schedule(t1, now + timedelta(milliseconds=100))
-        sch.schedule(t2, now + timedelta(milliseconds=200))
+        sch.schedule(t1, self.now() + timedelta(seconds=1))
+        sch.schedule(t2, self.now() + timedelta(seconds=2))
         sch.unscheduleFirst(t1)
-
-        return d
+        self.clock.advance(3)
+        self.assertEquals(t1.runCount, 0)
+        self.assertEquals(t2.runCount, 1)
 
 
     def test_inspection(self):
@@ -167,7 +172,7 @@ class SchedTest:
         Test that the L{scheduledTimes} method returns an iterable of all the
         times at which a particular item is scheduled to run.
         """
-        now = Time() + timedelta(seconds=1)
+        now = self.now() + timedelta(seconds=1)
         off = timedelta(seconds=3)
         sch = IScheduler(self.store)
         runnable = TestEvent(store=self.store, name=u'Only event')
@@ -187,7 +192,7 @@ class SchedTest:
         L{TimedEvent.invokeRunnable} just deletes the L{TimedEvent} without
         raising an exception.
         """
-        now = Time()
+        now = self.now()
         scheduler = IScheduler(self.store)
         runnable = TestEvent(store=self.store, name=u'Only event')
         scheduler.schedule(runnable, now)
@@ -210,52 +215,49 @@ class SchedTest:
 
 class TopStoreSchedTest(SchedTest, TestCase):
     def setUp(self):
-        # self.storePath = self.mktemp()
         self.store = self.siteStore = Store()
-        installOn(Scheduler(store=self.store), self.store)
-        IService(self.store).startService()
+        super(TopStoreSchedTest, self).setUp()
 
 
     def testBasicScheduledError(self):
         S = IScheduler(self.store)
-        now = Time()
-        S.schedule(NotActuallyRunnable(store=self.store), now)
-        d = Deferred()
+        S.schedule(NotActuallyRunnable(store=self.store), self.now())
+
         te = TestEvent(store=self.store, testCase=self,
-                       name=u't1', maxRunCount=1, runAgain=None,
-                       winner=True, deferred=d)
-        self.te = te            # don't gc the deferred
-        now2 = Time()
-        S.schedule(te, now2)
+                       name=u't1', runAgain=None)
+        S.schedule(te, self.now() + timedelta(seconds=1))
+
         self.assertEquals(
             self.store.query(TimedEventFailureLog).count(), 0)
-        def later(result):
-            errs = self.flushLoggedErrors(AttributeError)
-            self.assertEquals(len(errs), 1)
-            self.assertEquals(self.store.query(TimedEventFailureLog).count(), 1)
-        return d.addCallback(later)
+
+        self.clock.advance(3)
+
+        self.assertEquals(te.runCount, 1)
+
+        errs = self.flushLoggedErrors(AttributeError)
+        self.assertEquals(len(errs), 1)
+        self.assertEquals(self.store.query(TimedEventFailureLog).count(), 1)
 
     def testScheduledErrorWithHandler(self):
         S = IScheduler(self.store)
-        now = Time()
         spec = SpecialErrorHandler(store=self.store)
-        S.schedule(spec, now)
-        d = Deferred()
+        S.schedule(spec, self.now())
+
         te = TestEvent(store=self.store, testCase=self,
-                       name=u't1', maxRunCount=1, runAgain=None,
-                       winner=True, deferred=d)
-        self.te = te            # don't gc the deferred
-        now2 = Time()
-        S.schedule(te, now2)
+                       name=u't1', runAgain=None)
+        S.schedule(te, self.now() + timedelta(seconds=1))
         self.assertEquals(
             self.store.query(TimedEventFailureLog).count(), 0)
-        def later(result):
-            errs = self.flushLoggedErrors(SpecialError)
-            self.assertEquals(len(errs), 1)
-            self.assertEquals(self.store.query(TimedEventFailureLog).count(), 0)
-            self.failUnless(spec.procd)
-            self.failIf(spec.broken)
-        return d.addCallback(later)
+
+        self.clock.advance(3)
+
+        self.assertEquals(te.runCount, 1)
+
+        errs = self.flushLoggedErrors(SpecialError)
+        self.assertEquals(len(errs), 1)
+        self.assertEquals(self.store.query(TimedEventFailureLog).count(), 0)
+        self.failUnless(spec.procd)
+        self.failIf(spec.broken)
 
 
 
@@ -270,12 +272,13 @@ class SubSchedulerTests(SchedTest, TestCase):
         """
         self.storePath = self.mktemp()
         self.siteStore = Store(self.storePath)
-        self.svc = IService(self.siteStore)
-        self.svc.startService()
+        super(SubSchedulerTests, self).setUp()
 
         substoreItem = SubStore.createNew(self.siteStore, ['scheduler_test'])
         self.substore = substoreItem.open()
-        installOn(SubScheduler(store=self.substore), self.substore)
+        self.scheduler = scheduler = SubScheduler(store=self.substore)
+        self.stubTime(scheduler)
+        installOn(scheduler, self.substore)
 
         self.store = self.substore
 
