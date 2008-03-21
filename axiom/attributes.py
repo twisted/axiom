@@ -1229,19 +1229,19 @@ class AbstractFixedPointDecimal(integer):
 
     def __init__(self, **kw):
         integer.__init__(self, **kw)
-        self.exponent = (10 ** self.decimalPlaces)
 
 
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        elif isinstance(pyval, Decimal):
+        if isinstance(pyval, (int, long)):
+            pyval = Decimal(pyval)
+        if isinstance(pyval, Decimal):
+            # Python < 2.5.2 compatibility:
+            # Use to_integral instead of to_integral_value.
+            dbval = int((pyval * 10**self.decimalPlaces).to_integral())
             return super(AbstractFixedPointDecimal, self).infilter(
-                int(pyval._rescale(-(self.decimalPlaces)) * self.exponent),
-                oself, store)
-        elif isinstance(pyval, (int, long)):
-            return super(AbstractFixedPointDecimal, self).infilter(
-                pyval * self.exponent, oself, store)
+                dbval, oself, store)
         else:
             raise TypeError(
                 "attribute [%s.%s = AbstractFixedPointDecimal(...)] must be "
@@ -1252,7 +1252,7 @@ class AbstractFixedPointDecimal(integer):
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
-        return Decimal(int(dbval)) / self.exponent
+        return Decimal(dbval) / 10**self.decimalPlaces
 
 
     def compare(self, other, sqlop):
