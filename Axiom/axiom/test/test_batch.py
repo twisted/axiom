@@ -553,9 +553,8 @@ class RemoteTestCase(unittest.TestCase):
         dbdir = self.mktemp()
         s = store.Store(dbdir)
         svc = batch.BatchProcessingControllerService(s)
-        def started(ign):
-            return svc.stopService()
-        return svc.startService().addCallback(started)
+        svc.startService()
+        return svc.stopService()
 
 
     def testCalling(self):

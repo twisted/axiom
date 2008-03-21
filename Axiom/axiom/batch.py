@@ -933,7 +933,6 @@ class BatchProcessingControllerService(service.Service):
             self._setStore, self._restartProcess,
             logdir.child("batch.log").path,
             rundir.child("batch.pid").path)
-        return self.batchController.getProcess()
 
 
     def _setStore(self):
