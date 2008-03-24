@@ -30,14 +30,12 @@ def axiomInvalidate(itemClass):
 
     @param itemClass: an Item subclass that you no longer wish to use.
     """
+    # Note, be very careful not to use comparison on attributes here.  For
+    # example, do not use list.remove(), since it is equality based. -exarkun
     for cascades in attributes._cascadingDeletes.itervalues():
-        _deleteMe = []
-        for attr in cascades:
-            if attr.type is itemClass:
-                _deleteMe.append(attr)
-
-        for attr in _deleteMe:
-            cascades.remove(attr)
+        for i in xrange(len(cascades) - 1, -1, -1):
+            if cascades[i].type is itemClass:
+                del cascades[i]
 
     store._typeNameToMostRecentClass.pop(itemClass.typeName, None)
 
@@ -493,6 +491,18 @@ override_init_old = loadSchemaModule(
 override_init_new = loadSchemaModule(
     'axiom.test.upgrade_fixtures.override_init_new')
 
+replace_attribute_old = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.replace_attribute_old')
+
+replace_attribute_new = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.replace_attribute_new')
+
+replace_delete_old = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.replace_delete_old')
+
+replace_delete_new = loadSchemaModule(
+    'axiom.test.upgrade_fixtures.replace_delete_new')
+
 
 class DuringUpgradeTests(unittest.TestCase):
     """
@@ -577,3 +587,38 @@ class DuringUpgradeTests(unittest.TestCase):
         self.assertIdentical(upgraded, simpleGotItem)
 
 
+    def _reentrantReferenceForeignUpgrader(self, oldModule, newModule):
+        old = self.storeWithVersion(oldModule)
+        storeID = oldModule.Referrer(
+            store=old, referee=oldModule.Referee(
+                store=old, value=oldModule.OLD_VALUE)).storeID
+        new = self.storeWithVersion(newModule)
+        referrer = new.getItemByID(storeID)
+        upgraded = referrer.referee
+        self.assertEqual(
+            upgraded.value,
+            newModule.NEW_VALUE,
+            "Upgraded reference does not have new value.")
+
+
+    def test_referenceModifiedByForeignUpgrader(self):
+        """
+        If the value of a reference on an Item requires an upgrade and the
+        upgrade replaces the value of the reference with a different Item, then
+        evaluating the reference attribute on the referrer should result in the
+        new value of the attribute.
+        """
+        self._reentrantReferenceForeignUpgrader(
+            replace_attribute_old, replace_attribute_new)
+
+
+    def test_cascadingDeletedReferenceModifiedByForeignUpgrader(self):
+        """
+        If the value of a whenDeleted=CASCADE reference on an Item requires an
+        upgrade and the upgrade replaces the value of the reference with a new
+        Item and then deletes the old value of the reference, then evaluating
+        the reference attribute on the referrer should result in the new value
+        of the attribute.
+        """
+        self._reentrantReferenceForeignUpgrader(
+            replace_delete_old, replace_delete_new)
