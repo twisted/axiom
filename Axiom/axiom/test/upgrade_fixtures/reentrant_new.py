@@ -1,13 +1,13 @@
 # -*- test-case-name: axiom.test.test_upgrading.DuringUpgradeTests.test_reentrantUpgraderFailure -*-
 
 from axiom.attributes import integer, reference
-from axiom.item import Item
+from axiom.item import Item, normalize
 from axiom.upgrade import registerUpgrader
 
-from axiom.test.upgrade_fixtures.reentrant_old import Simple as OldSimple
-
 class Simple(Item):
-    typeName = OldSimple.typeName
+    # Don't import the old schema. -exarkun
+    typeName = normalize(
+        "axiom.test.upgrade_fixtures.reentrant_old.Simple")
     schemaVersion = 2
     dummy = integer()
     selfReference = reference()

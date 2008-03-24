@@ -11,6 +11,7 @@ from zope.interface import implements
 
 from twisted.python import filepath
 from twisted.python.components import registerAdapter
+from twisted.python.reflect import qual
 
 from epsilon.extime import Time
 
@@ -411,12 +412,12 @@ class SQLAttribute(inmemory, Comparable):
     _type = None
     type = property(*type())
 
-    def __get__(self, oself, type=None):
-        if type is not None and oself is None:
+    def __get__(self, oself, cls=None):
+        if cls is not None and oself is None:
             if self._type is not None:
-                assert self._type == type
+                assert self._type == cls
             else:
-                self._type = type
+                self._type = cls
             return self
 
         pyval = getattr(oself, self.underlying, _NEEDS_FETCH)
@@ -448,8 +449,12 @@ class SQLAttribute(inmemory, Comparable):
                 # would be worthwhile.
 
                 return self.default
-            # cache python value
             pyval = self.outfilter(dbval, oself)
+            # An upgrader may have changed the value of this attribute.  If so,
+            # return the new value, not the old one.
+            if dbval != getattr(oself, self.dbunderlying):
+                return self.__get__(oself, cls)
+            # cache python value
             setattr(oself, self.underlying, pyval)
         return pyval
 
@@ -1096,13 +1101,13 @@ class reference(integer):
         return 'reference(%d)' % (sid,)
 
 
-    def __get__(self, oself, type=None):
+    def __get__(self, oself, cls=None):
         """
         Override L{integer.__get__} to verify that the value to be returned is
         currently a valid item in the same store, and to make sure that legacy
         items are upgraded if they happen to have been cached.
         """
-        rv = super(reference, self).__get__(oself, type)
+        rv = super(reference, self).__get__(oself, cls)
         if rv is self:
             # If it's an attr lookup on the class, just do that.
             return self
@@ -1119,7 +1124,7 @@ class reference(integer):
             return None
         if rv.__legacy__:
             delattr(oself, self.underlying)
-            return super(reference, self).__get__(oself, type)
+            return super(reference, self).__get__(oself, cls)
         return rv
 
     def prepareInsert(self, oself, store):
@@ -1152,6 +1157,20 @@ class reference(integer):
 
         referee = oself.store.getItemByID(dbval, default=None, autoUpgrade=not oself.__legacy__)
         if referee is None and self.whenDeleted is not reference.NULLIFY:
+
+            # If referee merely changed to another valid referent,
+            # SQLAttribute.__get__ will notice that what we returned is
+            # inconsistent and try again.  However, it doesn't know about the
+            # BrokenReference that is raised if the old referee is no longer a
+            # valid referent.  Check to see if the dbunderlying is still the
+            # same as the dbval passed in.  If it's different, we should try to
+            # load the value again.  Only if it is unchanged will we raise the
+            # BrokenReference.  It would be better if all of this
+            # change-detection logic were in one place, but I can't figure out
+            # how to do that. -exarkun
+            if dbval != getattr(oself, self.dbunderlying):
+                return self.__get__(oself, None)
+
             raise BrokenReference('Reference to storeID %r is broken' % (dbval,))
         return referee
 
