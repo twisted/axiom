@@ -9,7 +9,7 @@
   - Added the beginnings of a query introspection API.
 
 0.5.24 (2007-07-06):
-  - Added a'postCopy' argument to
+  - Added a 'postCopy' argument to
     upgrade.registerAttributeCopyingUpgrader, a callable run
     with the new item after upgrading.
 
