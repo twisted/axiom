@@ -8,9 +8,9 @@ import errno
 import signal
 
 from twisted import plugin
-from twisted.python import usage, log
+from twisted.python import usage
 from twisted.python.runtime import platform
-from twisted.application import app, service
+from twisted.scripts import twistd
 
 from axiom import iaxiom
 
@@ -36,102 +36,6 @@ class AxiomaticSubCommand(usage.Options, AxiomaticSubCommandMixin):
 class AxiomaticCommand(usage.Options, AxiomaticSubCommandMixin):
     __metaclass__ = _metaASC
 
-# The following should REALLY be taken care of by Twisted itself.
-if platform.isWinNT():
-    from twisted.scripts import _twistw as twistd
-else:
-    try:
-        from twisted.scripts import _twistd_unix as twistd
-    except ImportError:
-        from twisted.scripts import twistd
-
-class Start(twistd.ServerOptions):
-    def noSubCommands(self):
-        raise AttributeError()
-    subCommands = property(noSubCommands)
-
-    def _fixConfig(self):
-        self['no_save'] = True
-        self['nodaemon'] = self['nodaemon'] or self['debug']
-
-        dbdir = self.parent.getStoreDirectory()
-
-        rundir = os.path.join(dbdir, 'run')
-        if not os.path.exists(rundir):
-            os.mkdir(rundir)
-
-        if self['logfile'] is None and not self['nodaemon']:
-            logdir = os.path.join(rundir, 'logs')
-            if not os.path.exists(logdir):
-                os.mkdir(logdir)
-            self['logfile'] = os.path.join(logdir, 'axiomatic.log')
-
-        if platform.isWinNT():
-            # We're done; no pidfile support.
-            return
-        if self['pidfile'] == 'twistd.pid':
-            self['pidfile'] = os.path.join(rundir, 'axiomatic.pid')
-        elif self['pidfile']:
-            self['pidfile'] = os.path.abspath(self['pidfile'])
-
-    def _constructApplication(self):
-        application = service.Application("Axiom Service")
-        service.IService(self.parent.getStore()).setServiceParent(application)
-        return application
-
-
-    def _checkPID(self):
-        # There *IS* a Windows way to do this, but it doesn't use PIDs.
-        if not platform.isWinNT():
-            twistd.checkPID(self['pidfile'])
-
-    def _removePID(self):
-        if not platform.isWinNT():
-            twistd.removePID(self['pidfile'])
-
-    def _startApplication(self):
-        if not platform.isWinNT():
-            twistd.startApplication(self, self.application)
-        else:
-            service.IService(self.application).privilegedStartService()
-            app.startApplication(self.application, False)
-
-    def _startLogging(self):
-        if not platform.isWinNT():
-            twistd.startLogging(
-                self['logfile'],
-                self['syslog'],
-                self['prefix'],
-                self['nodaemon'])
-        else:
-            twistd.startLogging('-') # self['logfile']
-
-    def postOptions(self):
-
-        # This does not invoke the super implementation.  At the time this
-        # method was implemented, all the super method did was *conditionally*
-        # set self['no_save'] to True and take the abspath of self['pidfile'].
-        # See below for the irrelevance of those operations.
-
-        self._fixConfig()
-        self._checkPID()
-
-        S = self.parent.getStore()  # make sure we open it here
-
-        oldstdout = sys.stdout
-        oldstderr = sys.stderr
-
-        self._startLogging()
-        app.initialLog()
-
-        self.application = application = self._constructApplication()
-        self._startApplication()
-        app.runReactorWithLogging(self, oldstdout, oldstderr)
-        self._removePID()
-        app.reportProfile(
-            self['report-profile'],
-            service.IProcess(application).processName)
-        log.msg("Server Shut Down.")
 
 
 class PIDMixin:
@@ -153,10 +57,13 @@ class PIDMixin:
             else:
                 raise
 
+
 class Stop(usage.Options, PIDMixin):
     def postOptions(self):
         dbdir = self.parent.getStoreDirectory()
         self.signalServer(signal.SIGINT)
+
+
 
 class Status(usage.Options, PIDMixin):
     def postOptions(self):
@@ -165,15 +72,36 @@ class Status(usage.Options, PIDMixin):
         print 'A server is running from the Axiom database %r, PID %d.' % (dbdir, serverpid)
 
 
+
+class Start(twistd.ServerOptions):
+    run = staticmethod(twistd.run)
+
+    def subCommands():
+        raise AttributeError()
+    subCommands = property(subCommands)
+
+
+    def getArguments(self, store, args):
+        run = store.dbdir.child("run")
+        logs = run.child("logs")
+        if "--logfile" not in args and "-l" not in args and "--nodaemon" not in args and "-n" not in args:
+            args.extend(["--logfile", logs.child("axiomatic.log").path])
+        if "--pidfile" not in args:
+            args.extend(["--pidfile", run.child("axiomatic.pid").path])
+        args.extend(["axiomatic-start", "--dbdir", store.dbdir.path])
+        return args
+
+
+    def parseOptions(self, args):
+        if "--help" in args:
+            self.opt_help()
+        else:
+            sys.argv[1:] = self.getArguments(self.parent.getStore(), args)
+            self.run()
+
+
+
 class Options(usage.Options):
-    optParameters = [
-        ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
-        ]
-
-    optFlags = [
-        ('debug', 'b', 'Enable Axiom-level debug logging')]
-
-
     def subCommands():
         def get(self):
             yield ('start', None, Start, 'Launch the given Axiom database')
@@ -189,6 +117,13 @@ class Options(usage.Options):
                     raise RuntimeError("Maldefined plugin: %r" % (plg,))
         return get,
     subCommands = property(*subCommands())
+
+    optParameters = [
+        ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
+        ]
+
+    optFlags = [
+        ('debug', 'b', 'Enable Axiom-level debug logging')]
 
     store = None
 
@@ -217,6 +152,7 @@ class Options(usage.Options):
         if self.store is None:
             self.store = Store(self.getStoreDirectory(), debug=self['debug'])
         return self.store
+
 
     def postOptions(self):
         if self.store is not None:
