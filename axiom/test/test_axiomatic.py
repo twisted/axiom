@@ -1,126 +1,191 @@
 # Copyright 2006 Divmod, Inc.  See LICENSE file for details
 
-from twisted.python.log import theLogPublisher
-from twisted.application import app
-from twisted.python.reflect import prefixedMethods
+"""
+Tests for L{axiom.scripts.axiomatic}.
+"""
+
+import sys, os, StringIO
+
+from zope.interface import implements
+
+from twisted.python.filepath import FilePath
+from twisted.application.service import IService, IServiceCollection
 from twisted.trial.unittest import TestCase
 from twisted.plugin import IPlugin
 
 from axiom.store import Store
+from axiom.item import Item
+from axiom.attributes import boolean
 from axiom.scripts import axiomatic
 from axiom.iaxiom import IAxiomaticCommand
+from twisted.plugins.axiom_plugins import AxiomaticStart
 
 
-class MockStart(axiomatic.Start):
+class RecorderService(Item):
     """
-    We want to test L{axiomatic.Start} but we don't want to actually start
-    any applications.
+    Minimal L{IService} implementation which remembers if it was ever started.
+    This is used by tests to make sure services get started when they should
+    be.
     """
-    def _startApplication(self):
-        pass
+    implements(IService)
+
+    started = boolean(
+        doc="""
+        A flag which is initially false and set to true once C{startService} is
+        called.
+        """, default=False)
+
+    name = "recorder"
+
+    def setServiceParent(self, parent):
+        """
+        Do the standard Axiom thing to make sure this service becomes a child
+        of the top-level store service.
+        """
+        IServiceCollection(parent).addService(self)
 
 
-    def _removePID(self):
-        pass
+    def startService(self):
+        """
+        Remember that this method was called.
+        """
+        self.started = True
 
 
-    def _startLogging(self):
-        pass
+    def stopService(self):
+        """
+        Ignore this event.
+        """
 
 
-class TestStart(TestCase):
+
+class StartTests(TestCase):
     """
     Test the axiomatic start sub-command.
     """
-
-    # app methods
-    def app_installReactor(self, name):
-        self.log.append(('installReactor', name))
-
-
-    def app_reportProfile(self, profile, processName):
-        pass
-
-
-    def app_runReactorWithLogging(self, options, stdout, stderr):
-        pass
-
-
-    def _replaceAppMethods(self):
+    def test_getArguments(self):
         """
-        Mask over methods in the L{app} module with methods from this class
-        that start with 'app_'.
+        L{Start.getArguments} adds a I{--pidfile} argument if one is not
+        present and a I{--logfile} argument if one is not present and
+        daemonization is enabled and adds a I{--dbdir} argument pointing at the
+        store it is passed.
         """
-        prefix = 'app_'
-        replacedMethods = {}
-        for method in prefixedMethods(self, 'app_'):
-            name = method.__name__[len(prefix):]
-            replacedMethods[name] = getattr(app, name)
-            setattr(app, name, method)
-        return replacedMethods
+        dbdir = FilePath(self.mktemp())
+        store = Store(dbdir)
+        run = store.dbdir.child("run")
+        logs = run.child("logs")
+        start = axiomatic.Start()
+
+        logfileArg = ["--logfile", logs.child("axiomatic.log").path]
+        pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
+        restArg = ["axiomatic-start", "--dbdir", dbdir.path]
+
+        self.assertEqual(
+            start.getArguments(store, []),
+            logfileArg + pidfileArg + restArg)
+        self.assertEqual(
+            start.getArguments(store, ["--logfile", "foo"]),
+            ["--logfile", "foo"] + pidfileArg + restArg)
+        self.assertEqual(
+            start.getArguments(store, ["-l", "foo"]),
+            ["-l", "foo"] + pidfileArg + restArg)
+        self.assertEqual(
+            start.getArguments(store, ["--nodaemon"]),
+            ["--nodaemon"] + pidfileArg + restArg)
+        self.assertEqual(
+            start.getArguments(store, ["-n"]),
+            ["-n"] + pidfileArg + restArg)
+        self.assertEqual(
+            start.getArguments(store, ["--pidfile", "foo"]),
+            ["--pidfile", "foo"] + logfileArg + restArg)
 
 
-    def _restoreAppMethods(self, methods):
+    def test_parseOptions(self):
         """
-        Replace any methods in L{app} with methods from parameter C{methods}.
+        L{Start.parseOptions} adds axiomatic-suitable defaults for any
+        unspecified parameters and then calls L{twistd.run} with the modified
+        argument list.
         """
-        for name, method in methods.iteritems():
-            setattr(app, name, method)
+        argv = []
+        def fakeRun():
+            argv.extend(sys.argv)
+        options = axiomatic.Options()
+        options['dbdir'] = dbdir = self.mktemp()
+        start = axiomatic.Start()
+        start.parent = options
+        start.run = fakeRun
+        original = sys.argv[:]
+        try:
+            start.parseOptions(["-l", "foo", "--pidfile", "bar"])
+        finally:
+            sys.argv[:] = original
+        self.assertEqual(
+            argv,
+            [sys.argv[0],
+             "-l", "foo", "--pidfile", "bar",
+             "axiomatic-start", "--dbdir", os.path.abspath(dbdir)])
 
 
-    def _makeStart(self):
+    def test_parseOptionsHelp(self):
         """
-        Do everything necessary to make a new, working L{MockStart} object.
+        L{Start.parseOptions} writes usage information to stdout if C{"--help"}
+        is in the argument list it is passed and L{twistd.run} is not called.
+        """
+        start = axiomatic.Start()
+        start.run = None
+        original = sys.stdout
+        sys.stdout = stdout = StringIO.StringIO()
+        try:
+            self.assertRaises(SystemExit, start.parseOptions, ["--help"])
+        finally:
+            sys.stdout = original
+
+        # Some random options that should be present.  This is a bad test
+        # because we don't control what C{opt_help} actually does and we don't
+        # even really care as long as it's the same as what I{twistd --help}
+        # does.  We could try running them both and comparing, but then we'd
+        # still want to do some sanity check against one of them in case we end
+        # up getting the twistd version incorrectly somehow... -exarkun
+        self.assertIn("--reactor", stdout.getvalue())
+        self.assertIn("--uid", stdout.getvalue())
+
+        # Also, we don't want to see twistd plugins here.
+        self.assertNotIn("axiomatic-start", stdout.getvalue())
+
+
+    def test_axiomOptions(self):
+        """
+        L{AxiomaticStart.options} takes database location and debug setting
+        parameters.
+        """
+        options = AxiomaticStart.options()
+        options.parseOptions([])
+        self.assertEqual(options['dbdir'], None)
+        self.assertFalse(options['debug'])
+        options.parseOptions(["--dbdir", "foo", "--debug"])
+        self.assertEqual(options['dbdir'], 'foo')
+        self.assertTrue(options['debug'])
+
+
+    def test_makeService(self):
+        """
+        L{AxiomaticStart.makeService} returns the L{IService} powerup of the
+        L{Store} at the directory in the options object it is passed.
         """
         dbdir = self.mktemp()
-        # create a store so axiomatic.Options() can work properly
-        s = Store(dbdir)
-        s.close()
-        parent = axiomatic.Options()
-        parent.parseOptions(['-d', dbdir])
-        start = MockStart()
-        start.parent = parent
-        return start
+        store = Store(dbdir)
+        recorder = RecorderService(store=store)
+        self.assertFalse(recorder.started)
+        store.powerUp(recorder, IService)
+        store.close()
 
+        service = AxiomaticStart.makeService({"dbdir": dbdir, "debug": False})
+        service.startService()
+        service.stopService()
 
-    def setUp(self):
-        self.log = []
-        self._oldMethods = self._replaceAppMethods()
-        self.start = self._makeStart()
+        store = Store(dbdir)
+        self.assertTrue(store.getItemByID(recorder.storeID).started)
 
-
-    def tearDown(self):
-        self._restoreAppMethods(self._oldMethods)
-
-
-    def test_loggingStubbed(self):
-        """
-        The test fixture should avoid actually adding an observer to the
-        real logging system.
-        """
-        observers = theLogPublisher.observers[:]
-        self.start.parseOptions([])
-        self.failIf([
-            x
-            for x
-            in theLogPublisher.observers
-            if x not in observers])
-
-
-    def test_noReactorSpecified(self):
-        """
-        Check that no reactor is installed if no reactor is specified.
-        """
-        self.start.parseOptions([])
-        self.assertEqual(self.log, [])
-
-
-    def test_reactorSpecified(self):
-        """
-        Check that a reactor is installed if it is specified.
-        """
-        self.start.parseOptions(['--reactor', 'select'])
-        self.assertEqual(self.log, [('installReactor', 'select')])
 
 
 class TestMisc(TestCase):
