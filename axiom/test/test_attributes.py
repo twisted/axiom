@@ -176,9 +176,14 @@ class FunkyItem(Item):
 
 class BadAttributeTest(TestCase):
 
-    def testBadAttribute(self):
+    def test_badAttribute(self):
+        """
+        L{Item} should not allow setting undeclared attributes.
+        """
         s = Store()
-        self.failUnlessRaises(AttributeError, FunkyItem, store=s,name=u"foo")
+        err = self.failUnlessRaises(AttributeError,
+                                    FunkyItem, store=s, name=u"foo")
+        self.assertEquals(str(err), "'FunkyItem' can't set attribute 'name'")
 
 
 class WhiteboxComparableTest(TestCase):
