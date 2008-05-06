@@ -30,9 +30,9 @@ def getPristineStore(testCase, creator):
     invoked with the testCase instance if necessary.
     @rtype: L{axiom.store.Store}
     """
-    dbdir = testCase.mktemp()
+    dbdir = FilePath(testCase.mktemp())
     basePath = _getBaseStorePath(testCase, creator)
-    basePath.copyTo(FilePath(dbdir))
+    basePath.copyTo(dbdir)
     return Store(dbdir)
 
 

@@ -1,4 +1,5 @@
 from twisted.application.service import Service, IService
+from twisted.python import filepath
 
 from twisted.trial import unittest
 
@@ -51,7 +52,7 @@ class SubStoreTest(unittest.TestCase):
         Ensure that items can be inserted into substores and
         subsequently retrieved.
         """
-        topdb = self.mktemp()
+        topdb = filepath.FilePath(self.mktemp())
         s = Store(topdb)
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
@@ -117,7 +118,7 @@ class SubStoreTest(unittest.TestCase):
         In-memory substores whose stores have file directories should be able
         to create files.
         """
-        filesdir = self.mktemp()
+        filesdir = filepath.FilePath(self.mktemp())
         s = Store(filesdir=filesdir)
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
@@ -138,7 +139,7 @@ class SubStoreStartupSemantics(unittest.TestCase):
         """
         Set up the tests by creating a store and a substore and opening them both.
         """
-        self.topdb = topdb = Store(self.mktemp())
+        self.topdb = topdb = Store(filepath.FilePath(self.mktemp()))
         self.ssitem = ssitem = SubStore.createNew(
             topdb, ["dontstartme", "really"])
         self.ss = ssitem.open()

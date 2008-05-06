@@ -5,9 +5,10 @@
 import sys
 
 from axiom.store import Store
+from twisted.python import filepath
 
 # Open the store so that we get the bad version of the schema
-s = Store(sys.argv[1])
+s = Store(filepath.FilePath(sys.argv[1]))
 
 # Alert our parent that we did that
 sys.stdout.write("1")

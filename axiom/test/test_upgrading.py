@@ -6,6 +6,7 @@ Tests for the Axiom upgrade system.
 from zope.interface import Interface
 
 from twisted.trial import unittest
+from twisted.python import filepath
 
 from axiom import store, upgrade, item, errors, attributes
 from axiom.substore import SubStore
@@ -96,7 +97,7 @@ path_postcopy = loadSchemaModule('axiom.test.path_postcopy')
 
 class SchemaUpgradeTest(unittest.TestCase):
     def setUp(self):
-        self.dbdir = self.mktemp()
+        self.dbdir = filepath.FilePath(self.mktemp())
 
     def openStore(self, dbg=False):
         self.currentStore = store.Store(self.dbdir, debug=dbg)
@@ -315,7 +316,7 @@ class SwordUpgradeTest(SchemaUpgradeTest):
 
 class SubStoreCompat(SwordUpgradeTest):
     def setUp(self):
-        self.topdbdir = self.mktemp()
+        self.topdbdir = filepath.FilePath(self.mktemp())
         self.subStoreID = None
 
     def openStore(self):
@@ -525,7 +526,7 @@ class DuringUpgradeTests(unittest.TestCase):
         if self.currentStore is not None:
             self.currentStore.close()
         if self.dbdir is None:
-            self.dbdir = self.mktemp()
+            self.dbdir = filepath.FilePath(self.mktemp())
         self.currentStore = store.Store(self.dbdir)
         return self.currentStore
 

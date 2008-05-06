@@ -6,6 +6,7 @@ from axiom.item import Item
 from axiom.attributes import integer
 
 from twisted.trial.unittest import TestCase
+from twisted.python import filepath
 
 class ExplosiveItem(Item):
 
@@ -18,7 +19,7 @@ class ExplosiveItem(Item):
 class CrossStoreTest(TestCase):
 
     def setUp(self):
-        self.spath = self.mktemp() + ".axiom"
+        self.spath = filepath.FilePath(self.mktemp() + ".axiom")
         self.store = Store(self.spath)
         self.substoreitem = SubStore.createNew(self.store,
                                                ["sub.axiom"])
