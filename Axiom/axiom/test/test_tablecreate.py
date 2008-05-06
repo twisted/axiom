@@ -6,6 +6,7 @@ from axiom import attributes
 from axiom import store
 
 from twisted.trial.unittest import TestCase
+from twisted.python import filepath
 
 class A(item.Item):
     typeName = 'test_table_creator'
@@ -40,7 +41,7 @@ class TableCreationTest(TestCase):
         persist in both Axiom's in-memory schema representation and within the
         on-disk SQL store.
         """
-        storedir = self.mktemp()
+        storedir = filepath.FilePath(self.mktemp())
         s1 = store.Store(storedir)
         s1.transact(A, store=s1)
         self.assertIn(A, s1.typeToTableNameCache)
@@ -95,7 +96,7 @@ class TableCreationTest(TestCase):
         a table being created in two different Store objects, as in the test
         above in L{TableCreationTest.test_differentStoreTableCreation}.
         """
-        s1 = store.Store(self.mktemp())
+        s1 = store.Store(filepath.FilePath(self.mktemp()))
         def die():
             self.fail("schema refreshed unnecessarily called too much")
         s1._startup = die

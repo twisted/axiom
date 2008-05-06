@@ -4,6 +4,7 @@ import os
 from twisted.trial import unittest
 from twisted.internet import protocol, defer
 from twisted.python.util import sibpath
+from twisted.python import filepath
 
 from epsilon import extime
 from axiom import attributes, item, store, errors
@@ -44,13 +45,13 @@ class TestItem(item.Item):
 
 class StoreTests(unittest.TestCase):
     def testCreation(self):
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
         s.close()
 
 
     def testReCreation(self):
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
         s.close()
         s = store.Store(dbdir)
@@ -62,7 +63,7 @@ class StoreTests(unittest.TestCase):
         A Store should raise an error if both dbdir and filesdir are specified.
         """
         self.assertRaises(ValueError, store.Store,
-                          self.mktemp(), filesdir=self.mktemp())
+                          filepath.FilePath(self.mktemp()), filesdir=filepath.FilePath(self.mktemp()))
 
 
     def testTableQueryCaching(self):
@@ -167,7 +168,7 @@ class FailurePathTests(unittest.TestCase):
 
 class ItemTests(unittest.TestCase):
     def setUp(self):
-        self.dbdir = self.mktemp()
+        self.dbdir = filepath.FilePath(self.mktemp())
         self.store = store.Store(self.dbdir)
 
     def tearDown(self):
@@ -480,7 +481,7 @@ class DeleteFromStoreTrackingItem(item.Item):
 class MassInsertDeleteTests(unittest.TestCase):
 
     def setUp(self):
-        self.storepath = self.mktemp()
+        self.storepath = filepath.FilePath(self.mktemp())
         self.store = store.Store(self.storepath)
 
     def testBatchInsert(self):
@@ -667,11 +668,11 @@ class ProcessConcurrencyTestCase(unittest.TestCase,
             self.d.errback(reason)
 
     def testNewItemTypeInSubprocess(self):
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
         self.store = store.Store(dbdir)
         # Open the store and leave its schema empty (don't create any items)
         # until the subprocess has opened it and loaded the bogus schema.
-        return self.spawn(sibpath(__file__, "openthenload.py"), dbdir)
+        return self.spawn(sibpath(__file__, "openthenload.py"), dbdir.path)
 
 
 class ConcurrencyTestCase(unittest.TestCase):
@@ -683,7 +684,7 @@ class ConcurrencyTestCase(unittest.TestCase):
         basically harmless and the query will work if re-executed.  This should
         be done transparently.
         """
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
 
         firstStore = store.Store(dbdir)
         ConcurrentItemA(store=firstStore)
@@ -706,7 +707,7 @@ class ConcurrencyTestCase(unittest.TestCase):
         tracks that schema.  Test to make sure that creating the first instance
         of an Item subclass in one store is reflected in a second store.
         """
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
 
         firstStore = store.Store(dbdir)
         secondStore = store.Store(dbdir)

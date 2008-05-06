@@ -55,7 +55,7 @@ class UserBaseTest(unittest.TestCase):
         """
         Set up for testing with an on-disk store.
         """
-        self.store = Store(self.mktemp())
+        self.store = Store(FilePath(self.mktemp()))
 
 
     def logInAndCheck(self, username, domain='localhost'):
@@ -115,7 +115,7 @@ class CommandTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        self.dbdir = self.mktemp()
+        self.dbdir = FilePath(self.mktemp())
         self.store = Store(self.dbdir)
 
 
@@ -151,7 +151,7 @@ class CommandTestCase(unittest.TestCase):
         output = StringIO.StringIO()
         sys.stdout, stdout = output, sys.stdout
         try:
-            axiomatic.main(['-d', self.dbdir, 'userbase'] + list(args))
+            axiomatic.main(['-d', self.dbdir.path, 'userbase'] + list(args))
         finally:
             sys.stdout = stdout
         return output.getvalue().splitlines()
@@ -247,7 +247,7 @@ def pvals(m):
 
 class AccountTestCase(unittest.TestCase):
     def testAccountNames(self):
-        dbdir = self.mktemp()
+        dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
         dependency.installOn(ls, s)
@@ -270,7 +270,7 @@ class AccountTestCase(unittest.TestCase):
         """
         Test L{userbase.getLoginMethods}
         """
-        dbdir = self.mktemp()
+        dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
         dependency.installOn(ls, s)
@@ -300,7 +300,7 @@ class AccountTestCase(unittest.TestCase):
         places (like offering.py) but you can't have two accounts added which
         both point to the same store.
         """
-        dbdir = self.mktemp()
+        dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
         dependency.installOn(ls, s)
@@ -323,7 +323,7 @@ class AccountTestCase(unittest.TestCase):
 
 
     def testParallelLoginMethods(self):
-        dbdir = self.mktemp()
+        dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
         acc = ls.addAccount(u'username', u'example.com', u'password')
@@ -339,7 +339,7 @@ class AccountTestCase(unittest.TestCase):
 
 
     def testSiteLoginMethodCreator(self):
-        dbdir = self.mktemp()
+        dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
         acc = ls.addAccount(u'username', u'example.com', u'password')
@@ -368,7 +368,7 @@ class AccountTestCase(unittest.TestCase):
 
 
     def testUserLoginMethodCreator(self):
-        dbdir = self.mktemp()
+        dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
         acc = ls.addAccount(u'username', u'example.com', u'password')
@@ -436,7 +436,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
     domain = u'example.com'
 
     def setUp(self):
-        self.dbdir = self.mktemp()
+        self.dbdir = FilePath(self.mktemp())
         self.store = Store(self.dbdir)
         self.ls = userbase.LoginSystem(store=self.store)
         self.scheduler = Scheduler(store=self.store)

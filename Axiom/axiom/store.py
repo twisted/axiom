@@ -1039,11 +1039,11 @@ class Store(Empowered):
         """
         Create a store.
 
-        @param dbdir: A name of an existing Axiom directory, or the name of a
+        @param dbdir: A L{FilePath} to (or name of) an existing Axiom directory, or
         directory that does not exist yet which will be created as this Store
         is instantiated.  If unspecified, this database will be kept in memory.
 
-        @param filesdir: A name of a directory to keep files in for in-memory
+        @param filesdir: A L{FilePath} to (or name of) a directory to keep files in for in-memory
         stores. An exception will be raised if both this attribute and C{dbdir}
         are specified.
 
@@ -1123,7 +1123,9 @@ class Store(Empowered):
             self._initSchema()
             self._memorySubstores = []
             if filesdir is not None:
-                self.filesdir = filepath.FilePath(filesdir)
+                if not isinstance(filesdir, filepath.FilePath):
+                    filesdir = filepath.FilePath(filesdir)
+                self.filesdir = filesdir
                 if not self.filesdir.isdir():
                     self.filesdir.makedirs()
                     self.filesdir.child("temp").createDirectory()

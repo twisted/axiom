@@ -2,6 +2,7 @@
 import os
 
 from twisted.trial import unittest
+from twisted.python import filepath
 
 from axiom.store import Store
 
@@ -37,13 +38,20 @@ class InStoreFilesTest(unittest.TestCase):
         """
         Ensure that file creation works for on-disk stores.
         """
-        s = Store(self.mktemp())
+        s = Store(filepath.FilePath(self.mktemp()))
         return self._testFile(s)
 
 
     def test_createFileInMemory(self):
         """
         Ensure that file creation works for in-memory stores as well.
+        """
+        s = Store(filesdir=filepath.FilePath(self.mktemp()))
+        return self._testFile(s)
+
+    def test_createFileInMemoryAtString(self):
+        """
+        The 'filesdir' parameter should accept a string as well, for now.
         """
         s = Store(filesdir=self.mktemp())
         return self._testFile(s)

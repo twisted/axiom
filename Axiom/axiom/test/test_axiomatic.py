@@ -172,7 +172,7 @@ class StartTests(TestCase):
         L{AxiomaticStart.makeService} returns the L{IService} powerup of the
         L{Store} at the directory in the options object it is passed.
         """
-        dbdir = self.mktemp()
+        dbdir = FilePath(self.mktemp())
         store = Store(dbdir)
         recorder = RecorderService(store=store)
         self.assertFalse(recorder.started)

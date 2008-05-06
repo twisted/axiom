@@ -8,6 +8,7 @@ from twisted.trial.unittest import TestCase
 from twisted.application.service import IService
 from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock
+from twisted.python import filepath
 
 from epsilon.extime import Time
 
@@ -270,7 +271,7 @@ class SubSchedulerTests(SchedTest, TestCase):
         Create a site store for the substore which will contain the IScheduler
         being tested.  Start its IService so any scheduled events will run.
         """
-        self.storePath = self.mktemp()
+        self.storePath = filepath.FilePath(self.mktemp())
         self.siteStore = Store(self.storePath)
         super(SubSchedulerTests, self).setUp()
 
@@ -416,7 +417,7 @@ class MissingService(unittest.TestCase):
         controlled by these tests.
         """
         self.calls = []
-        self.store = Store(self.mktemp())
+        self.store = Store(filepath.FilePath(self.mktemp()))
         self.siteScheduler = Scheduler(store=self.store)
         installOn(self.siteScheduler, self.store)
         self.siteScheduler.callLater = self._callLater
@@ -497,7 +498,7 @@ class SubStoreSchedulerReentrancy(TestCase):
     def setUp(self):
         self.clock = Clock()
 
-        self.dbdir = self.mktemp()
+        self.dbdir = filepath.FilePath(self.mktemp())
         self.store = Store(self.dbdir)
         self.substoreItem = SubStore.createNew(self.store, ['sub'])
         self.substore = self.substoreItem.open()

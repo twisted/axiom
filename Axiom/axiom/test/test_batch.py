@@ -1,6 +1,6 @@
 
 from twisted.trial import unittest
-from twisted.python import log, failure
+from twisted.python import log, failure, filepath
 from twisted.application import service
 
 from axiom import iaxiom, store, item, attributes, batch, substore
@@ -539,7 +539,7 @@ class RemoteTestCase(unittest.TestCase):
         """
         Make sure SubStores can be adapted to L{iaxiom.IBatchService}.
         """
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
         ss = substore.SubStore.createNew(s, 'substore')
         bs = iaxiom.IBatchService(ss)
@@ -550,7 +550,7 @@ class RemoteTestCase(unittest.TestCase):
         """
         Test that the batch system process can be started and stopped.
         """
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
         svc = batch.BatchProcessingControllerService(s)
         svc.startService()
@@ -561,7 +561,7 @@ class RemoteTestCase(unittest.TestCase):
         """
         Test invoking a method on an item in the batch process.
         """
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
         ss = substore.SubStore.createNew(s, 'substore')
         service.IService(s).startService()
@@ -582,7 +582,7 @@ class RemoteTestCase(unittest.TestCase):
         """
         BATCH_WORK_UNITS = 3
 
-        dbdir = self.mktemp()
+        dbdir = filepath.FilePath(self.mktemp())
         st = store.Store(dbdir)
         installOn(Scheduler(store=st), st)
         source = BatchWorkSource(store=st)

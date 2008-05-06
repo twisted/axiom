@@ -5,7 +5,7 @@ from twisted.trial import unittest
 from twisted.trial.unittest import TestCase
 from twisted.internet import error, protocol, defer, reactor
 from twisted.protocols import policies
-from twisted.python import log
+from twisted.python import log, filepath
 
 from axiom import store, item
 from axiom.store import Store
@@ -289,7 +289,7 @@ class ItemTestCase(unittest.TestCase):
         been imported, as long as its class definition has not moved
         since it was added to the database.
         """
-        storePath = self.mktemp()
+        storePath = filepath.FilePath(self.mktemp())
         st = store.Store(storePath)
         itemID = itemtest.PlainItem(store=st, plain=u'Hello, world!!!').storeID
         st.close()
@@ -300,7 +300,7 @@ class ItemTestCase(unittest.TestCase):
         d = defer.Deferred()
         p = ProcessOutputCollector(d)
         try:
-            reactor.spawnProcess(p, sys.executable, ["python", '-Wignore', itemtestmain.__file__.rstrip('co'), storePath, str(itemID)], e)
+            reactor.spawnProcess(p, sys.executable, ["python", '-Wignore', itemtestmain.__file__.rstrip('co'), storePath.path, str(itemID)], e)
         except NotImplementedError:
             raise unittest.SkipTest("Implement processes here")
 
