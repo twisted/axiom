@@ -63,6 +63,14 @@ class StartTests(TestCase):
     """
     Test the axiomatic start sub-command.
     """
+    def _getRunDir(self, dbdir):
+        return dbdir.child("run")
+
+
+    def _getLogDir(self, dbdir):
+        return self._getRunDir(dbdir).child("logs")
+
+
     def test_getArguments(self):
         """
         L{Start.getArguments} adds a I{--pidfile} argument if one is not
@@ -72,8 +80,8 @@ class StartTests(TestCase):
         """
         dbdir = FilePath(self.mktemp())
         store = Store(dbdir)
-        run = store.dbdir.child("run")
-        logs = run.child("logs")
+        run = self._getRunDir(dbdir)
+        logs = self._getLogDir(dbdir)
         start = axiomatic.Start()
 
         logfileArg = ["--logfile", logs.child("axiomatic.log").path]
@@ -98,6 +106,20 @@ class StartTests(TestCase):
         self.assertEqual(
             start.getArguments(store, ["--pidfile", "foo"]),
             ["--pidfile", "foo"] + logfileArg + restArg)
+
+
+    def test_logDirectoryCreated(self):
+        """
+        If L{Start.getArguments} adds a I{--logfile} argument, it creates the
+        necessary directory.\
+        """
+        dbdir = FilePath(self.mktemp())
+        store = Store(dbdir)
+        start = axiomatic.Start()
+        start.getArguments(store, ["-l", "foo"])
+        self.assertFalse(self._getLogDir(dbdir).exists())
+        start.getArguments(store, [])
+        self.assertTrue(self._getLogDir(dbdir).exists())
 
 
     def test_parseOptions(self):

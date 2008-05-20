@@ -85,6 +85,8 @@ class Start(twistd.ServerOptions):
         run = store.dbdir.child("run")
         logs = run.child("logs")
         if "--logfile" not in args and "-l" not in args and "--nodaemon" not in args and "-n" not in args:
+            if not logs.exists():
+                logs.makedirs()
             args.extend(["--logfile", logs.child("axiomatic.log").path])
         if "--pidfile" not in args:
             args.extend(["--pidfile", run.child("axiomatic.pid").path])
