@@ -1,4 +1,10 @@
-# -*- test-case-name: axiom.test.test_pysqlite2,axiom.test.test_apsw -*-
+# -*- test-case-name: axiom.test.test_pysqlite2 -*-
+
+"""
+Test code for any cursor implementation which is to work with Axiom.
+
+This probably isn't complete.
+"""
 
 from axiom.errors import TimeoutError, TableAlreadyExists, SQLError
 
