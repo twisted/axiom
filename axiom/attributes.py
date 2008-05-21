@@ -21,8 +21,6 @@ from axiom.errors import NoCrossStoreReferences, BrokenReference
 
 from axiom.iaxiom import IComparison, IOrdering, IColumn, IQuery
 
-USING_APSW = False
-
 _NEEDS_FETCH = object()         # token indicating that a value was not found
 
 __metaclass__ = type
@@ -943,14 +941,10 @@ class text(SQLAttribute):
                 self, "unicode string without NULL bytes", pyval)
         return pyval
 
-    if USING_APSW:
-        def outfilter(self, dbval, oself):
-            if type(dbval) is str:
-                return unicode(dbval, 'ascii')
-            return dbval
-    else:
-        def outfilter(self, dbval, oself):
-            return dbval
+    def outfilter(self, dbval, oself):
+        return dbval
+
+
 
 class textlist(text):
     delimiter = u'\u001f'

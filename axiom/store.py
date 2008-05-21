@@ -24,15 +24,7 @@ from epsilon.cooperator import SchedulingService
 
 from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
 from axiom import item
-
-# Doing this in a slightly awkward way so Pyflakes won't complain; it really
-# doesn't like conditional imports.
-if attributes.USING_APSW:
-    backendName = 'axiom._apsw.Connection'
-else:
-    backendName = 'axiom._pysqlite2.Connection'
-
-Connection = namedAny(backendName)
+from axiom._pysqlite2 import Connection
 
 
 from axiom.item import \
@@ -1747,12 +1739,9 @@ class Store(Empowered):
             self._cleanupTxnState()
 
     # The following three methods are necessary...
-
     # - in PySQLite: because PySQLite has some buggy transaction handling which
     #   makes it impossible to issue explicit BEGIN statements - which we
     #   _need_ to do to provide guarantees for read/write transactions.
-
-    # - in APSW: because there are no .commit() or .rollback() methods.
 
     def _begin(self):
         if self.debug:
