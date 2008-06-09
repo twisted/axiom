@@ -313,7 +313,25 @@ class BaseQuery:
         return (sqlstr, self.args)
 
 
-    def _runQuery(self, verb, subject):
+    def _runQuery(self, verb, subject, results=True):
+        """
+        Execute a SQL statement and optionally retrieve and return the
+        resulting rows.
+
+        @type verb: C{str}
+        @param verb: The SQL verb for this statement.  One of SELECT, EXPLAIN
+            SELECT, SELECT DISTINCT, or DELETE.
+
+        @type subject: C{str}
+        @param subject: The table or tables on which the verb will operate.
+
+        @type results: C{bool}
+        @param results: A flag indicating whether the statement will have rows
+            as a result.
+
+        @return: A C{list} giving the rows which result from the statement, or
+            an empty C{list} if C{results} is C{False}.
+        """
         # XXX ideally this should be creating an SQL cursor and iterating
         # through that so we don't have to load the whole query into memory,
         # but right now Store's interface to SQL is all through one cursor.
@@ -323,7 +341,11 @@ class BaseQuery:
         if not self.store.autocommit:
             self.store.checkpoint()
         sqlstr, sqlargs = self._sqlAndArgs(verb, subject)
-        sqlResults = self.store.querySQL(sqlstr, sqlargs)
+        if results:
+            sqlResults = self.store.querySQL(sqlstr, sqlargs)
+        else:
+            self.store.executeSQL(sqlstr, sqlargs)
+            sqlResults = []
         cs = self.locateCallSite()
         log.msg(interface=iaxiom.IStatEvent,
                 querySite=cs, queryTime=time.time() - t, querySQL=sqlstr)
@@ -642,7 +664,7 @@ class ItemQuery(BaseQuery):
                 it.deleteFromStore()
 
             # actually run the DELETE for the items in this query.
-            self._runQuery('DELETE', "")
+            self._runQuery('DELETE', "", False)
 
 class MultipleItemQuery(BaseQuery):
     """
@@ -2185,12 +2207,37 @@ class Store(Empowered):
         return result
 
 
-    def _queryandfetch(self, sql, args):
+    def _query(self, sql, args):
+        """
+        Execute the given SQL statement, supplying it with the given
+        parameters.
+
+        @type sql: C{str}
+        @param sql: A SQL statement to execute.
+
+        @param args: A sequence of parameter values required by the given SQL
+            statement.
+        """
         if self.debug:
             print '**', sql, '--', ', '.join(map(str, args))
         self.cursor.execute(sql, args)
+
+
+    def _queryandfetch(self, sql, args):
+        """
+        Execute the given SQL statement and return its results.
+
+        @type sql: C{str}
+        @param sql: A SQL statement to execute.
+
+        @param args: A sequence of parameter values required by the given SQL
+            statement.
+
+        @return: A C{list} of all the rows resulting from the given statement.
+        """
+        self._query(sql, args)
         before = time.time()
-        result = list(self.cursor)
+        result = self.cursor.fetchall()
         after = time.time()
         if after - before > 2.0:
             log.msg('Extremely long list(cursor): %s' % (after - before,))
@@ -2217,11 +2264,23 @@ class Store(Empowered):
 
 
     def _execSQL(self, sql, args):
+        """
+        Execute the given SQL statement, supplying it with the given
+        parameters.
+
+        @type sql: C{str}
+        @param sql: A SQL statement to execute.
+
+        @param args: A sequence of parameter values required by the given SQL
+            statement.
+
+        @return: The normalized SQL statement which was executed.
+        """
         sql = self._normalizeSQL(sql)
         if self.debug:
-            rows = timeinto(self.execTimes, self._queryandfetch, sql, args)
+            rows = timeinto(self.execTimes, self._query, sql, args)
         else:
-            rows = self._queryandfetch(sql, args)
+            rows = self._query(sql, args)
         assert not rows
         return sql
 

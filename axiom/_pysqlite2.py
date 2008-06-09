@@ -51,8 +51,8 @@ class Cursor(object):
         self.timeout = timeout
 
 
-    def __iter__(self):
-        return iter(self._cursor)
+    def fetchall(self):
+        return self._cursor.fetchall()
 
 
     def time(self):
