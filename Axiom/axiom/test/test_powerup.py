@@ -14,6 +14,11 @@ class IValueHaver(Interface):
     An integer that you can add to other integers.
     """)
 
+class IScalingFactor(Interface):
+    scale = Attribute("""
+    An integer that a sum can be multiplied by.
+    """)
+
 class ISumProducer(Interface):
 
     def doSum():
@@ -46,6 +51,27 @@ class SubtractThree(Item):
         return MinusThree(self.valueHaver)
 
 
+class PlusTwo(Item):
+    """
+    Example powerup with installation information.
+    """
+    implements(IValueHaver)
+    powerupInterfaces = (IValueHaver,)
+
+    value = integer(default=2)
+
+class PlusOneTimesFour(Item):
+    """
+    Example powerup with dynamic installation information.
+    """
+    implements(IScalingFactor, IValueHaver)
+    scale = integer(default=1)
+    value = integer(default=4)
+
+    def __getPowerupInterfaces__(self, powerup):
+        yield (IScalingFactor, 1)
+        yield (IValueHaver, 3)
+
 class Summer(Item):
     schemaVersion = 1
     typeName = 'test_sum_doer'
@@ -65,6 +91,10 @@ class Summer(Item):
             self.sumTotal += value
             total += value
         self.sumTimes += 1
+        for factor in self.store.powerupsFor(IScalingFactor):
+            value = factor.scale
+            self.sumTotal *= value
+            total *= value
         return total
 
 
@@ -102,6 +132,60 @@ class PowerUpTest(unittest.TestCase):
 
         s.close()
 
+
+
+    def test_automaticPowerupInstall(self):
+        """
+        Powerups with 'powerupInterfaces' attributes can be installed
+        on those interfaces without the caller needing to refer to
+        them directly.
+        """
+        s = Store()
+        mm = Summer(store=s)
+        s.powerUp(mm, ISumProducer)
+        p = PlusTwo(store=s)
+        s.powerUp(p)
+
+        self.assertEquals(mm.doSum(), 2)
+
+
+    def test_dynamicAutomaticPowerupInstall(self):
+        """
+        Powerups with '__getPowerupInterfaces__' methods can be
+        installed on the interfaces in the iterable that method
+        returns.
+        """
+        s = Store()
+        mm = Summer(store=s)
+        s.powerUp(mm, ISumProducer)
+        p = PlusOneTimesFour(store=s)
+        s.powerUp(p)
+
+        self.assertEquals(mm.doSum(), 4)
+
+
+    def test_automaticPowerDown(self):
+        """
+        Powerups with 'powerupInterfaces' attributes can be powered
+        down automatically on the interfaces they specify.
+        """
+        s = Store()
+        p = PlusTwo(store=s)
+        s.powerUp(p)
+        s.powerDown(p)
+        self.assertEquals(len(list(s.powerupsFor(IValueHaver))), 0)
+
+    def test_automaticDynamicPowerDown(self):
+        """
+        Powerups with '__getPowerupInterfaces__' methods can be powered
+        down automatically on the interfaces they specify.
+        """
+        s = Store()
+        p = PlusOneTimesFour(store=s)
+        s.powerUp(p)
+        s.powerDown(p)
+        self.assertEquals(len(list(s.powerupsFor(IValueHaver))), 0)
+        self.assertEquals(len(list(s.powerupsFor(IScalingFactor))), 0)
 
     def testIndirectedPowerups(self):
         """

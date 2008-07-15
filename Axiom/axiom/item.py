@@ -2,7 +2,7 @@
 
 __metaclass__ = type
 
-from zope.interface import implements
+from zope.interface import implements, Interface
 
 from inspect import getabsfile
 
@@ -203,7 +203,7 @@ class Empowered(object):
         self._inMemoryPowerups[interface] = powerup
 
 
-    def powerUp(self, powerup, interface, priority=0):
+    def powerUp(self, powerup, interface=None, priority=0):
         """
         Installs a powerup (e.g. plugin) on an item or store.
 
@@ -222,8 +222,23 @@ class Empowered(object):
         30, the powerup will be adjusted to priority 30 but future calls to
         powerupFor will still only return that powerup once.
 
-        @param powerup: an Item that implements C{interface}
-        @param interface: a zope interface
+
+        If no interface or priority are specified, and the class of the
+        powerup has a "powerupInterfaces" attribute (containing
+        either a sequence of interfaces, or a sequence of
+        (interface, priority) tuples), this object will be powered up
+        with the powerup object on those interfaces.
+
+        If no interface or priority are specified and the powerup has
+        a "__getPowerupInterfaces__" method, it will be called with
+        an iterable of (interface, priority) tuples, collected from the
+        "powerupInterfaces" attribute described above. The iterable of
+        (interface, priority) tuples it returns will then be
+        installed.
+
+
+        @param powerup: an Item that implements C{interface} (if specified)
+        @param interface: a zope interface, or None
 
         @param priority: An int; preferably either POWERUP_BEFORE,
         POWERUP_AFTER, or unspecified.
@@ -232,29 +247,53 @@ class Empowered(object):
         install a powerup for IPowerupIndirector because that would be
         nonsensical.
         """
-        if interface is IPowerupIndirector:
+        if interface is None:
+            for iface, priority in powerup._getPowerupInterfaces():
+                self.powerUp(powerup, iface, priority)
+
+        elif interface is IPowerupIndirector:
             raise TypeError(
                 "You cannot install a powerup for IPowerupIndirector: " +
                 powerup)
+        else:
+            forc = self.store.findOrCreate(_PowerupConnector,
+                                           item=self,
+                                           interface=unicode(qual(interface)),
+                                           powerup=powerup)
+            forc.priority = priority
 
-        forc = self.store.findOrCreate(_PowerupConnector,
-                                       item=self,
-                                       interface=unicode(qual(interface)),
-                                       powerup=powerup)
-        forc.priority = priority
 
-
-    def powerDown(self, powerup, interface):
+    def powerDown(self, powerup, interface=None):
         """
         Remove a powerup.
+
+        If no interface is specified, and the type of the object being
+        installed has a "powerupInterfaces" attribute (containing
+        either a sequence of interfaces, or a sequence of (interface,
+        priority) tuples), the target will be powered down with this
+        object on those interfaces.
+
+        If this object has a "__getPowerupInterfaces__" method, it
+        will be called with an iterable of (interface, priority)
+        tuples. The iterable of (interface, priority) tuples it
+        returns will then be uninstalled.
+
+        (Note particularly that if powerups are added or removed to the
+        collection described above between calls to powerUp and powerDown, more
+        powerups or less will be removed than were installed.)
         """
-        for cable in self.store.query(_PowerupConnector,
-                                      AND(_PowerupConnector.item == self,
-                                          _PowerupConnector.interface == unicode(qual(interface)),
-                                          _PowerupConnector.powerup == powerup)):
-            cable.deleteFromStore()
-            return
-        raise ValueError("Not powered up for %r with %r" % (interface, powerup))
+        if interface is None:
+            for interface, priority in powerup._getPowerupInterfaces():
+                self.powerDown(powerup, interface)
+        else:
+            for cable in self.store.query(_PowerupConnector,
+                                          AND(_PowerupConnector.item == self,
+                                              _PowerupConnector.interface == unicode(qual(interface)),
+                                              _PowerupConnector.powerup == powerup)):
+                cable.deleteFromStore()
+                return
+            raise ValueError("Not powered up for %r with %r" % (interface,
+                                                                powerup))
 
 
     def __conform__(self, interface):
@@ -324,6 +363,32 @@ class Empowered(object):
                                       AND(pc.item == self,
                                           pc.powerup == powerup)).getColumn('interface'):
             yield namedAny(iface)
+
+
+    def _getPowerupInterfaces(self):
+        """
+        Collect powerup interfaces this object declares that it can be
+        installed on.
+        """
+        powerupInterfaces = getattr(self.__class__, "powerupInterfaces", ())
+        pifs = []
+        for x in powerupInterfaces:
+            if isinstance(x, type(Interface)):
+                #just an interface
+                pifs.append((x, 0))
+            else:
+                #an interface and a priority
+                pifs.append(x)
+
+        m = getattr(self, "__getPowerupInterfaces__", None)
+        if m is not None:
+            pifs = m(pifs)
+            try:
+                pifs = [(i, p) for (i, p) in pifs]
+            except ValueError:
+                raise ValueError("return value from %r.__getPowerupInterfaces__"
+                                 "not an iterable of 2-tuples" % (obj,))
+        return pifs
 
 
 def transacted(func):

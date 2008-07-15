@@ -88,43 +88,14 @@ class _DependencyConnector(Item):
 
 def installOn(self, target):
     """
-    Install this object on the target, tracking that the object now
-    depends on the target, and the object was explicitly installed
-    and therefore should not be uninstalled by subsequent
-    uninstallation operations unless it is explicitly removed.
-
-    If the type of the object being installed has a
-    "powerupInterfaces" attribute (containing either a sequence of
-    interfaces, or a sequence of (interface, priority) tuples),
-    the target will be powered up with this object on those
-    interfaces.
-
-    If this object has a "__getPowerupInterfaces__" method, it will
-    be called with an iterable of (interface, priority) tuples. The
-    iterable of (interface, priority) tuples it returns will then be
-    installed.
+    Install this object on the target along with any powerup
+    interfaces it declares. Also track that the object now depends on
+    the target, and the object was explicitly installed (and therefore
+    should not be uninstalled by subsequent uninstallation operations
+    unless it is explicitly removed).
     """
     _installOn(self, target, True)
 
-def _getPowerupInterfaces(obj):
-    powerupInterfaces = getattr(obj.__class__, "powerupInterfaces", ())
-    pifs = []
-    for x in powerupInterfaces:
-        if isinstance(x, type(Interface)):
-            #just an interface
-            pifs.append((x, 0))
-        else:
-            #an interface and a priority
-            pifs.append(x)
-
-    m = getattr(obj, "__getPowerupInterfaces__", None)
-    if m is not None:
-        pifs = m(pifs)
-        try:
-            pifs = [(i, p) for (i, p) in pifs]
-        except ValueError:
-            raise ValueError("return value from %r.__getPowerupInterfaces__ not an iterable of 2-tuples" % (obj,))
-    return pifs
 
 def _installOn(self, target, __explicitlyInstalled=False):
     depBlob = _globalDependencyMap.get(self.__class__, [])
@@ -163,8 +134,7 @@ def _installOn(self, target, __explicitlyInstalled=False):
                          installee=self,
                          explicitlyInstalled=__explicitlyInstalled)
 
-    for interface, priority in _getPowerupInterfaces(self):
-        target.powerUp(self, interface, priority)
+    target.powerUp(self)
 
     callback = getattr(self, "installed", None)
     if callback is not None:
@@ -176,22 +146,10 @@ def uninstallFrom(self, target):
     that it automatically installed which were not explicitly
     "pinned" by calling "install", and raising an exception if
     anything still depends on this.
-
-    If the type of the object being installed has a
-    "powerupInterfaces" attribute (containing either a sequence of
-    interfaces, or a sequence of (interface, priority) tuples),
-    the target will be powered down with this object on those
-    interfaces.
-
-    If this object has a "__getPowerupInterfaces__" method, it will
-    be called with an iterable of (interface, priority) tuples. The
-    iterable of (interface, priority) tuples it returns will then be
-    uninstalled.
     """
 
     #did this class powerup on any interfaces? powerdown if so.
-    for interface, priority in _getPowerupInterfaces(self):
-        target.powerDown(self, interface)
+    target.powerDown(self)
 
 
     for dc in self.store.query(_DependencyConnector,
@@ -274,9 +232,7 @@ def installedRequirements(self, target):
 
 def onlyInstallPowerups(self, target):
     """
-    Only power up the target with this object's powerups, without interacting
-    with the dependency system. Useful for situations where multiple instances
-    of a class can be powered up on the same target.
+    Deprecated - L{Item.powerUp} now has this functionality.
     """
-    for iface, priority in _getPowerupInterfaces(self):
-        target.powerUp(self, iface, priority)
+    target.powerUp(self)
+
