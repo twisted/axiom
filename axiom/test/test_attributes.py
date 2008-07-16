@@ -360,12 +360,7 @@ class SQLAttributeTestCase(TestCase):
         """
         s = Store()
         dummy = FullImplementationDummyClass(store=s)
-        self.assertEquals(dummy.storeID, 1) # not *really* a requirement for
-                                            # the future, but a sanity check
-                                            # for the rest of the test
-        self.assertEquals(
-            FullImplementationDummyClass.storeID.__get__(dummy), 1)
-
+        self.assertIdentical(s.getItemByID(dummy.storeID), dummy)
 
     def test_placeholderAccessor(self):
         """

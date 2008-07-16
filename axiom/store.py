@@ -26,6 +26,7 @@ from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
 from axiom import item
 from axiom._pysqlite2 import Connection
 
+from axiom.listversions import checkSystemVersion
 
 from axiom.item import \
     _typeNameToMostRecentClass, declareLegacyItem,\
@@ -1173,6 +1174,8 @@ class Store(Empowered):
             d.addBoth(finishHim)
         else:
             self._upgradeComplete = None
+
+        checkSystemVersion(self)
 
     _childCounter = 0
 
