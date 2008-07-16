@@ -4,11 +4,24 @@ require('twisted', 'filepath_copyTo')
 
 import getpass
 
+from zope.interface import directlyProvides
+
 from twisted.python import usage
 from twisted.python import filepath
+from twisted.plugin import IPlugin
 
 from axiom import attributes, userbase, dependency
 from axiom.scripts import axiomatic
+from axiom.iaxiom import IVersion
+from axiom.listversions import ListVersions
+
+#imported to register as a plugin
+from axiom import version
+directlyProvides(version, IPlugin, IVersion)
+
+# placate pyflakes
+ListVersions
+
 
 class UserbaseMixin:
     def installOn(self, other):

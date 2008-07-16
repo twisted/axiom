@@ -346,3 +346,22 @@ class IBatchService(Interface):
         @rtype: L{twisted.internet.defer.Deferred}
         @return: A Deferred which fires when the listener has been resumed.
         """
+
+class IVersion(Interface):
+    """
+    Object with version information for a package that creates Axiom
+    items, most likely a L{twisted.python.versions.Version}. Used to
+    track which versions of a package have been used to load a store.
+    """
+    package = Attribute("""
+    Name of a Python package.
+    """)
+    major = Attribute("""
+    Major version number.
+    """)
+    minor = Attribute("""
+    Minor version number.
+    """)
+    micro = Attribute("""
+    Micro version number.
+    """)
