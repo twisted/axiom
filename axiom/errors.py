@@ -162,3 +162,18 @@ class UpgraderRecursion(RuntimeError):
     Upgraders are not allowed to recurse.
     """
 
+
+
+class ItemUpgradeError(RuntimeError):
+    """
+    Attempting to upgrade an Item resulted in an error.
+
+    @ivar storeID: Store ID of the item that failed to upgrade
+    @ivar oldType: The type of the item being upgraded
+    @ivar newType: The type the item should've been upgraded to
+    """
+    def __init__(self, storeID, oldType, newType):
+        RuntimeError.__init__(self, storeID, oldType, newType)
+        self.storeID = storeID
+        self.oldType = oldType
+        self.newType = newType
