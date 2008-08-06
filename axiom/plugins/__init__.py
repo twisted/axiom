@@ -1,12 +1,5 @@
-# Copyright (c) 2008 Divmod.  See LICENSE for details.
 
-"""
-Package for plugins for interfaces in Axiom.
-"""
+import os, sys
+__path__ = [os.path.abspath(os.path.join(x, *__name__.split('.'))) for x in sys.path]
 
-from epsilon.hotfix import require
-require('twisted', 'plugin_package_paths')
-
-from twisted.plugin import pluginPackagePaths
-__path__.extend(pluginPackagePaths(__name__))
-__all__ = []
+__all__ = []                    # nothing to see here, move along, move along
