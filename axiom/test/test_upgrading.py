@@ -1,29 +1,20 @@
-# Copyright (c) 2008 Divmod.  See LICENSE for details.
 
 """
 Tests for the Axiom upgrade system.
 """
 
-import sys, StringIO
-
 from zope.interface import Interface
-from zope.interface.verify import verifyObject
 
 from twisted.trial import unittest
 from twisted.python import filepath
+
+from axiom import store, upgrade, item, errors, attributes
+from axiom.substore import SubStore
+
 from twisted.application.service import IService
 from twisted.internet.defer import maybeDeferred
 from twisted.python.reflect import namedModule
 from twisted.python import log
-
-from axiom.iaxiom import IAxiomaticCommand
-from axiom import store, upgrade, item, errors, attributes
-from axiom.scripts import axiomatic
-from axiom.substore import SubStore
-from axiom.plugins.axiom_plugins import Upgrade
-from axiom.test.util import CommandStub
-
-
 
 def axiomInvalidate(itemClass):
     """
@@ -103,7 +94,6 @@ newpath = loadSchemaModule('axiom.test.newpath')
 
 path_postcopy = loadSchemaModule('axiom.test.path_postcopy')
 
-deleteswordapp = loadSchemaModule('axiom.test.deleteswordapp')
 
 class SchemaUpgradeTest(unittest.TestCase):
     def setUp(self):
@@ -130,24 +120,6 @@ def _logMessagesFrom(f):
         log.removeObserver(L.append)
         return ign
     return d.addBoth(x).addCallback(lambda ign: L)
-
-
-
-def callWithStdoutRedirect(f, *a, **kw):
-    """
-    Redirect stdout and invoke C{f}.
-
-    @returns: C{(returnValue, stdout})
-    """
-    output = StringIO.StringIO()
-    sys.stdout, stdout = output, sys.stdout
-    try:
-        result = f(*a, **kw)
-    finally:
-        sys.stdout = stdout
-    return result, output
-
-
 
 class SwordUpgradeTest(SchemaUpgradeTest):
 
@@ -220,29 +192,18 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         Verify that if an exception is raised in an upgrader, the exception
         will be logged.
         """
-        playerID, swordID = self._testTwoObjectUpgrade()
+        self._testTwoObjectUpgrade()
         choose(brokenapp)
         s = self.openStore()
         self.startStoreService()
-
         def checkException(ign):
-            # It's redundant that the errback is called and the failure is
-            # logged.  See #2638.
-            loggedErrors = self.flushLoggedErrors(errors.ItemUpgradeError)
-            self.assertEqual(len(loggedErrors), 1)
-
-            oldType = item.declareLegacyItem(
-                oldapp.Sword.typeName,
-                oldapp.Sword.schemaVersion, {})
-            e = loggedErrors[0].value
-            self.assertEqual(e.storeID, swordID)
-            self.assertIdentical(e.oldType, oldType)
-            self.assertIdentical(e.newType, brokenapp.Sword)
-
-        d = s.whenFullyUpgraded()
-        d = self.assertFailure(d, errors.ItemUpgradeError)
-        d.addCallback(checkException)
-        return d
+            self.assertEquals(
+                len(self.flushLoggedErrors(brokenapp.UpgradersAreBrokenHere)),
+                1)
+        def failme(ign):
+            self.fail()
+        return s.whenFullyUpgraded().addCallbacks(
+            failme, checkException)
 
 
     def _testTwoObjectUpgrade(self):
@@ -255,12 +216,14 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         sword = oldapp.Sword(
             store=s,
             name=u'flaming vorpal doom',
-            hurtfulness=7)
+            hurtfulness=7
+            )
 
         player = oldapp.Player(
             store=s,
             name=u'Milton',
-            sword=sword)
+            sword=sword
+            )
 
         self.closeStore()
 
@@ -308,7 +271,10 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         choose(newapp)
         s = self.openStore()
 
-        for dummy in s._upgradeManager.upgradeEverything():
+        # XXX: this is certainly not the right API, but I needed a white-box
+        # test before I started messing around with starting processes or
+        # scheduling tasks automatically.
+        while s._upgradeOneThing():
             pass
 
         player = s.getItemByID(playerID, autoUpgrade=False)
@@ -348,7 +314,6 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         self.assertEquals(player.activated, 1)
 
 
-
 class SubStoreCompat(SwordUpgradeTest):
     def setUp(self):
         self.topdbdir = filepath.FilePath(self.mktemp())
@@ -375,8 +340,6 @@ class SubStoreCompat(SwordUpgradeTest):
         svc = IService(self.currentTopStore)
         svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
         svc.startService()
-
-
 
 class PathUpgrade(SchemaUpgradeTest):
     """
@@ -606,7 +569,7 @@ class DuringUpgradeTests(unittest.TestCase):
         new = self.storeWithVersion(reentrant_new)
         self.assertRaises(errors.UpgraderRecursion, new.getItemByID, storeID)
         # A whitebox flourish to make sure our state tracking is correct:
-        self.failIf(new._upgradeManager._currentlyUpgrading,
+        self.failIf(new._currentlyUpgrading,
                     "No upgraders should currently be in progress.")
 
 
@@ -660,162 +623,3 @@ class DuringUpgradeTests(unittest.TestCase):
         """
         self._reentrantReferenceForeignUpgrader(
             replace_delete_old, replace_delete_new)
-
-
-
-class AxiomaticUpgradeTest(unittest.TestCase):
-    """
-    L{Upgrade} implements an I{axiomatic} subcommand for synchronously
-    upgrading all items in a store.
-    """
-    def setUp(self):
-        """
-        Create a temporary on-disk Store and an instance of L{Upgrade}.
-        """
-        self.dbdir = self.mktemp()
-        self.store = store.Store(self.dbdir)
-
-
-    def tearDown(self):
-        """
-        Close the temporary Store.
-        """
-        self.store.close()
-
-
-    def test_providesCommandInterface(self):
-        """
-        L{Upgrade} provides L{IAxiomaticCommand}.
-        """
-        self.assertTrue(verifyObject(IAxiomaticCommand, Upgrade))
-
-
-    def test_axiomaticSubcommand(self):
-        """
-        L{Upgrade} is available as a subcommand of I{axiomatic}.
-        """
-        subCommands = axiomatic.Options().subCommands
-        [options] = [cmd[2] for cmd in subCommands if cmd[0] == 'upgrade']
-        self.assertIdentical(options, Upgrade)
-
-
-    def test_successOutput(self):
-        """
-        Upon successful completion of the upgrade, L{Upgrade} writes a success
-        message to stdout.
-        """
-        cmd = Upgrade()
-        cmd.parent = CommandStub(self.store, 'upgrade')
-        result, output = callWithStdoutRedirect(cmd.parseOptions, [])
-        self.assertEqual(output.getvalue(), 'Upgrade complete\n')
-
-
-    def test_axiomaticUpgradeEverything(self):
-        """
-        L{Upgrade.upgradeStore} upgrades all L{Item}s.
-        """
-        choose(oldapp)
-        swordID = oldapp.Sword(
-            store=self.store, name=u'broadsword', hurtfulness=5).storeID
-        self.store.close()
-
-        choose(deleteswordapp)
-
-        cmd = Upgrade()
-        cmd.parent = CommandStub(store.Store(self.dbdir), 'upgrade')
-
-        result, output = callWithStdoutRedirect(
-            cmd.parseOptions, ['--count', '100'])
-
-        self.store = store.Store(self.dbdir)
-        self.assertRaises(
-            KeyError, self.store.getItemByID, swordID, autoUpgrade=False)
-
-
-    def test_axiomaticUpgradeExceptionBubbling(self):
-        """
-        Exceptions encountered by L{Upgrade.upgradeStore} are handled and
-        re-raised as L{errors.ItemUpgradeError} with attributes indicating
-        which L{Item} was being upgraded when the exception occurred.
-        """
-        choose(oldapp)
-        swordID = oldapp.Sword(
-            store=self.store, name=u'longsword', hurtfulness=4).storeID
-        self.store.close()
-
-        choose(brokenapp)
-        self.store = store.Store(self.dbdir)
-
-        cmd = Upgrade()
-        cmd.parent = CommandStub(self.store, 'upgrade')
-        cmd.count = 100
-
-        err = self.assertRaises(
-            errors.ItemUpgradeError,
-            callWithStdoutRedirect, cmd.upgradeStore, self.store)
-
-        oldType = item.declareLegacyItem(
-            oldapp.Sword.typeName,
-            oldapp.Sword.schemaVersion, {})
-        self.assertEqual(err.storeID, swordID)
-        self.assertIdentical(err.oldType, oldType)
-        self.assertIdentical(err.newType, brokenapp.Sword)
-
-
-    def test_axiomaticUpgradePerformFails(self):
-        """
-        If an exception occurs while upgrading items, L{Upgrade.postOptions}
-        reports the item and schema version for which it occurred and returns
-        without exception.
-        """
-        choose(oldapp)
-        swordID = oldapp.Sword(
-            store=self.store, name=u'rapier', hurtfulness=3).storeID
-        self.store.close()
-
-        choose(brokenapp)
-        self.store = store.Store(self.dbdir)
-
-        cmd = Upgrade()
-        cmd.parent = CommandStub(self.store, 'upgrade')
-
-        result, output = callWithStdoutRedirect(
-            cmd.parseOptions, ['--count', '100'])
-        lines = output.getvalue().splitlines()
-
-        oldType = oldapp.Sword
-        newType = store._typeNameToMostRecentClass[oldType.typeName]
-        msg = cmd.errorMessageFormat % (
-            oldType.typeName, swordID, oldType.schemaVersion,
-            newType.schemaVersion)
-        self.assertTrue(lines[-1].startswith(msg))
-
-
-    def test_upgradeStoreRecursing(self):
-        """
-        L{Upgrade} upgrades L{Item}s in substores.
-        """
-        choose(oldapp)
-
-        ss1 = SubStore.createNew(self.store, ['a'])
-        ss2 = SubStore.createNew(self.store, ['b'])
-
-        swordIDs = [
-            (ss1.storeID, oldapp.Sword(store=ss1.open(), name=u'foo').storeID),
-            (ss2.storeID, oldapp.Sword(store=ss2.open(), name=u'bar').storeID)]
-
-        del ss1, ss2
-        self.store.close()
-
-        choose(deleteswordapp)
-        self.store = store.Store(self.dbdir)
-
-        cmd = Upgrade()
-        cmd.parent = CommandStub(self.store, 'upgrade')
-
-        callWithStdoutRedirect(cmd.parseOptions, [])
-
-        for (ssid, swordID) in swordIDs:
-            self.assertRaises(
-                KeyError,
-                self.store.getItemByID(ssid).open().getItemByID, swordID)
