@@ -15,7 +15,7 @@ from twisted.python import log
 from twisted.python.failure import Failure
 from twisted.python import filepath
 from twisted.internet import defer
-from twisted.python.reflect import namedAny
+from twisted.python.reflect import namedAny, qual
 from twisted.python.util import unsignedID
 from twisted.application.service import IService, IServiceCollection
 
@@ -1089,8 +1089,13 @@ class Store(Empowered):
         self.typeToTableNameCache = {}
         self.attrToColumnNameCache = {}
 
-        self._upgradeManager = upgrade._StoreUpgrade(self)
+        self._oldTypesRemaining = [] # a list of old types which have not been
+                                     # fully upgraded in this database.
 
+        self._currentlyUpgrading = {} # a map of storeIDs to items currently in
+                                      # the middle of an upgrader.  Used to
+                                      # make sure we don't upgrade the same
+                                      # item reentrantly.
         self._axiom_service = None
 
 
@@ -1155,10 +1160,10 @@ class Store(Empowered):
         self.transact(self._startup)
 
         # _startup may have found some things which we must now upgrade.
-        if self._upgradeManager.upgradesPending:
+        if self._oldTypesRemaining:
             # Automatically upgrade when possible.
             self._upgradeComplete = PendingEvent()
-            d = self._upgradeService.addIterator(self._upgradeManager.upgradeEverything())
+            d = self._upgradeService.addIterator(self._upgradeEverything())
             def logUpgradeFailure(aFailure):
                 log.err(aFailure, "upgrading %r failed" % (self,))
                 return aFailure
@@ -1245,7 +1250,42 @@ class Store(Empowered):
         for cls in typesToCheck:
             self._createIndexesFor(cls)
 
-        self._upgradeManager.checkUpgradePaths()
+        cantUpgradeErrors = []
+        for oldVersion in self._oldTypesRemaining:
+            # We have to be able to get from oldVersion.schemaVersion to
+            # the most recent type.
+
+            currentType = _typeNameToMostRecentClass.get(
+                oldVersion.typeName, None)
+
+            if currentType is None:
+                # There isn't a current version of this type; it's entirely
+                # legacy, will be upgraded by deleting and replacing with
+                # something else.
+                continue
+
+            typeInQuestion = oldVersion.typeName
+            upgver = oldVersion.schemaVersion
+
+            while upgver < currentType.schemaVersion:
+                # Do we have enough of the schema present to upgrade?
+                if ((typeInQuestion, upgver)
+                    not in upgrade._upgradeRegistry):
+                    cantUpgradeErrors.append(
+                        "No upgrader present for %s (%s) from %d to %d" % (
+                            typeInQuestion, qual(currentType), upgver,
+                            upgver + 1))
+
+                # Is there a type available for each upgrader version?
+                if upgver+1 != currentType.schemaVersion:
+                    if (typeInQuestion, upgver+1) not in _legacyTypes:
+                        cantUpgradeErrors.append(
+                            "Type schema required for upgrade missing:"
+                            " %s version %d" % (
+                                typeInQuestion, upgver+1))
+                upgver += 1
+        if cantUpgradeErrors:
+            raise errors.NoUpgradePathAvailable('\n    '.join(cantUpgradeErrors))
 
 
     def _initdb(self, dbfname):
@@ -1400,11 +1440,59 @@ class Store(Empowered):
                                                   doc=docstring)
             dummyAttributes[attribute] = atr
         dummyBases = []
-        oldType = declareLegacyItem(
-            typename, version, dummyAttributes, dummyBases)
-        self._upgradeManager.queueTypeUpgrade(oldType)
-        return oldType
+        dis = declareLegacyItem(typename, version, dummyAttributes, dummyBases)
+        self._oldTypesRemaining.append(dis)
+        return dis
 
+    _anyUpgradesThisTypeYet = False
+
+    def _upgradeOneThing(self):
+        """
+        Upgrade one Item; return True if there may be more work to do, False if
+        this store is definitely fully upgraded.
+        """
+        while self._oldTypesRemaining:
+            t0 = self._oldTypesRemaining[0]
+            onething = list(self.query(t0, limit=1))
+            if not onething:
+                self._oldTypesRemaining.pop(0)
+                if self._anyUpgradesThisTypeYet:
+                    log.msg("%s finished upgrading %s" % (self.dbdir.path, qual(t0)))
+                self._anyUpgradesThisTypeYet = False
+                continue
+            o = onething[0]
+            self._anyUpgradesThisTypeYet = True
+            self._upgradeThisItem(o)
+            return True
+        return False
+
+
+    def _upgradeThisItem(self, thisItem):
+        """
+        Upgrade a legacy item.
+
+        @raise UpgraderRecursion: If the given item is already in the process
+        of being upgraded.
+        """
+        sid = thisItem.storeID
+        if sid in self._currentlyUpgrading:
+            raise errors.UpgraderRecursion()
+        self._currentlyUpgrading[sid] = thisItem
+        try:
+            return self.transact(upgrade.upgradeAllTheWay, thisItem)
+        finally:
+            self._currentlyUpgrading.pop(sid)
+
+
+    def _upgradeEverything(self):
+        didAny = False
+        while self._upgradeOneThing():
+            if not didAny:
+                didAny = True
+                log.msg("%s beginning upgrade..." % (self.dbdir.path,))
+            yield None
+        if didAny:
+            log.msg("%s completely upgraded." % (self.dbdir.path,))
 
     def whenFullyUpgraded(self):
         """
@@ -2053,7 +2141,7 @@ class Store(Empowered):
                 # upgradeVersion will do caching as necessary, we don't have to
                 # cache here.  (It must, so that app code can safely call
                 # upgradeVersion and get a consistent object out of it.)
-                x = self.transact(self._upgradeManager.upgradeItem, x)
+                x = self._upgradeThisItem(x)
             elif not x.__legacy__:
                 # We loaded the most recent version of an object
                 self.objectCache.cache(storeID, x)
