@@ -53,6 +53,28 @@ class CommandStubMixin:
 
 
 
+class CommandStub(object):
+    """
+    Mock for L{axiom.scripts.axiomatic.Options} which is always set as the
+    C{parent} attribute of an I{axiomatic} subcommand.
+
+    @ivar _store: The L{Store} associated which will be supplied to the
+        subcommand.
+    """
+    def __init__(self, store, subCommand):
+        self._store = store
+        self.subCommand = subCommand
+
+
+    def getSynopsis(self):
+        return "Usage: axiomatic [options]"
+
+
+    def getStore(self):
+        return self._store
+
+
+
 class QueryCounter:
     """
     This is a counter object which measures the number of VDBE instructions
