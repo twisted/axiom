@@ -1,3 +1,17 @@
+0.5.28 (2008-08-12):
+  - Upgraders can now safely upgrade reference attributes.
+  - The batch process is no longer started unless it's needed.
+  - Removed use of private Decimal APIs that changed in Python 2.5.2.
+
+  - "axiomatic start" changed to use the public interface to twistd's
+    behaviour instead of relying on internal details.
+  - Store now uses FilePaths to refer to its database or files directory.
+  - Automatic powerup discovery is now a feature of powerups rather
+    than of axiom.dependency.
+  - Stores now record the released versions of code used to open them.
+  - "axiomatic upgrade" added, a command for completely upgrading a store.
+  - Removed no-longer-working APSW support code.
+
 0.5.27 (2007-11-27):
   - Substores and file storage for in-memory stores are now supported.
 
