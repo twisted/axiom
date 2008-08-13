@@ -1,14 +1,19 @@
+# Copright 2008 Divmod, Inc.  See LICENSE file for details.
 # -*- test-case-name: axiom.test.test_dependency -*-
 """
 A dependency management system for items.
 """
 
 import sys, itertools
+
 from zope.interface.advice import addClassAdvisor
-from zope.interface import Interface
+
+from epsilon.structlike import record
+
 from axiom.item import Item
 from axiom.attributes import reference, boolean, AND
-from axiom.errors import ItemNotFound, DependencyError
+from axiom.errors import ItemNotFound, DependencyError, UnsatisfiedRequirement
+
 #There is probably a cleaner way to do this.
 _globalDependencyMap = {}
 
@@ -29,7 +34,7 @@ def dependsOn(itemType, itemCustomizer=None, doc='',
     L{axiom.dependency.installOn} on a target item, the
     type named here will be instantiated and installed on the target
     as well.
-    
+
     For example::
 
       class Foo(Item):
@@ -125,10 +130,12 @@ def _installOn(self, target, __explicitlyInstalled=False):
         refs[i].__set__(self, it)
     #And now the connector for our own dependency.
 
-    dc = self.store.findUnique(_DependencyConnector, AND(_DependencyConnector.target==target,
-                                                    _DependencyConnector.installee==self,
-                                                    _DependencyConnector.explicitlyInstalled==__explicitlyInstalled),
-                          None)
+    dc = self.store.findUnique(
+        _DependencyConnector,
+        AND(_DependencyConnector.target==target,
+            _DependencyConnector.installee==self,
+            _DependencyConnector.explicitlyInstalled==__explicitlyInstalled),
+        None)
     assert dc is None, "Dependency connector already exists, wtf are you doing?"
     _DependencyConnector(store=self.store, target=target,
                          installee=self,
@@ -230,9 +237,53 @@ def installedRequirements(self, target):
         if dc.installee.__class__ in myDepends:
             yield dc.installee
 
+
+
 def onlyInstallPowerups(self, target):
     """
     Deprecated - L{Item.powerUp} now has this functionality.
     """
     target.powerUp(self)
+
+
+
+class requiresFromSite(
+    record('powerupInterface defaultFactory siteDefaultFactory',
+           defaultFactory=None,
+           siteDefaultFactory=None)):
+    """
+    A read-only descriptor that will return the site store's powerup for a
+    given item.
+
+    @ivar powerupInterface: an L{Interface} describing the powerup that the
+    site store should be adapted to.
+
+    @ivar defaultFactory: a 1-argument callable that takes the site store and
+    returns a value for this descriptor.  This is invoked in cases where the
+    site store does not provide a default factory of its own, and this
+    descriptor is retrieved from an item in a store with a parent.
+
+    @ivar siteDefaultFactory: a 1-argument callable that takes the site store
+    and returns a value for this descriptor.  This is invoked in cases where
+    this descriptor is retrieved from an item in a store without a parent.
+    """
+
+    def _invokeFactory(self, defaultFactory, siteStore):
+        if defaultFactory is None:
+            raise UnsatisfiedRequirement()
+        return defaultFactory(siteStore)
+
+
+    def __get__(self, oself, type=None):
+        """
+        Retrieve the value of this dependency from the site store.
+        """
+        siteStore = oself.store.parent
+        if siteStore is not None:
+            pi = self.powerupInterface(siteStore, None)
+            if pi is None:
+                pi = self._invokeFactory(self.defaultFactory, siteStore)
+        else:
+            pi = self._invokeFactory(self.siteDefaultFactory, oself.store)
+        return pi
 
