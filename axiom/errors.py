@@ -150,11 +150,14 @@ class DataIntegrityError(RuntimeError):
     Data integrity seems to have been lost.
     """
 
+
+
 class BrokenReference(DataIntegrityError):
     """
     A reference to a nonexistent item was detected when this should be
     impossible.
     """
+
 
 
 class UpgraderRecursion(RuntimeError):
@@ -177,3 +180,12 @@ class ItemUpgradeError(RuntimeError):
         self.storeID = storeID
         self.oldType = oldType
         self.newType = newType
+
+
+
+class UnsatisfiedRequirement(AttributeError):
+    """
+    A requirement described by a L{axiom.dependency.requiresFromSite} was not
+    satisfied by the database, and could not be satisfied automatically at
+    runtime by a default factory.
+    """

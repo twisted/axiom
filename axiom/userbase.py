@@ -1,6 +1,38 @@
+# Copright 2008 Divmod, Inc.  See LICENSE file for details.
 # -*- test-case-name: axiom.test.test_userbase -*-
 
+"""
+The L{axiom.userbase} module implements various interfaces from L{twisted.cred}
+to allow an Axiom database to serve as an integration point for Twisted
+services that do authentication.
+
+While not strictly required, one part of this implementation is the idiom that
+Axiom (by default) partitions its user database into a separate data-store for
+each users.
+
+This has several advantages:
+
+  - Each user's account can be quickly and independently added to or removed
+    from the system; inactive accounts can be quickly moved to archival
+    storage.
+
+  - User accounts may be migrated between servers relatively easily.
+
+  - Database queries that deal with a single user's data are completely
+    partitioned; even naive and inefficient queries can still be run quickly as
+    long as users do not individually have a lot of data in a particular table.
+
+For truly multi-user applications, this partitioning is incomplete without an
+abstract facility for exchanging data between different users of the same
+application.  This module does not implement such a facility, as it is left to
+higher-level mechanisms such as Mantissa's messaging system in
+L{xmantissa.messaging}.  However, this module works standalone as well; just be
+aware that a user's database contains only their own data.
+"""
+
 import warnings
+
+from zope.interface import implements, Interface
 
 from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
@@ -15,8 +47,6 @@ from axiom.errors import (
     BadCredentials, NoSuchUser, DuplicateUser, MissingDomainPart)
 from axiom.scheduler import IScheduler
 from axiom import upgrade, iaxiom
-
-from zope.interface import implements, Interface
 
 ANY_PROTOCOL = u'*'
 
