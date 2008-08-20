@@ -31,20 +31,30 @@ def dependentsOf(cls):
 def dependsOn(dependee, callable=None, doc='',
               indexed=True, whenDeleted=reference.NULLIFY):
     """
-    This function behaves like L{axiom.attributes.reference} but with
-    an extra behaviour: when this item is installed (via
-    L{axiom.dependency.installOn} on a target item, the
-    type named here will be instantiated and installed on the target
-    as well.
+    This function behaves like L{axiom.attributes.reference} but with an extra
+    behaviour: when this item is installed (via L{axiom.dependency.installOn}
+    on a target item, a powerup implementing the interface will be looked up on
+    the store and and the attribute will be set to reference it (if the first
+    argument is an Interface) or (if the first argument is a class) an instance
+    of the class will be looked up and referenced in the same manner. In the
+    latter case, if no item of that type exists, the item type named here will
+    be instantiated and installed on the target as well.
 
     For example::
+
+      class Foo(Item):
+           thingIDependOn = dependsOn(IStuffProvider)
+
+    or::
 
       class Foo(Item):
           counter = integer()
           thingIDependOn = dependsOn(Baz, lambda baz: baz.setup())
 
-    @param itemType: The Item class to instantiate and install.
-    @param itemCustomizer: A callable that accepts the item installed
+    @param dependee: An L{Interface} to depend on, or an L{Item} class to
+    instantiate and install.
+
+    @param callable: A callable that accepts the item installed
     as a dependency as its first argument. It will be called only if
     an item is created to satisfy this dependency.
 
@@ -98,11 +108,15 @@ class _DependencyConnector(Item):
 
 def installOn(self, target=None):
     """
-    Install this object on the target along with any powerup
-    interfaces it declares. Also track that the object now depends on
-    the target, and the object was explicitly installed (and therefore
-    should not be uninstalled by subsequent uninstallation operations
+    If a target object is specified, install this object on the target along
+    with any powerup interfaces it declares. Also track that the object now
+    depends on the target, and the object was explicitly installed (and
+    therefore should not be uninstalled by subsequent uninstallation operations
     unless it is explicitly removed).
+
+    If no target object is specified, this object will be installed as a
+    powerup on the store, after verifying that powerups for all the interfaces
+    it depends upon have been installed previously.
     """
     if target is None:
         _interfaceInstallOn(self)
