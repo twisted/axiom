@@ -138,6 +138,9 @@ class SpecifiedBadDefaults(Item):
 class Kitchen(Item):
     name = text()
 
+class IPowerStrip(Interface):
+    pass
+
 class PowerStrip(Item):
     """
     A simulated collection of power points.  This is where L{IAppliance}
@@ -147,6 +150,8 @@ class PowerStrip(Item):
     may be a powerup provided by the site store or a L{NullGrid} if no powerup
     is installed.
     """
+    implements(IPowerStrip)
+    powerupInterfaces = [IPowerStrip]
     voltage = integer()
     grid = dependency.requiresFromSite(IElectricityGrid, NullGrid, NullGrid)
 
@@ -193,7 +198,12 @@ class IAppliance(Interface):
 class IBreadConsumer(Interface):
     pass
 
+class IBreadProvider(Interface):
+    pass
+
 class Breadbox(Item):
+    implements(IBreadProvider)
+    powerupInterfaces = [IBreadProvider]
     slices = integer(default=100)
 
     def dispenseBread(self, amt):
@@ -242,8 +252,10 @@ class Blender(Item):
 class IceCrusher(Item):
     blender = dependency.dependsOn(Blender)
 
-class Blender2(Item):
+class ExtraBlender(Item):
     powerStrip = reference()
+
+
 
 class DependencyTest(unittest.TestCase):
     def setUp(self):
@@ -259,18 +271,19 @@ class DependencyTest(unittest.TestCase):
         self.assertEqual(depBlob[0], PowerStrip)
         self.assertEqual(depBlob[1], powerstripSetup)
         self.assertEqual(depBlob[2], Blender.__dict__['powerStrip'])
+        self.assertEqual(depBlob[3], False)
 
     def test_classDependsOn(self):
         """
         Ensure that classDependsOn sets up the dependency map properly.
         """
-        dependency.classDependsOn(Blender2, PowerStrip, powerstripSetup,
-                                  Blender2.__dict__['powerStrip'])
-        depBlob = dependency._globalDependencyMap.get(Blender2, None)[0]
+        dependency.classDependsOn(ExtraBlender, PowerStrip, powerstripSetup,
+                                  ExtraBlender.__dict__['powerStrip'], False)
+        depBlob = dependency._globalDependencyMap.get(ExtraBlender, None)[0]
         self.assertEqual(depBlob[0], PowerStrip)
         self.assertEqual(depBlob[1], powerstripSetup)
-        self.assertEqual(depBlob[2], Blender2.__dict__['powerStrip'])
-
+        self.assertEqual(depBlob[2], ExtraBlender.__dict__['powerStrip'])
+        self.assertEqual(depBlob[3], False)
     def test_basicInstall(self):
         """
         If a Toaster gets installed in a Kitchen, make sure that the
@@ -504,6 +517,95 @@ class DependencyTest(unittest.TestCase):
         self.assertEquals(list(foo.powerupsFor(IBreadConsumer)), [e, f])
         self.assertEquals(list(self.store.query(
                     dependency._DependencyConnector)), [])
+
+
+class IBlender(Interface):
+    pass
+
+class Blender2(Item):
+    implements(IBlender)
+    powerupInterfaces = [IBlender]
+    powerStrip = dependency.dependsOn(IPowerStrip)
+    description = text()
+
+    def __getPowerupInterfaces__(self, powerups):
+        yield (IAppliance, 0)
+
+
+class Toaster2(Item):
+    implements(IBreadConsumer)
+    powerupInterfaces = [IAppliance, IBreadConsumer]
+
+    powerStrip = dependency.dependsOn(IPowerStrip)
+
+    description = text()
+    breadFactory = dependency.dependsOn(IBreadProvider,
+                                        whenDeleted=reference.CASCADE)
+
+    callback = inmemory()
+
+    def activate(self):
+        self.callback = None
+
+    def installed(self):
+        if self.callback is not None:
+            self.callback("installed")
+
+
+class InterfaceDependencyTest(unittest.TestCase):
+    def setUp(self):
+        self.store = Store()
+
+    def test_dependsOn(self):
+        """
+        Ensure that classes with dependsOn attributes set up the dependency map
+        properly.
+        """
+        foo = Blender2(store=self.store)
+        depBlob = dependency._globalDependencyMap.get(Blender2, None)[0]
+        self.assertEqual(depBlob[0], IPowerStrip)
+        self.assertEqual(depBlob[1], None)
+        self.assertEqual(depBlob[2], Blender2.__dict__['powerStrip'])
+        self.assertEqual(depBlob[3], True)
+
+
+    def test_basicInstall(self):
+        """
+        If a Toaster gets installed in a Kitchen, make sure that it doesn't
+        succeed unless the required dependencies are there.
+        """
+        e = Toaster2(store=self.store)
+        self.assertEquals(e.powerStrip, None)
+        self.assertRaises(dependency.DependencyError,
+                          dependency.installOn, e)
+        ps = PowerStrip(store=self.store)
+        bb = Breadbox(store=self.store)
+        self.assertRaises(dependency.DependencyError,
+                          dependency.installOn, e)
+        self.store.powerUp(ps)
+        self.store.powerUp(bb)
+        dependency.installOn(e)
+        self.assertEquals(e.powerStrip, ps)
+        self.assertEquals(e.breadFactory, bb)
+
+        self.assertEquals(IBreadConsumer(self.store), e)
+    def test_wrongDependsOn(self):
+        """
+        dependsOn should raise an error if used outside a class definition.
+        """
+        self.assertRaises(TypeError, dependency.dependsOn, IPowerStrip)
+
+
+    def test_callbacks(self):
+        """
+        'installed' and 'uninstalled' callbacks should fire on
+        install/uninstall.
+        """
+        e = Toaster2(store=self.store)
+        self.installCallbackCalled = False
+        e.callback = lambda _: setattr(self, 'installCallbackCalled', True)
+        dependency.installOn(e)
+        self.failUnless(self.installCallbackCalled)
 
 
 class RequireFromSiteTests(unittest.TestCase):

@@ -6,11 +6,13 @@ A dependency management system for items.
 
 import sys, itertools
 
+from twisted.python.reflect import qual
 from zope.interface.advice import addClassAdvisor
+from zope.interface import Interface
 
 from epsilon.structlike import record
 
-from axiom.item import Item
+from axiom.item import Item, _PowerupConnector
 from axiom.attributes import reference, boolean, AND
 from axiom.errors import ItemNotFound, DependencyError, UnsatisfiedRequirement
 
@@ -26,7 +28,7 @@ def dependentsOf(cls):
 
 ##Totally ripping off z.i
 
-def dependsOn(itemType, itemCustomizer=None, doc='',
+def dependsOn(dependee, callable=None, doc='',
               indexed=True, whenDeleted=reference.NULLIFY):
     """
     This function behaves like L{axiom.attributes.reference} but with
@@ -51,16 +53,19 @@ def dependsOn(itemType, itemCustomizer=None, doc='',
 
     frame = sys._getframe(1)
     locals = frame.f_locals
-
+    isInterface = issubclass(dependee, Interface)
+    reftype = None
+    if not isInterface:
+        reftype = dependee
     # Try to make sure we were called from a class def.
     if (locals is frame.f_globals) or ('__module__' not in locals):
         raise TypeError("dependsOn can be used only from a class definition.")
-    ref = reference(reftype=itemType, doc=doc, indexed=indexed, allowNone=True,
+    ref = reference(reftype=reftype, doc=doc, indexed=indexed, allowNone=True,
                     whenDeleted=whenDeleted)
     if "__dependsOn_advice_data__" not in locals:
         addClassAdvisor(_dependsOn_advice)
     locals.setdefault('__dependsOn_advice_data__', []).append(
-    (itemType, itemCustomizer, ref))
+    (dependee, callable, ref, isInterface))
     return ref
 
 def _dependsOn_advice(cls):
@@ -69,15 +74,15 @@ def _dependsOn_advice(cls):
             cls, _globalDependencyMap[cls])
         #bail if we end up here twice, somehow
         return cls
-    for itemType, itemCustomizer, ref in cls.__dict__[
+    for dependee, callable, ref, isInterface in cls.__dict__[
         '__dependsOn_advice_data__']:
-        classDependsOn(cls, itemType, itemCustomizer, ref)
+        classDependsOn(cls, dependee, callable, ref, isInterface)
     del cls.__dependsOn_advice_data__
     return cls
 
-def classDependsOn(cls, itemType, itemCustomizer, ref):
+def classDependsOn(cls, dependee, callable, ref, isInterface):
     _globalDependencyMap.setdefault(cls, []).append(
-        (itemType, itemCustomizer, ref))
+        (dependee, callable, ref, isInterface))
 
 class _DependencyConnector(Item):
     """
@@ -91,7 +96,7 @@ class _DependencyConnector(Item):
                                   "nothing depends on it)")
 
 
-def installOn(self, target):
+def installOn(self, target=None):
     """
     Install this object on the target along with any powerup
     interfaces it declares. Also track that the object now depends on
@@ -99,13 +104,49 @@ def installOn(self, target):
     should not be uninstalled by subsequent uninstallation operations
     unless it is explicitly removed).
     """
-    _installOn(self, target, True)
+    if target is None:
+        _interfaceInstallOn(self)
+    else:
+        _installOn(self, target, True)
+
+
+def _interfaceInstallOn(self):
+    dependencies = _globalDependencyMap.get(self.__class__, [])
+    if self.store.findUnique(_PowerupConnector, AND(
+            _PowerupConnector.powerup == self,
+            _PowerupConnector.item == self.store),
+                             default=None) is not None:
+        raise DependencyError("An instance of %r is already "
+                              "installed on %r." % (self.__class__,
+                                                  self.store))
+
+    #See if our dependencies have been installed already
+    for (i, (interface, itemConstructor,
+             ref, isInterface)) in reversed(list(enumerate(dependencies))):
+        if isInterface is True:
+            for pc in self.store.query(_PowerupConnector, AND(
+                        _PowerupConnector.item == self.store,
+                        _PowerupConnector.interface ==
+                        qual(interface).decode('ascii'))):
+              ref.__set__(self, pc.powerup)
+              del dependencies[i]
+    if len(dependencies) > 0:
+        raise DependencyError("A %r can't be installed on %r"
+                              " until powerups providing: %r are installed."
+                              % (self.__class__, self.store,
+                                 [d[0] for d in dependencies if d[3]]))
+
+    self.store.powerUp(self)
+    callback = getattr(self, "installed", None)
+    if callback is not None:
+        callback()
 
 
 def _installOn(self, target, __explicitlyInstalled=False):
     depBlob = _globalDependencyMap.get(self.__class__, [])
-    dependencies, itemCustomizers, refs = (map(list, zip(*depBlob))
-                                         or ([], [], []))
+    dependencies, itemCustomizers, refs, isInterfaces = (map(list,
+                                                             zip(*depBlob))
+                                                         or ([], [], [], []))
     #See if any of our dependencies have been installed already
     for dc in self.store.query(_DependencyConnector,
                                _DependencyConnector.target == target):
