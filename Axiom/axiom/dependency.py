@@ -16,11 +16,186 @@ from axiom.item import Item, _PowerupConnector
 from axiom.attributes import reference, boolean, AND
 from axiom.errors import ItemNotFound, DependencyError, UnsatisfiedRequirement
 
-#There is probably a cleaner way to do this.
-_globalDependencyMap = {}
+class DependencyMap(object):
+    """
+    Collects information about the dependencies of all Items in this program.
+
+    @ivar oldDependencyMap: A mapping of L{Item} subclasses to a tuple of
+    (itemType, itemCustomizer, ref). These values are the args to
+    L{DependencyMap.classDependsOn}: see its docstring for details.
+
+    @ivar dependencyMap: A mapping of L{Item} subclasses to a tuple of
+    (interface, ref) where 'interface' is an interface depended upon by the
+    item, and 'ref' is an L{axiom.attributes.reference}.
+    """
+
+    def __init__(self):
+        self.dependencyMap = {}
+        self.oldDependencyMap = {}
+
+    def classDependsOn(self, cls, itemType, itemCustomizer, ref):
+        """
+        Add a class to the (deprecated) dependency map.
+
+        @param cls: The item type that has this dependency.
+        @param itemType: The item type depended upon.
+        @param itemCustomizer: A callable that accepts the item installed
+        as a dependency as its first argument. It will be called only if
+        an item is created to satisfy this dependency.
+        @param ref: A L{axiom.attributes.reference}.
+        """
+        self.oldDependencyMap.setdefault(cls, []).append(
+            (itemType, itemCustomizer, ref))
+
+
+    def classRequiresFromStore(self, cls, interface, ref):
+        """
+        Add a class to the global dependency map.
+
+        @param interface: An L{Interface}.
+        @param ref: A L{axiom.attributes.reference}.
+        """
+        self.dependencyMap.setdefault(cls, []).append(
+            (interface, ref))
+
+
+    def _dependsOn_advice(self, cls):
+        """
+        Class advisor for class-based dependencies.
+        """
+        for dependee, callable, ref, isInterface in cls.__dict__[
+            '__dependsOn_advice_data__']:
+            if isInterface:
+                self.classRequiresFromStore(cls, dependee, ref)
+            else:
+                self.classDependsOn(cls, dependee, callable, ref)
+        del cls.__dependsOn_advice_data__
+        return cls
+
+
+    def _interfaceInstallOn(self, obj):
+        """
+        Install a powerup on its store, first checking if the powerups it
+        depends upon have been installed. If they haven't been, raise a
+        L{DependencyError} describing what's missing.
+        """
+        dependencies = self.dependencyMap.get(obj.__class__, [])
+        if obj.store.findUnique(_PowerupConnector, AND(
+                _PowerupConnector.powerup == obj,
+                _PowerupConnector.item == obj.store),
+                                 default=None) is not None:
+            raise DependencyError("An instance of %r is already "
+                                  "installed on %r." % (obj.__class__,
+                                                      obj.store))
+
+        #See if our dependencies have been installed already
+        deps = reversed(list(enumerate(dependencies)))
+        for (i, (interface, itemConstructor,ref)) in deps:
+                for pc in obj.store.query(_PowerupConnector, AND(
+                            _PowerupConnector.item == obj.store,
+                            _PowerupConnector.interface ==
+                            qual(interface).decode('ascii'))):
+                  ref.__set__(obj, pc.powerup)
+                  del dependencies[i]
+        if len(dependencies) > 0:
+            raise DependencyError("A %r can't be installed on %r"
+                                  " until powerups providing: %r are installed."
+                                  % (obj.__class__, obj.store,
+                                     [d[0] for d in dependencies]))
+
+        obj.store.powerUp(obj)
+        callback = getattr(obj, "installed", None)
+        if callback is not None:
+            callback()
+
+
+    def installOn(self, obj, target, __explicitlyInstalled=True):
+        """
+        Install C{obj} on C{target} along with any powerup interfaces it
+        declares. Also track that the object now depends on the target, and the
+        object was explicitly installed (and therefore should not be
+        uninstalled by subsequent uninstallation operations unless it is
+        explicitly removed).
+        """
+
+        depBlob = self.oldDependencyMap.get(obj.__class__, [])
+        dependencies, itemCustomizers, refs = (map(list,
+                                                   zip(*depBlob))
+                                               or ([], [], []))
+        #See if any of our dependencies have been installed already
+        for dc in obj.store.query(_DependencyConnector,
+                                   _DependencyConnector.target == target):
+            if dc.installee.__class__ in dependencies:
+                i = dependencies.index(dc.installee.__class__)
+                refs[i].__set__(obj, dc.installee)
+                del dependencies[i], itemCustomizers[i], refs[i]
+            if (dc.installee.__class__ == obj.__class__
+                and obj.__class__ in set(
+                itertools.chain([blob[0][0] for blob in
+                                 self.oldDependencyMap.values()]))):
+                #Somebody got here before we did... let's punt
+                raise DependencyError("An instance of %r is already "
+                                      "installed on %r." % (obj.__class__,
+                                                            target))
+        #The rest we'll install
+        for i, cls in enumerate(dependencies):
+            it = cls(store=obj.store)
+            if itemCustomizers[i] is not None:
+                itemCustomizers[i](it)
+            self.installOn(it, target, False)
+            refs[i].__set__(obj, it)
+        #And now the connector for our own dependency.
+
+        dc = obj.store.findUnique(
+            _DependencyConnector,
+            AND(_DependencyConnector.target==target,
+                _DependencyConnector.installee==obj,
+                _DependencyConnector.explicitlyInstalled==__explicitlyInstalled),
+            None)
+        assert dc is None, "Dependency connector already exists, wtf are you doing?"
+        _DependencyConnector(store=obj.store, target=target,
+                             installee=obj,
+                             explicitlyInstalled=__explicitlyInstalled)
+
+        target.powerUp(obj)
+
+        callback = getattr(obj, "installed", None)
+        if callback is not None:
+            callback()
+
+
+
+theDependencyMap = DependencyMap()
+installOn = theDependencyMap.installOn
+classDependsOn = theDependencyMap.classDependsOn
+
+
+
+def _dependsOn(dependee, callable, doc, indexed, whenDeleted, isInterface):
+    """
+    Adds an entry to an item's dependency map.
+    """
+
+    frame = sys._getframe(2)
+    locals = frame.f_locals
+    isInterface = issubclass(dependee, Interface)
+    reftype = None
+    if not isInterface:
+        reftype = dependee
+    # Try to make sure we were called from a class def.
+    if (locals is frame.f_globals) or ('__module__' not in locals):
+        raise TypeError("dependsOn can be used only from a class definition.")
+    ref = reference(reftype=reftype, doc=doc, indexed=indexed, allowNone=True,
+                    whenDeleted=whenDeleted)
+    if "__dependsOn_advice_data__" not in locals:
+        addClassAdvisor(theDependencyMap._dependsOn_advice, depth=3)
+    locals.setdefault('__dependsOn_advice_data__', []).append(
+    (dependee, callable, ref, isInterface))
+    return ref
+
 
 def dependentsOf(cls):
-    deps = _globalDependencyMap.get(cls, None)
+    deps = theDependencyMap.oldDependencyMap.get(cls, None)
     if deps is None:
         return []
     else:
@@ -70,46 +245,6 @@ def requiresFromStore(interface, doc='', indexed=True):
     return _dependsOn(interface, None, doc, indexed, reference.DISALLOW, True)
 
 
-def _dependsOn(dependee, callable, doc, indexed, whenDeleted, isInterface):
-    """
-    Adds an entry to the dependency map.
-    """
-
-    frame = sys._getframe(2)
-    locals = frame.f_locals
-    isInterface = issubclass(dependee, Interface)
-    reftype = None
-    if not isInterface:
-        reftype = dependee
-    # Try to make sure we were called from a class def.
-    if (locals is frame.f_globals) or ('__module__' not in locals):
-        raise TypeError("dependsOn can be used only from a class definition.")
-    ref = reference(reftype=reftype, doc=doc, indexed=indexed, allowNone=True,
-                    whenDeleted=whenDeleted)
-    if "__dependsOn_advice_data__" not in locals:
-        addClassAdvisor(_dependsOn_advice, depth=3)
-    locals.setdefault('__dependsOn_advice_data__', []).append(
-    (dependee, callable, ref, isInterface))
-    return ref
-
-def _dependsOn_advice(cls):
-    if cls in _globalDependencyMap:
-        print "Double advising of %s. dependency map from first time: %s" % (
-            cls, _globalDependencyMap[cls])
-        #bail if we end up here twice, somehow
-        return cls
-    for dependee, callable, ref, isInterface in cls.__dict__[
-        '__dependsOn_advice_data__']:
-        classDependsOn(cls, dependee, callable, ref, isInterface)
-    del cls.__dependsOn_advice_data__
-    return cls
-
-def classDependsOn(cls, dependee, callable, ref, isInterface):
-    """
-    Add a class to the global dependency map.
-    """
-    _globalDependencyMap.setdefault(cls, []).append(
-        (dependee, callable, ref, isInterface))
 
 class _DependencyConnector(Item):
     """
@@ -122,107 +257,6 @@ class _DependencyConnector(Item):
                                   "should be automatically uninstalled when"
                                   "nothing depends on it)")
 
-
-def installOn(self, target=None):
-    """
-    If a target object is specified, install this object on the target along
-    with any powerup interfaces it declares. Also track that the object now
-    depends on the target, and the object was explicitly installed (and
-    therefore should not be uninstalled by subsequent uninstallation operations
-    unless it is explicitly removed).
-
-    If no target object is specified, this object will be installed as a
-    powerup on the store, after verifying that powerups for all the interfaces
-    it depends upon have been installed previously.
-    """
-    if target is None:
-        _interfaceInstallOn(self)
-    else:
-        _installOn(self, target, True)
-
-
-def _interfaceInstallOn(self):
-    """
-    Install a powerup on its store, first checking if the powerups it depends
-    upon have been installed. If they haven't been, raise a L{DependencyError}
-    describing what's missing.
-    """
-    dependencies = _globalDependencyMap.get(self.__class__, [])
-    if self.store.findUnique(_PowerupConnector, AND(
-            _PowerupConnector.powerup == self,
-            _PowerupConnector.item == self.store),
-                             default=None) is not None:
-        raise DependencyError("An instance of %r is already "
-                              "installed on %r." % (self.__class__,
-                                                  self.store))
-
-    #See if our dependencies have been installed already
-    for (i, (interface, itemConstructor,
-             ref, isInterface)) in reversed(list(enumerate(dependencies))):
-        if isInterface is True:
-            for pc in self.store.query(_PowerupConnector, AND(
-                        _PowerupConnector.item == self.store,
-                        _PowerupConnector.interface ==
-                        qual(interface).decode('ascii'))):
-              ref.__set__(self, pc.powerup)
-              del dependencies[i]
-    if len(dependencies) > 0:
-        raise DependencyError("A %r can't be installed on %r"
-                              " until powerups providing: %r are installed."
-                              % (self.__class__, self.store,
-                                 [d[0] for d in dependencies if d[3]]))
-
-    self.store.powerUp(self)
-    callback = getattr(self, "installed", None)
-    if callback is not None:
-        callback()
-
-
-def _installOn(self, target, __explicitlyInstalled=False):
-    depBlob = _globalDependencyMap.get(self.__class__, [])
-    dependencies, itemCustomizers, refs, isInterfaces = (map(list,
-                                                             zip(*depBlob))
-                                                         or ([], [], [], []))
-    #See if any of our dependencies have been installed already
-    for dc in self.store.query(_DependencyConnector,
-                               _DependencyConnector.target == target):
-        if dc.installee.__class__ in dependencies:
-            i = dependencies.index(dc.installee.__class__)
-            refs[i].__set__(self, dc.installee)
-            del dependencies[i], itemCustomizers[i], refs[i]
-        if (dc.installee.__class__ == self.__class__
-            and self.__class__ in set(
-            itertools.chain([blob[0][0] for blob in
-                             _globalDependencyMap.values()]))):
-            #Somebody got here before we did... let's punt
-            raise DependencyError("An instance of %r is already "
-                                  "installed on %r." % (self.__class__,
-                                                        target))
-    #The rest we'll install
-    for i, cls in enumerate(dependencies):
-        it = cls(store=self.store)
-        if itemCustomizers[i] is not None:
-            itemCustomizers[i](it)
-        _installOn(it, target, False)
-        refs[i].__set__(self, it)
-    #And now the connector for our own dependency.
-
-    dc = self.store.findUnique(
-        _DependencyConnector,
-        AND(_DependencyConnector.target==target,
-            _DependencyConnector.installee==self,
-            _DependencyConnector.explicitlyInstalled==__explicitlyInstalled),
-        None)
-    assert dc is None, "Dependency connector already exists, wtf are you doing?"
-    _DependencyConnector(store=self.store, target=target,
-                         installee=self,
-                         explicitlyInstalled=__explicitlyInstalled)
-
-    target.powerUp(self)
-
-    callback = getattr(self, "installed", None)
-    if callback is not None:
-        callback()
 
 
 def uninstallFrom(self, target):

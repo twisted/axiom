@@ -269,11 +269,11 @@ class DependencyTest(unittest.TestCase):
         properly.
         """
         foo = Blender(store=self.store)
-        depBlob = dependency._globalDependencyMap.get(Blender, None)[0]
+        depBlob = dependency.theDependencyMap.oldDependencyMap.get(Blender,
+                                                                   None)[0]
         self.assertEqual(depBlob[0], PowerStrip)
         self.assertEqual(depBlob[1], powerstripSetup)
         self.assertEqual(depBlob[2], Blender.__dict__['powerStrip'])
-        self.assertEqual(depBlob[3], False)
 
 
     def test_classDependsOn(self):
@@ -281,12 +281,12 @@ class DependencyTest(unittest.TestCase):
         Ensure that classDependsOn sets up the dependency map properly.
         """
         dependency.classDependsOn(ExtraBlender, PowerStrip, powerstripSetup,
-                                  ExtraBlender.__dict__['powerStrip'], False)
-        depBlob = dependency._globalDependencyMap.get(ExtraBlender, None)[0]
+                                  ExtraBlender.__dict__['powerStrip'])
+        depBlob = dependency.theDependencyMap.oldDependencyMap.get(ExtraBlender,
+                                                                   None)[0]
         self.assertEqual(depBlob[0], PowerStrip)
         self.assertEqual(depBlob[1], powerstripSetup)
         self.assertEqual(depBlob[2], ExtraBlender.__dict__['powerStrip'])
-        self.assertEqual(depBlob[3], False)
 
 
     def test_basicInstall(self):
@@ -562,7 +562,7 @@ class Toaster2(Item):
             self.callback("installed")
 
 
-class InterfaceDependencyTest(unittest.TestCase):
+class RequiresFromStoreTest(unittest.TestCase):
     """
     Tests for powerups using requiresFromStore.
     """
@@ -576,11 +576,10 @@ class InterfaceDependencyTest(unittest.TestCase):
         dependency map properly.
         """
         foo = Blender2(store=self.store)
-        depBlob = dependency._globalDependencyMap.get(Blender2, None)[0]
+        depBlob = dependency.theDependencyMap.dependencyMap.get(Blender2,
+                                                                None)[0]
         self.assertEqual(depBlob[0], IPowerStrip)
-        self.assertEqual(depBlob[1], None)
-        self.assertEqual(depBlob[2], Blender2.__dict__['powerStrip'])
-        self.assertEqual(depBlob[3], True)
+        self.assertEqual(depBlob[1], Blender2.__dict__['powerStrip'])
 
 
     def test_basicInstall(self):
@@ -591,14 +590,14 @@ class InterfaceDependencyTest(unittest.TestCase):
         e = Toaster2(store=self.store)
         self.assertEquals(e.powerStrip, None)
         self.assertRaises(dependency.DependencyError,
-                          dependency.installOn, e)
+                          dependency.requiresFromStore, e)
         ps = PowerStrip(store=self.store)
         bb = Breadbox(store=self.store)
         self.assertRaises(dependency.DependencyError,
-                          dependency.installOn, e)
+                          dependency.requiresFromStore, e)
         self.store.powerUp(ps)
         self.store.powerUp(bb)
-        dependency.installOn(e)
+        dependency.requiresFromStore(e)
         self.assertEquals(e.powerStrip, ps)
         self.assertEquals(e.breadFactory, bb)
 
@@ -621,12 +620,12 @@ class InterfaceDependencyTest(unittest.TestCase):
         e = Toaster2(store=self.store)
         self.installCallbackCalled = False
         e.callback = lambda _: setattr(self, 'installCallbackCalled', True)
-        dependency.installOn(e)
+        dependency.requiresFromStore(e)
         self.failUnless(self.installCallbackCalled)
 
 
 
-class RequireFromSiteTests(unittest.TestCase):
+class RequiresFromSiteTests(unittest.TestCase):
     """
     L{axiom.dependency.requiresFromSite} should allow items in either a user or
     site store to depend on powerups in the site store.
