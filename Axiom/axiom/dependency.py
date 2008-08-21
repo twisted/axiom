@@ -4,7 +4,7 @@
 A dependency management system for items.
 """
 
-import sys, itertools
+import sys, itertools, warnings
 
 from twisted.python.reflect import qual
 from zope.interface.advice import addClassAdvisor
@@ -26,42 +26,56 @@ def dependentsOf(cls):
     else:
         return [d[0] for d in deps]
 
-##Totally ripping off z.i
 
-def dependsOn(dependee, callable=None, doc='',
+def dependsOn(itemType, itemCustomizer=None, doc='',
               indexed=True, whenDeleted=reference.NULLIFY):
     """
-    This function behaves like L{axiom.attributes.reference} but with an extra
-    behaviour: when this item is installed (via L{axiom.dependency.installOn}
-    on a target item, a powerup implementing the interface will be looked up on
-    the store and and the attribute will be set to reference it (if the first
-    argument is an Interface) or (if the first argument is a class) an instance
-    of the class will be looked up and referenced in the same manner. In the
-    latter case, if no item of that type exists, the item type named here will
-    be instantiated and installed on the target as well.
+    This function behaves like L{axiom.attributes.reference} but with
+    an extra behaviour: when this item is installed (via
+    L{axiom.dependency.installOn} on a target item, the
+    type named here will be instantiated and installed on the target
+    as well.
 
     For example::
-
-      class Foo(Item):
-           thingIDependOn = dependsOn(IStuffProvider)
-
-    or::
 
       class Foo(Item):
           counter = integer()
           thingIDependOn = dependsOn(Baz, lambda baz: baz.setup())
 
-    @param dependee: An L{Interface} to depend on, or an L{Item} class to
-    instantiate and install.
-
-    @param callable: A callable that accepts the item installed
+    @param itemType: The Item class to instantiate and install.
+    @param itemCustomizer: A callable that accepts the item installed
     as a dependency as its first argument. It will be called only if
     an item is created to satisfy this dependency.
 
     @return: An L{axiom.attributes.reference} instance.
     """
+    warnings.warn("Items should declare their dependencies using"
+                  " axiom.dependency.requiresFromStore, not"
+                  " axiom.dependency.dependsOn.",
+                  PendingDeprecationWarning)
 
-    frame = sys._getframe(1)
+    return _dependsOn(itemType, itemCustomizer, doc,
+                      indexed, whenDeleted, False)
+
+
+def requiresFromStore(interface, doc='', indexed=True):
+    """
+    This function behaves like L{axiom.attributes.reference} but with an extra
+    behaviour: when an item containing this attribute is instantiated, a check
+    is made on the store the item is to be created in for a powerup
+    implementing ths interface. If it is found, this attribute will be set to
+    reference it. If it isn't found, a L{DependencyError} is raised.
+    """
+
+    return _dependsOn(interface, None, doc, indexed, reference.DISALLOW, True)
+
+
+def _dependsOn(dependee, callable, doc, indexed, whenDeleted, isInterface):
+    """
+    Adds an entry to the dependency map.
+    """
+
+    frame = sys._getframe(2)
     locals = frame.f_locals
     isInterface = issubclass(dependee, Interface)
     reftype = None
@@ -73,7 +87,7 @@ def dependsOn(dependee, callable=None, doc='',
     ref = reference(reftype=reftype, doc=doc, indexed=indexed, allowNone=True,
                     whenDeleted=whenDeleted)
     if "__dependsOn_advice_data__" not in locals:
-        addClassAdvisor(_dependsOn_advice)
+        addClassAdvisor(_dependsOn_advice, depth=3)
     locals.setdefault('__dependsOn_advice_data__', []).append(
     (dependee, callable, ref, isInterface))
     return ref
@@ -91,6 +105,9 @@ def _dependsOn_advice(cls):
     return cls
 
 def classDependsOn(cls, dependee, callable, ref, isInterface):
+    """
+    Add a class to the global dependency map.
+    """
     _globalDependencyMap.setdefault(cls, []).append(
         (dependee, callable, ref, isInterface))
 
@@ -125,6 +142,11 @@ def installOn(self, target=None):
 
 
 def _interfaceInstallOn(self):
+    """
+    Install a powerup on its store, first checking if the powerups it depends
+    upon have been installed. If they haven't been, raise a L{DependencyError}
+    describing what's missing.
+    """
     dependencies = _globalDependencyMap.get(self.__class__, [])
     if self.store.findUnique(_PowerupConnector, AND(
             _PowerupConnector.powerup == self,
@@ -201,6 +223,7 @@ def _installOn(self, target, __explicitlyInstalled=False):
     callback = getattr(self, "installed", None)
     if callback is not None:
         callback()
+
 
 def uninstallFrom(self, target):
     """
