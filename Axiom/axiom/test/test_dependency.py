@@ -584,20 +584,20 @@ class RequiresFromStoreTest(unittest.TestCase):
 
     def test_basicInstall(self):
         """
-        If a Toaster gets installed in a Kitchen, make sure that it doesn't
+        If a Toaster gets installed on a store, make sure that it doesn't
         succeed unless the required dependencies are there.
         """
         e = Toaster2(store=self.store)
         self.assertEquals(e.powerStrip, None)
         self.assertRaises(dependency.DependencyError,
-                          dependency.requiresFromStore, e)
+                          dependency.interfaceInstallOn, e)
         ps = PowerStrip(store=self.store)
         bb = Breadbox(store=self.store)
         self.assertRaises(dependency.DependencyError,
-                          dependency.requiresFromStore, e)
+                          dependency.interfaceInstallOn, e)
         self.store.powerUp(ps)
         self.store.powerUp(bb)
-        dependency.requiresFromStore(e)
+        dependency.interfaceInstallOn(e)
         self.assertEquals(e.powerStrip, ps)
         self.assertEquals(e.breadFactory, bb)
 
@@ -620,7 +620,7 @@ class RequiresFromStoreTest(unittest.TestCase):
         e = Toaster2(store=self.store)
         self.installCallbackCalled = False
         e.callback = lambda _: setattr(self, 'installCallbackCalled', True)
-        dependency.requiresFromStore(e)
+        dependency.interfaceInstallOn(e)
         self.failUnless(self.installCallbackCalled)
 
 

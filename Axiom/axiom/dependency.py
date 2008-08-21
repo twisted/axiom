@@ -90,7 +90,7 @@ class DependencyMap(object):
 
         #See if our dependencies have been installed already
         deps = reversed(list(enumerate(dependencies)))
-        for (i, (interface, itemConstructor,ref)) in deps:
+        for (i, (interface, ref)) in deps:
                 for pc in obj.store.query(_PowerupConnector, AND(
                             _PowerupConnector.item == obj.store,
                             _PowerupConnector.interface ==
@@ -168,7 +168,7 @@ class DependencyMap(object):
 theDependencyMap = DependencyMap()
 installOn = theDependencyMap.installOn
 classDependsOn = theDependencyMap.classDependsOn
-
+interfaceInstallOn = theDependencyMap._interfaceInstallOn
 
 
 def _dependsOn(dependee, callable, doc, indexed, whenDeleted, isInterface):
