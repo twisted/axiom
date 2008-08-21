@@ -27,6 +27,7 @@ class IElectricityGrid(Interface):
         """
 
 
+
 FAKE_POWER = 'fake power'
 REAL_POWER = 'real power'
 
@@ -54,6 +55,7 @@ class NullGrid(object):
         raise an exception to prevent this operation from succeeding.
         """
         return FAKE_POWER
+
 
 
 class RealGrid(Item):
@@ -114,6 +116,7 @@ class IronLung(Item):
 
 
 
+
 class SpecifiedBadDefaults(Item):
     """
     Depends on a power grid, but specifies defaults for that dependency that
@@ -135,11 +138,16 @@ class SpecifiedBadDefaults(Item):
         return self.grid.draw(100)
 
 
+
 class Kitchen(Item):
     name = text()
 
+
+
 class IPowerStrip(Interface):
     pass
+
+
 
 class PowerStrip(Item):
     """
@@ -172,6 +180,7 @@ class PowerStrip(Item):
         return self.grid.draw(watts)
 
 
+
 class PowerPlant(Item):
     """
     This is an item which supplies the grid with power.  It lives in the site
@@ -195,11 +204,17 @@ class PowerPlant(Item):
 class IAppliance(Interface):
     pass
 
+
+
 class IBreadConsumer(Interface):
     pass
 
+
+
 class IBreadProvider(Interface):
     pass
+
+
 
 class Breadbox(Item):
     implements(IBreadProvider)
@@ -208,6 +223,8 @@ class Breadbox(Item):
 
     def dispenseBread(self, amt):
         self.slices -= amt
+
+
 
 class Toaster(Item):
     implements(IBreadConsumer)
@@ -239,8 +256,11 @@ class Toaster(Item):
         self.powerStrip.draw(100)
         self.breadFactory.dispenseBread(2)
 
+
+
 def powerstripSetup(ps):
     ps.setForUSElectricity()
+
 
 class Blender(Item):
     powerStrip = dependency.dependsOn(PowerStrip,
@@ -250,8 +270,12 @@ class Blender(Item):
     def __getPowerupInterfaces__(self, powerups):
         yield (IAppliance, 0)
 
+
+
 class IceCrusher(Item):
     blender = dependency.dependsOn(Blender)
+
+
 
 class ExtraBlender(Item):
     powerStrip = reference()
@@ -310,6 +334,7 @@ class DependencyTest(unittest.TestCase):
                           set([ps, bb]))
         self.assertEquals(list(dependency.installedDependents(ps, foo)), [e])
 
+
     def test_basicUninstall(self):
         """
         Ensure that uninstallation removes the adapter from the former
@@ -321,6 +346,7 @@ class DependencyTest(unittest.TestCase):
         dependency.uninstallFrom(e, foo)
         self.assertEqual(dependency.installedOn(e), None)
         self.assertEqual(dependency.installedOn(e.powerStrip), None)
+
 
     def test_wrongUninstall(self):
         """
@@ -334,6 +360,7 @@ class DependencyTest(unittest.TestCase):
         ps = self.store.findUnique(PowerStrip)
         self.failUnlessRaises(dependency.DependencyError,
                               dependency.uninstallFrom, ps, foo)
+
 
     def test_properOrphaning(self):
         """
@@ -365,6 +392,7 @@ class DependencyTest(unittest.TestCase):
         dependency.uninstallFrom(f, foo)
         self.assertEquals(dependency.installedOn(ps), None)
 
+
     def test_installedUniqueRequirements(self):
         """
         Ensure that installedUniqueRequirements lists only powerups depended on
@@ -381,6 +409,7 @@ class DependencyTest(unittest.TestCase):
         self.assertEquals(list(dependency.installedUniqueRequirements(e, foo)),
                           [bb])
 
+
     def test_customizerCalledOnce(self):
         """
         The item customizer defined for a dependsOn attribute should
@@ -394,6 +423,7 @@ class DependencyTest(unittest.TestCase):
         e = Toaster(store=self.store)
         dependency.installOn(e, foo)
         self.assertEqual(ps.voltage, 115)
+
 
     def test_explicitInstall(self):
         """
@@ -411,6 +441,7 @@ class DependencyTest(unittest.TestCase):
         dependency.uninstallFrom(e, foo)
         self.assertEquals(dependency.installedOn(ps), foo)
 
+
     def test_doubleInstall(self):
         """
         Make sure that installing two instances of a class on the same
@@ -425,6 +456,7 @@ class DependencyTest(unittest.TestCase):
                               dependency.installOn, ps, foo)
         e2 = Toaster(store=self.store)
         dependency.installOn(e2, foo)
+
 
 
     def test_recursiveInstall(self):
@@ -443,6 +475,7 @@ class DependencyTest(unittest.TestCase):
         self.assertEquals(list(dependency.installedRequirements(ic, foo)),
                           [blender])
 
+
     def test_recursiveUninstall(self):
         """
         Removal of items should recursively remove orphaned
@@ -460,11 +493,13 @@ class DependencyTest(unittest.TestCase):
         self.failIf(dependency.installedOn(ps))
         self.failIf(dependency.installedOn(ic))
 
+
     def test_wrongDependsOn(self):
         """
         dependsOn should raise an error if used outside a class definition.
         """
         self.assertRaises(TypeError, dependency.dependsOn, Toaster)
+
 
     def test_referenceArgsPassthrough(self):
         """
@@ -473,6 +508,7 @@ class DependencyTest(unittest.TestCase):
 
         self.failUnless("power source" in Toaster.powerStrip.doc)
         self.assertEquals(Toaster.breadFactory.whenDeleted, reference.CASCADE)
+
 
     def test_powerupInterfaces(self):
         """
@@ -522,6 +558,7 @@ class DependencyTest(unittest.TestCase):
         self.assertEquals(list(foo.powerupsFor(IBreadConsumer)), [e, f])
         self.assertEquals(list(self.store.query(
                     dependency._DependencyConnector)), [])
+
 
 
 class IBlender(Interface):
@@ -704,4 +741,5 @@ class RequiresFromSiteTests(unittest.TestCase):
         self.assertRaises(UnsatisfiedRequirement, lambda : siteLung.grid)
         default = object()
         self.assertIdentical(getattr(lung, 'grid', default), default)
+
 

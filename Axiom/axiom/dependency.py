@@ -233,7 +233,6 @@ def requiresFromStore(interface, doc='', indexed=True):
     return _dependsOn(interface, None, doc, indexed, reference.DISALLOW, True)
 
 
-
 class _DependencyConnector(Item):
     """
     I am a connector between installed items and their targets.
@@ -271,6 +270,7 @@ def uninstallFrom(self, target):
     if callback is not None:
         callback()
 
+
 def installedOn(self):
     """
     If this item is installed on another item, return the install
@@ -294,6 +294,7 @@ def installedDependents(self, target):
         depends = dependentsOf(dc.installee.__class__)
         if self.__class__ in depends:
             yield dc.installee
+
 
 def installedUniqueRequirements(self, target):
     """
@@ -326,6 +327,7 @@ def installedUniqueRequirements(self, target):
             and not dc.explicitlyInstalled):
             yield dc.installee
 
+
 def installedRequirements(self, target):
     """
     Return an iterable of things installed on the target that this
@@ -338,13 +340,11 @@ def installedRequirements(self, target):
             yield dc.installee
 
 
-
 def onlyInstallPowerups(self, target):
     """
     Deprecated - L{Item.powerUp} now has this functionality.
     """
     target.powerUp(self)
-
 
 
 class requiresFromSite(
@@ -386,4 +386,5 @@ class requiresFromSite(
         else:
             pi = self._invokeFactory(self.siteDefaultFactory, oself.store)
         return pi
+
 
