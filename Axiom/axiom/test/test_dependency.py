@@ -151,7 +151,7 @@ class PowerStrip(Item):
     is installed.
     """
     implements(IPowerStrip)
-    powerupInterfaces = [IPowerStrip]
+    powerupInterfaces = (IPowerStrip,)
     voltage = integer()
     grid = dependency.requiresFromSite(IElectricityGrid, NullGrid, NullGrid)
 
@@ -203,7 +203,7 @@ class IBreadProvider(Interface):
 
 class Breadbox(Item):
     implements(IBreadProvider)
-    powerupInterfaces = [IBreadProvider]
+    powerupInterfaces = (IBreadProvider,)
     slices = integer(default=100)
 
     def dispenseBread(self, amt):
@@ -527,17 +527,20 @@ class DependencyTest(unittest.TestCase):
 class IBlender(Interface):
     pass
 
+
+
 class Blender2(Item):
     """
     A Blender using requiresFromStore instead of dependsOn.
     """
     implements(IBlender)
-    powerupInterfaces = [IBlender]
+    powerupInterfaces = (IBlender,)
     powerStrip = dependency.requiresFromStore(IPowerStrip)
     description = text()
 
     def __getPowerupInterfaces__(self, powerups):
         yield (IAppliance, 0)
+
 
 
 class Toaster2(Item):
@@ -560,6 +563,7 @@ class Toaster2(Item):
     def installed(self):
         if self.callback is not None:
             self.callback("installed")
+
 
 
 class RequiresFromStoreTest(unittest.TestCase):
