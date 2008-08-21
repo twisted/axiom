@@ -241,6 +241,7 @@ class Toaster(Item):
 
 def powerstripSetup(ps):
     ps.setForUSElectricity()
+
 class Blender(Item):
     powerStrip = dependency.dependsOn(PowerStrip,
                                       powerstripSetup)
@@ -261,6 +262,7 @@ class DependencyTest(unittest.TestCase):
     def setUp(self):
         self.store = Store()
 
+
     def test_dependsOn(self):
         """
         Ensure that classes with dependsOn attributes set up the dependency map
@@ -273,6 +275,7 @@ class DependencyTest(unittest.TestCase):
         self.assertEqual(depBlob[2], Blender.__dict__['powerStrip'])
         self.assertEqual(depBlob[3], False)
 
+
     def test_classDependsOn(self):
         """
         Ensure that classDependsOn sets up the dependency map properly.
@@ -284,6 +287,8 @@ class DependencyTest(unittest.TestCase):
         self.assertEqual(depBlob[1], powerstripSetup)
         self.assertEqual(depBlob[2], ExtraBlender.__dict__['powerStrip'])
         self.assertEqual(depBlob[3], False)
+
+
     def test_basicInstall(self):
         """
         If a Toaster gets installed in a Kitchen, make sure that the
@@ -523,9 +528,12 @@ class IBlender(Interface):
     pass
 
 class Blender2(Item):
+    """
+    A Blender using requiresFromStore instead of dependsOn.
+    """
     implements(IBlender)
     powerupInterfaces = [IBlender]
-    powerStrip = dependency.dependsOn(IPowerStrip)
+    powerStrip = dependency.requiresFromStore(IPowerStrip)
     description = text()
 
     def __getPowerupInterfaces__(self, powerups):
@@ -533,14 +541,16 @@ class Blender2(Item):
 
 
 class Toaster2(Item):
+    """
+    A Toaster using requiresFromStore instead of dependsOn.
+    """
     implements(IBreadConsumer)
     powerupInterfaces = [IAppliance, IBreadConsumer]
 
-    powerStrip = dependency.dependsOn(IPowerStrip)
+    powerStrip = dependency.requiresFromStore(IPowerStrip)
 
     description = text()
-    breadFactory = dependency.dependsOn(IBreadProvider,
-                                        whenDeleted=reference.CASCADE)
+    breadFactory = dependency.requiresFromStore(IBreadProvider)
 
     callback = inmemory()
 
@@ -553,13 +563,17 @@ class Toaster2(Item):
 
 
 class InterfaceDependencyTest(unittest.TestCase):
+    """
+    Tests for powerups using requiresFromStore.
+    """
     def setUp(self):
         self.store = Store()
 
+
     def test_dependsOn(self):
         """
-        Ensure that classes with dependsOn attributes set up the dependency map
-        properly.
+        Ensure that classes with requiresFromStore attributes set up the
+        dependency map properly.
         """
         foo = Blender2(store=self.store)
         depBlob = dependency._globalDependencyMap.get(Blender2, None)[0]
@@ -589,11 +603,14 @@ class InterfaceDependencyTest(unittest.TestCase):
         self.assertEquals(e.breadFactory, bb)
 
         self.assertEquals(IBreadConsumer(self.store), e)
+
+
     def test_wrongDependsOn(self):
         """
-        dependsOn should raise an error if used outside a class definition.
+        requiresFromStore should raise an error if used outside a class
+        definition.
         """
-        self.assertRaises(TypeError, dependency.dependsOn, IPowerStrip)
+        self.assertRaises(TypeError, dependency.requiresFromStore, IPowerStrip)
 
 
     def test_callbacks(self):
@@ -606,6 +623,7 @@ class InterfaceDependencyTest(unittest.TestCase):
         e.callback = lambda _: setattr(self, 'installCallbackCalled', True)
         dependency.installOn(e)
         self.failUnless(self.installCallbackCalled)
+
 
 
 class RequireFromSiteTests(unittest.TestCase):
