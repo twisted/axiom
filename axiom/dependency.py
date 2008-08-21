@@ -33,6 +33,7 @@ class DependencyMap(object):
         self.dependencyMap = {}
         self.oldDependencyMap = {}
 
+
     def classDependsOn(self, cls, itemType, itemCustomizer, ref):
         """
         Add a class to the (deprecated) dependency map.
@@ -95,6 +96,7 @@ class DependencyMap(object):
                                   % (obj.__class__, store,
                                      [d[0] for d in dependencies]))
         return toHookUp
+
 
     def installOn(self, obj, target, __explicitlyInstalled=True):
         """
