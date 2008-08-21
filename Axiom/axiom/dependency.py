@@ -73,41 +73,28 @@ class DependencyMap(object):
         return cls
 
 
-    def _interfaceInstallOn(self, obj):
+    def _interfacesInstalledCheck(self, obj, store):
         """
-        Install a powerup on its store, first checking if the powerups it
-        depends upon have been installed. If they haven't been, raise a
-        L{DependencyError} describing what's missing.
+        Raise a L{DependencyError} if the powerups depended upon by C{obj} are not installed on C{store}.
+
+        @return: A list of pairs of C{reference}s and powerups to set them to.
         """
         dependencies = self.dependencyMap.get(obj.__class__, [])
-        if obj.store.findUnique(_PowerupConnector, AND(
-                _PowerupConnector.powerup == obj,
-                _PowerupConnector.item == obj.store),
-                                 default=None) is not None:
-            raise DependencyError("An instance of %r is already "
-                                  "installed on %r." % (obj.__class__,
-                                                      obj.store))
-
-        #See if our dependencies have been installed already
+        toHookUp = []
         deps = reversed(list(enumerate(dependencies)))
         for (i, (interface, ref)) in deps:
-                for pc in obj.store.query(_PowerupConnector, AND(
-                            _PowerupConnector.item == obj.store,
+                for pc in store.query(_PowerupConnector, AND(
+                            _PowerupConnector.item == store,
                             _PowerupConnector.interface ==
                             qual(interface).decode('ascii'))):
-                  ref.__set__(obj, pc.powerup)
+                  toHookUp.append((ref, pc.powerup))
                   del dependencies[i]
         if len(dependencies) > 0:
-            raise DependencyError("A %r can't be installed on %r"
+            raise DependencyError("A %r can't be created in %r"
                                   " until powerups providing: %r are installed."
-                                  % (obj.__class__, obj.store,
+                                  % (obj.__class__, store,
                                      [d[0] for d in dependencies]))
-
-        obj.store.powerUp(obj)
-        callback = getattr(obj, "installed", None)
-        if callback is not None:
-            callback()
-
+        return toHookUp
 
     def installOn(self, obj, target, __explicitlyInstalled=True):
         """
@@ -168,8 +155,7 @@ class DependencyMap(object):
 theDependencyMap = DependencyMap()
 installOn = theDependencyMap.installOn
 classDependsOn = theDependencyMap.classDependsOn
-interfaceInstallOn = theDependencyMap._interfaceInstallOn
-
+interfacesInstallCheck = theDependencyMap._interfacesInstalledCheck
 
 def _dependsOn(dependee, callable, doc, indexed, whenDeleted, isInterface):
     """

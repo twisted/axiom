@@ -632,10 +632,14 @@ class Item(Empowered, slotmachine._Strict):
         attributes on the created item.  Subclasses of Item must honor this
         signature.
         """
+        from axiom.dependency import interfacesInstallCheck
         if type(self) is Item:
             raise CantInstantiateItem()
+        dependencies = interfacesInstallCheck(self, kw['store'])
         self.__justCreated = True
         self.__subinit__(**kw)
+        for (ref, pup) in dependencies:
+            ref.__set__(self, pup)
 
 
     def __finalizer__(self):

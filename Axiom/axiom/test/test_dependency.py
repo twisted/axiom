@@ -575,7 +575,6 @@ class RequiresFromStoreTest(unittest.TestCase):
         Ensure that classes with requiresFromStore attributes set up the
         dependency map properly.
         """
-        foo = Blender2(store=self.store)
         depBlob = dependency.theDependencyMap.dependencyMap.get(Blender2,
                                                                 None)[0]
         self.assertEqual(depBlob[0], IPowerStrip)
@@ -587,21 +586,20 @@ class RequiresFromStoreTest(unittest.TestCase):
         If a Toaster gets installed on a store, make sure that it doesn't
         succeed unless the required dependencies are there.
         """
-        e = Toaster2(store=self.store)
-        self.assertEquals(e.powerStrip, None)
         self.assertRaises(dependency.DependencyError,
-                          dependency.interfaceInstallOn, e)
+                          Toaster2, store=self.store)
         ps = PowerStrip(store=self.store)
         bb = Breadbox(store=self.store)
         self.assertRaises(dependency.DependencyError,
-                          dependency.interfaceInstallOn, e)
+                          Toaster2, store=self.store)
         self.store.powerUp(ps)
         self.store.powerUp(bb)
-        dependency.interfaceInstallOn(e)
+        e = Toaster2(store=self.store)
         self.assertEquals(e.powerStrip, ps)
         self.assertEquals(e.breadFactory, bb)
 
-        self.assertEquals(IBreadConsumer(self.store), e)
+        #we never called powerUp, so:
+        self.assertRaises(TypeError, IBreadConsumer, self.store)
 
 
     def test_wrongDependsOn(self):
@@ -610,18 +608,6 @@ class RequiresFromStoreTest(unittest.TestCase):
         definition.
         """
         self.assertRaises(TypeError, dependency.requiresFromStore, IPowerStrip)
-
-
-    def test_callbacks(self):
-        """
-        'installed' and 'uninstalled' callbacks should fire on
-        install/uninstall.
-        """
-        e = Toaster2(store=self.store)
-        self.installCallbackCalled = False
-        e.callback = lambda _: setattr(self, 'installCallbackCalled', True)
-        dependency.interfaceInstallOn(e)
-        self.failUnless(self.installCallbackCalled)
 
 
 
