@@ -1,5 +1,6 @@
 # Copright 2008 Divmod, Inc.  See LICENSE file for details.
 
+import warnings
 from zope.interface import Interface, implements
 
 from twisted.trial import unittest
@@ -7,7 +8,7 @@ from twisted.trial import unittest
 from axiom import dependency
 from axiom.store import Store
 from axiom.substore import SubStore
-from axiom.item import Item
+from axiom.item import Item, theDependencyMap, requiresFromStore
 from axiom.errors import UnsatisfiedRequirement
 from axiom.attributes import text, integer, reference, inmemory
 
@@ -293,8 +294,7 @@ class DependencyTest(unittest.TestCase):
         properly.
         """
         foo = Blender(store=self.store)
-        depBlob = dependency.theDependencyMap.oldDependencyMap.get(Blender,
-                                                                   None)[0]
+        depBlob = dependency._globalDependencyMap.get(Blender, None)[0]
         self.assertEqual(depBlob[0], PowerStrip)
         self.assertEqual(depBlob[1], powerstripSetup)
         self.assertEqual(depBlob[2], Blender.__dict__['powerStrip'])
@@ -306,8 +306,7 @@ class DependencyTest(unittest.TestCase):
         """
         dependency.classDependsOn(ExtraBlender, PowerStrip, powerstripSetup,
                                   ExtraBlender.__dict__['powerStrip'])
-        depBlob = dependency.theDependencyMap.oldDependencyMap.get(ExtraBlender,
-                                                                   None)[0]
+        depBlob = dependency._globalDependencyMap.get(ExtraBlender, None)[0]
         self.assertEqual(depBlob[0], PowerStrip)
         self.assertEqual(depBlob[1], powerstripSetup)
         self.assertEqual(depBlob[2], ExtraBlender.__dict__['powerStrip'])
@@ -560,6 +559,27 @@ class DependencyTest(unittest.TestCase):
                     dependency._DependencyConnector)), [])
 
 
+    def test_deprecation(self):
+        warnings.simplefilter('default', PendingDeprecationWarning)
+        foo = Kitchen(store=self.store)
+        e = Toaster(store=self.store)
+        self.assertWarns(PendingDeprecationWarning,
+                         "axiom.dependency.installOn is deprecated, "
+                         "use item.Item.powerUp for automatic powerup "
+                         "installation or item.requiresFromStore for "
+                         "dependency management",
+                         dependency.__file__,
+                         dependency.installOn, e, foo)
+        def dependsOnClass():
+            class A(Item):
+                attr = dependency.dependsOn(PowerStrip)
+        self.assertWarns(PendingDeprecationWarning,
+                         "axiom.dependency.dependsOn is deprecated, "
+                         "use axiom.item.requiresFromStore instead.",
+                         dependency.__file__,
+                         dependsOnClass)
+
+
 
 class IBlender(Interface):
     pass
@@ -572,7 +592,7 @@ class Blender2(Item):
     """
     implements(IBlender)
     powerupInterfaces = (IBlender,)
-    powerStrip = dependency.requiresFromStore(IPowerStrip)
+    powerStrip = requiresFromStore(IPowerStrip)
     description = text()
 
     def __getPowerupInterfaces__(self, powerups):
@@ -587,10 +607,10 @@ class Toaster2(Item):
     implements(IBreadConsumer)
     powerupInterfaces = [IAppliance, IBreadConsumer]
 
-    powerStrip = dependency.requiresFromStore(IPowerStrip)
+    powerSource = requiresFromStore(IPowerStrip)
 
     description = text()
-    breadFactory = dependency.requiresFromStore(IBreadProvider)
+    breadFactory = requiresFromStore(IBreadProvider)
 
     callback = inmemory()
 
@@ -616,8 +636,7 @@ class RequiresFromStoreTest(unittest.TestCase):
         Ensure that classes with requiresFromStore attributes set up the
         dependency map properly.
         """
-        depBlob = dependency.theDependencyMap.dependencyMap.get(Blender2,
-                                                                None)[0]
+        depBlob = theDependencyMap.dependencyMap.get(Blender2)[0]
         self.assertEqual(depBlob[0], IPowerStrip)
         self.assertEqual(depBlob[1], Blender2.__dict__['powerStrip'])
 
@@ -636,7 +655,7 @@ class RequiresFromStoreTest(unittest.TestCase):
         self.store.powerUp(ps)
         self.store.powerUp(bb)
         e = Toaster2(store=self.store)
-        self.assertEquals(e.powerStrip, ps)
+        self.assertEquals(e.powerSource, ps)
         self.assertEquals(e.breadFactory, bb)
 
         #we never called powerUp, so:
@@ -645,11 +664,27 @@ class RequiresFromStoreTest(unittest.TestCase):
 
     def test_wrongDependsOn(self):
         """
-        requiresFromStore should raise an error if used outside a class
+        L{requiresFromStore} should raise an error if used outside a class
         definition.
         """
-        self.assertRaises(TypeError, dependency.requiresFromStore, IPowerStrip)
+        self.assertRaises(TypeError, requiresFromStore, IPowerStrip)
 
+
+    def test_collectDependents(self):
+        """
+        For a given interface and a store, L{collectDependents} returns a list
+        of items and attribute names where references to implementors of this
+        interface are depended upon.
+        """
+        ps = PowerStrip(store=self.store)
+        bb = Breadbox(store=self.store)
+        self.store.powerUp(ps)
+        self.store.powerUp(bb)
+        t = Toaster2(store=self.store)
+        b = Blender2(store=self.store)
+        deps = theDependencyMap.collectDependents(self.store, IPowerStrip)
+        self.assertEqual(set([(b, "powerStrip"), (t, "powerSource")]),
+                         set(deps))
 
 
 class RequiresFromSiteTests(unittest.TestCase):
