@@ -115,7 +115,7 @@ def getSystemVersions(getPlugins=plugin.getPlugins):
     """
     Collect all the version plugins and extract their L{Version} objects.
     """
-    return [v for v in getPlugins(iaxiom.IVersion, plugins)]
+    return list(getPlugins(iaxiom.IVersion, plugins))
 
 
 def checkSystemVersion(s, versions=None):

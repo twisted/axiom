@@ -5,16 +5,21 @@
 Tests for Axiom store version history.
 """
 
-from axiom.store import Store
+import sys, StringIO
 from twisted.trial import unittest
-from axiom.listversions import (SoftwareVersion,
-                                getSystemVersions,
-                                SystemVersion,
-                                checkSystemVersion)
 from twisted.python.versions import Version
 
+from axiom.store import Store
+from axiom import version as axiom_version
+from axiom.listversions import (getSystemVersions,
+                                SystemVersion,
+                                checkSystemVersion)
 
-class SystemVersionTests(unittest.TestCase):
+from axiom.scripts.axiomatic import Options as AxiomaticOptions
+from axiom.test.util import CommandStubMixin
+from axiom.plugins.axiom_plugins import ListVersions
+
+class SystemVersionTests(unittest.TestCase, CommandStubMixin):
     """
     Tests for recording the versions of software used to open a store
     throughout its lifetime.
@@ -85,3 +90,24 @@ class SystemVersionTests(unittest.TestCase):
         query_results = list(self.store.query(SystemVersion))
         self.assertEquals(len(query_results), 3)
 
+
+    def test_commandLine(self):
+        """
+        L{ListVersions} will list versions of code used in this store when
+        invoked as an axiomatic subcommand.
+        """
+        out = StringIO.StringIO()
+        self.patch(sys, 'stdout', out)
+        lv = ListVersions()
+        lv.parent = self
+        lv.parseOptions([])
+        result = out.getvalue()
+        self.assertSubstring("axiom: " + axiom_version.short(), result)
+
+    def test_axiomaticSubcommand(self):
+        """
+        L{ListVersions} is available as a subcommand of I{axiomatic}.
+        """
+        subCommands = AxiomaticOptions().subCommands
+        [options] = [cmd[2] for cmd in subCommands if cmd[0] == 'list-version']
+        self.assertIdentical(options, ListVersions)
