@@ -2,7 +2,10 @@
 
 __metaclass__ = type
 
+import itertools, sys
+
 from zope.interface import implements, Interface
+from zope.interface.advice import addClassAdvisor
 
 from inspect import getabsfile
 
@@ -13,7 +16,7 @@ from twisted.python.util import mergeFunctionMetadata
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema, iaxiom
-from axiom.errors import ChangeRejected, DeletionDisallowed
+from axiom.errors import ChangeRejected, DeletionDisallowed, DependencyError
 from axiom.iaxiom import IColumn, IPowerupIndirector
 
 from axiom.attributes import (
@@ -167,6 +170,116 @@ def serviceSpecialCase(item, pups):
     return svc
 
 
+
+class DependencyMap:
+    """
+    Collects information about the dependencies of all Items in this program.
+
+    @ivar dependencyMap: A mapping of L{Item} subclasses to a tuple of
+    (interface, ref) where 'interface' is an interface depended upon by the
+    item, and 'ref' is an L{axiom.attributes.reference}.
+    """
+
+    def __init__(self):
+        self.dependencyMap = {}
+
+
+    def classRequiresFromStore(self, cls, interface, ref):
+        """
+        Add a class to the global dependency map.
+
+        @param interface: An L{Interface}.
+        @param ref: A L{axiom.attributes.reference}.
+        """
+        self.dependencyMap.setdefault(cls, []).append(
+            (interface, ref))
+
+
+    def interfacesInstalledCheck(self, obj, store):
+        """
+        Raise a L{DependencyError} if the powerups depended upon by C{obj} are
+        not installed on C{store}.
+
+        @return: A list of pairs of C{reference}s and powerups to set them to.
+        """
+        dependencies = self.dependencyMap.get(obj.__class__, [])[:]
+        toHookUp = []
+        deps = reversed(list(enumerate(dependencies)))
+        for (i, (interface, ref)) in deps:
+                for pc in store.query(_PowerupConnector, AND(
+                            _PowerupConnector.item == store,
+                            _PowerupConnector.interface ==
+                            qual(interface).decode('ascii'))):
+                  toHookUp.append((ref, pc.powerup))
+                  del dependencies[i]
+        if len(dependencies) > 0:
+            raise DependencyError("A %s can't be created in %r"
+                                  " until powerups providing: %r are installed."
+                                  % (qual(obj.__class__), store,
+                                     [qual(d[0]) for d in dependencies]))
+        return toHookUp
+
+
+    def requiresFromStore(self, interface,  doc='', indexed=True):
+        """
+        This function behaves like L{axiom.attributes.reference} but with an
+        extra behaviour: when an item containing this attribute is
+        instantiated, a check is made on the store the item is to be created in
+        for a powerup implementing ths interface. If it is found, this
+        attribute will be set to reference it. If it isn't found, a
+        L{DependencyError} is raised.
+        """
+
+        frame = sys._getframe(1)
+        locals = frame.f_locals
+        reftype = None
+        # Try to make sure we were called from a class def.
+        if (locals is frame.f_globals) or ('__module__' not in locals):
+            raise TypeError("requiresFromStore can be used only from a class"
+                            " definition.")
+        ref = reference(reftype=reftype, doc=doc, indexed=indexed,
+                        allowNone=True, whenDeleted=reference.DISALLOW)
+        if "__requiresFromStore_advice_data__" not in locals:
+            addClassAdvisor(self._requiresFromStore_advice, depth=2)
+        locals.setdefault('__requiresFromStore_advice_data__', []).append(
+        (interface, ref))
+        return ref
+
+
+    def _requiresFromStore_advice(self, cls):
+        """
+        Class advisor for class-based dependencies.
+        """
+        for interface, ref in cls.__dict__[
+            '__requiresFromStore_advice_data__']:
+                self.classRequiresFromStore(cls, interface, ref)
+        del cls.__requiresFromStore_advice_data__
+        return cls
+
+
+    def collectDependents(self, store, interface):
+        """
+        Search this store for items that depend on implementors of this
+        interface. Return an iterable of (item, attributeName) pairs where the
+        attribute name is the one where the reference to the dependency is
+        stored.
+        """
+        queries = []
+        attrNames = []
+        for (itemType, entries) in self.dependencyMap.iteritems():
+            for (ifc, ref) in entries:
+                if interface == ifc:
+                    for (name, value) in itemType.__dict__.iteritems():
+                        if ref is value:
+                            queries.append(
+                                itertools.izip(store.query(itemType),
+                                               itertools.repeat(name)))
+        return itertools.chain(*queries)
+
+
+
+theDependencyMap = DependencyMap()
+requiresFromStore = theDependencyMap.requiresFromStore
 
 
 class Empowered(object):
@@ -632,10 +745,10 @@ class Item(Empowered, slotmachine._Strict):
         attributes on the created item.  Subclasses of Item must honor this
         signature.
         """
-        from axiom.dependency import interfacesInstallCheck
         if type(self) is Item:
             raise CantInstantiateItem()
-        dependencies = interfacesInstallCheck(self, kw['store'])
+        dependencies = theDependencyMap.interfacesInstalledCheck(self,
+                                                                 kw['store'])
         self.__justCreated = True
         self.__subinit__(**kw)
         for (ref, pup) in dependencies:
