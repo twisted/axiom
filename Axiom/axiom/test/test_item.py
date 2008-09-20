@@ -340,6 +340,34 @@ class ItemTestCase(unittest.TestCase):
                           1234)
 
 
+    def test_duplicateDefinition(self):
+        """
+        When the same typeName is defined as an item class multiple times in
+        memory, the second definition fails with a L{RuntimeError}.
+        """
+        class X(Item):
+            dummy = integer()
+        try:
+            class X(Item):
+                dummy = integer()
+        except RuntimeError:
+            pass
+        else:
+            self.fail("Duplicate definition should have failed.")
+
+
+    def test_nonConflictingRedefinition(self):
+        """
+        If the python item class associated with a typeName is garbage
+        collected, a new python item class can re-use that type name.
+        """
+        class X(Item):
+            dummy = integer()
+        del X
+        class X(Item):
+            dummy = integer()
+
+
 
 class TestItem(Item):
     """
