@@ -2,9 +2,11 @@
 
 __metaclass__ = type
 
+import gc
 from zope.interface import implements, Interface
 
 from inspect import getabsfile
+from weakref import WeakValueDictionary
 
 from twisted.python import log
 from twisted.python.reflect import qual, namedAny
@@ -21,7 +23,7 @@ from axiom.attributes import (
     _OrderingMixin, _ContainableMixin, Comparable, compare, inmemory,
     reference, text, integer, AND, _cascadingDeletes, _disallows)
 
-_typeNameToMostRecentClass = {}
+_typeNameToMostRecentClass = WeakValueDictionary()
 
 def normalize(qualName):
     """
@@ -61,6 +63,9 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         if T.schemaVersion is None:
             T.schemaVersion = 1
         if T.typeName in _typeNameToMostRecentClass:
+            # Let's try not to gc.collect() every time.
+            gc.collect()
+        if T.typeName in _typeNameToMostRecentClass:
             if T.__legacy__:
                 return T
             otherT = _typeNameToMostRecentClass[T.typeName]
@@ -74,8 +79,10 @@ class MetaItem(slotmachine.SchemaMetaMachine):
                 else:
                     relmod = otherT.__module__
 
-                raise RuntimeError("Use absolute imports; relative import"
-                        " detected for type %r (imported from %r)" % (T.typeName, relmod))
+                raise RuntimeError(
+                    "Use absolute imports; relative import"
+                    " detected for type %r (imported from %r)" % (
+                        T.typeName, relmod))
 
             raise RuntimeError("2 definitions of axiom typename %r: %r %r" % (
                     T.typeName, T, _typeNameToMostRecentClass[T.typeName]))
