@@ -354,6 +354,29 @@ class BasicQuery(TestCase):
         s.close()
 
 
+    def test_distinctQuerySQLiteBug(self):
+        """
+        Test for an SQLite bug.
+
+        SQLite versions 3.5.8 and 3.5.9 have a bug that causes incorrect query
+        results under certain circumstances:
+
+            - A column with an index
+            - SELECT DISTINCT query...
+            - ... with an IS NOT NULL comparison on that column.
+
+        Upstream ticket: http://www.sqlite.org/cvstrac/tktview?tn=3236
+        """
+        s = Store()
+        def entesten():
+            C(store=s, name=u'a')
+            C(store=s, name=u'b')
+            q = s.query(C, C.name != None).getColumn('name').distinct()
+            self.assertEqual(sorted(q), [u'a', u'b'])
+        s.transact(entesten)
+        s.close()
+
+
     def test_itemQueryDistinct(self):
         """
         Verify that a join which would produce duplicate rows will not produce
