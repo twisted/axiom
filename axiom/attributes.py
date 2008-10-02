@@ -1074,7 +1074,7 @@ class reference(integer):
             raise TypeError(
                 "whenDeleted must be one of: "
                 "reference.NULLIFY, reference.CASCADE, reference.DISALLOW")
-        if whenDeleted is NULLIFY and not allowNone:
+        if whenDeleted is reference.NULLIFY and not allowNone:
             warnings.warn('whenDeleted=NULLIFY conflicts with allowNone=False',
                           DeprecationWarning, stacklevel=2)
             # Pending:
