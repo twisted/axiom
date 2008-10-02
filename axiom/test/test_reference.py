@@ -197,6 +197,21 @@ class BadReferenceTestCase(TestCase):
         self.assertTrue(isinstance(t2, UpgradedItem))
 
 
+    def test_whenDeletedTypeError(self):
+        """
+        Passing L{reference} an invalid value for C{whenDeleted} should raise a
+        C{TypeError}.
+        """
+        for bad in [None, 0, 'NULLIFY']:
+            e = self.assertRaises(
+                TypeError,
+                lambda: reference(whenDeleted=bad))
+            self.assertEquals(
+                str(e),
+                'whenDeleted must be one of: '
+                'reference.NULLIFY, reference.CASCADE, reference.DISALLOW')
+
+
     def test_nullifyDisallowNoneConflict(self):
         """
         Creating a L{reference} attribute that both forbids C{None}s and allows
