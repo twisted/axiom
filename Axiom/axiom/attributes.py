@@ -1076,7 +1076,7 @@ class reference(integer):
                 "reference.NULLIFY, reference.CASCADE, reference.DISALLOW")
         if whenDeleted is reference.NULLIFY and not allowNone:
             warnings.warn('whenDeleted=NULLIFY conflicts with allowNone=False',
-                          DeprecationWarning, stacklevel=1)
+                          DeprecationWarning, stacklevel=2)
             # Pending:
             #raise RuntimeError(
             #    'allowNone=False conflicts with whenDeleted=NULLIFY')

@@ -220,7 +220,7 @@ class BadReferenceTestCase(TestCase):
         self.assertWarns(
             DeprecationWarning,
             'whenDeleted=NULLIFY conflicts with allowNone=False',
-            attributes.__file__,
+            __file__,
             lambda: reference(
                 allowNone=False,
                 whenDeleted=reference.NULLIFY))
