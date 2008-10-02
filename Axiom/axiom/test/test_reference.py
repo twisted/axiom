@@ -2,6 +2,11 @@ import gc
 
 from twisted.trial.unittest import TestCase
 
+from epsilon.hotfix import require
+
+require('twisted', 'trial_assertwarns')
+
+from axiom import attributes
 from axiom.store import Store
 from axiom.upgrade import registerUpgrader
 from axiom.item import Item, declareLegacyItem
@@ -190,6 +195,20 @@ class BadReferenceTestCase(TestCase):
         t2 = store.getItemByID(t.storeID)
         self.assertNotIdentical(t, t2)
         self.assertTrue(isinstance(t2, UpgradedItem))
+
+
+    def test_nullifyDisallowNoneConflict(self):
+        """
+        Creating a L{reference} attribute that both forbids C{None}s and allows
+        its referent to be deleted should produce a C{DeprecationWarning}.
+        """
+        self.assertWarns(
+            DeprecationWarning,
+            'whenDeleted=NULLIFY conflicts with allowNone=False',
+            attributes.__file__,
+            lambda: reference(
+                allowNone=False,
+                whenDeleted=reference.NULLIFY))
 
 
 
