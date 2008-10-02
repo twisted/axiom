@@ -1068,11 +1068,13 @@ class reference(integer):
     def __init__(self, doc='', indexed=True, allowNone=True, reftype=None,
                  whenDeleted=NULLIFY):
         integer.__init__(self, doc, indexed, None, allowNone)
-        assert whenDeleted in (reference.NULLIFY,
+        if whenDeleted not in (reference.NULLIFY,
                                reference.CASCADE,
-                               reference.DISALLOW),(
-            "whenDeleted must be one of: "
-            "reference.NULLIFY, reference.CASCADE, reference.DISALLOW")
+                               reference.DISALLOW):
+            raise TypeError(
+                "whenDeleted must be one of: "
+                "reference.NULLIFY, reference.CASCADE, reference.DISALLOW")
+
         self.reftype = reftype
         self.whenDeleted = whenDeleted
         if whenDeleted is reference.CASCADE:
