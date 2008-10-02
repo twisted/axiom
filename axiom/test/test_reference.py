@@ -7,7 +7,6 @@ from epsilon.hotfix import require
 
 require('twisted', 'trial_assertwarns')
 
-from axiom import attributes
 from axiom.store import Store
 from axiom.upgrade import registerUpgrader
 from axiom.item import Item, declareLegacyItem
