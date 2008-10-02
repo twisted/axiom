@@ -1090,6 +1090,7 @@ class reference(integer):
         if whenDeleted is reference.DISALLOW:
             _disallows.setdefault(reftype, []).append(self)
 
+
     def reprFor(self, oself):
         obj = getattr(oself, self.underlying, None)
         if obj is not None:
