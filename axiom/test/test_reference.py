@@ -1,6 +1,7 @@
 import gc
 
 from twisted.trial.unittest import TestCase
+from twisted.internet.utils import runWithWarningsSuppressed
 
 from epsilon.hotfix import require
 
@@ -103,6 +104,36 @@ class BadReferenceTestCase(TestCase):
         BreakingReferent.ref.whenDeleted = reference.CASCADE
         self.assertRaises(BrokenReference, lambda: referent.ref)
         BreakingReferent.ref.whenDeleted = reference.NULLIFY
+
+
+    def test_brokenReferenceWarning(self):
+        """
+        Accessing a broken reference with both C{NULLIFY} and C{allowNone=False}
+        should return C{None}, and produce a C{DeprecationWarning}.
+        """
+        class InconsistentReferenceItem(Item):
+            ref = runWithWarningsSuppressed(
+                [(('ignore',), dict(
+                    message='whenDeleted=NULLIFY conflicts with allowNone=False',
+                    category=DeprecationWarning))],
+                lambda: reference(allowNone=False, whenDeleted=reference.NULLIFY))
+
+        s = Store()
+        def txn():
+            referee = Referee(store=s)
+            referent = InconsistentReferenceItem(store=s, ref=referee)
+            referee.deleteFromStore()
+            return referee.storeID
+        deletedStoreID = s.transact(txn)
+
+        referent = s.findUnique(InconsistentReferenceItem)
+        self.assertWarns(
+            DeprecationWarning,
+            ('broken reference with NULLIFY and allowNone=False to storeID %r'
+                % (deletedStoreID,)),
+            __file__,
+            lambda: referent.ref)
+
 
     def testBadReferenceNoneRevert(self):
         store = Store()

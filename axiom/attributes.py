@@ -1159,6 +1159,13 @@ class reference(integer):
             return None
 
         referee = oself.store.getItemByID(dbval, default=None, autoUpgrade=not oself.__legacy__)
+
+        if referee is None and self.whenDeleted is reference.NULLIFY and not self.allowNone:
+            warnings.warn('broken reference with NULLIFY and allowNone=False'
+                          ' to storeID %r' % (dbval,),
+                          DeprecationWarning, stacklevel=4)
+            return None
+
         if referee is None and self.whenDeleted is not reference.NULLIFY:
 
             # If referee merely changed to another valid referent,
