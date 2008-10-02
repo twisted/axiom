@@ -1077,7 +1077,7 @@ class reference(integer):
         if whenDeleted is reference.NULLIFY and not allowNone:
             warnings.warn('whenDeleted=NULLIFY conflicts with allowNone=False',
                           DeprecationWarning, stacklevel=2)
-            # Pending:
+            # Pending (see #2736, #2739):
             #raise RuntimeError(
             #    'allowNone=False conflicts with whenDeleted=NULLIFY')
 
@@ -1160,7 +1160,12 @@ class reference(integer):
 
         referee = oself.store.getItemByID(dbval, default=None, autoUpgrade=not oself.__legacy__)
 
-        if referee is None and self.whenDeleted is reference.NULLIFY and not self.allowNone:
+        # Erroneous schemas with both whenDeleted=NULLIFY and allowNone=False
+        # can result in this.  This should raise BrokenReference, but while code
+        # is being fixed, return None for compatibility.  See #2736, #2739.
+        # --pjd
+        if (referee is None
+            and self.whenDeleted is reference.NULLIFY and not self.allowNone):
             warnings.warn('broken reference with NULLIFY and allowNone=False'
                           ' to storeID %r' % (dbval,),
                           DeprecationWarning, stacklevel=4)
