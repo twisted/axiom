@@ -1,6 +1,6 @@
 # -*- test-case-name: axiom.test.test_attributes,axiom.test.test_reference -*-
 
-import os
+import os, warnings
 
 from decimal import Decimal
 
@@ -1074,6 +1074,12 @@ class reference(integer):
             raise TypeError(
                 "whenDeleted must be one of: "
                 "reference.NULLIFY, reference.CASCADE, reference.DISALLOW")
+        if whenDeleted is NULLIFY and not allowNone:
+            warnings.warn('whenDeleted=NULLIFY conflicts with allowNone=False',
+                          DeprecationWarning, stacklevel=2)
+            # Pending:
+            #raise RuntimeError(
+            #    'allowNone=False conflicts with whenDeleted=NULLIFY')
 
         self.reftype = reftype
         self.whenDeleted = whenDeleted
