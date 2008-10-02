@@ -126,12 +126,13 @@ class BadReferenceTestCase(TestCase):
         deletedStoreID = s.transact(txn)
 
         referent = s.findUnique(InconsistentReferenceItem)
-        self.assertWarns(
+        result = self.assertWarns(
             DeprecationWarning,
             ('broken reference with NULLIFY and allowNone=False to storeID %r'
                 % (deletedStoreID,)),
             __file__,
             lambda: referent.ref)
+        self.assertIdentical(result, None)
 
 
     def testBadReferenceNoneRevert(self):
