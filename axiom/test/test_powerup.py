@@ -97,6 +97,12 @@ class Summer(Item):
             total *= value
         return total
 
+class BrokenPowerup(Item):
+    stuff = integer()
+
+    def __getPowerupInterfaces__(self, pifs):
+        return 'not a list of pairs'
+
 
 class PowerUpTest(unittest.TestCase):
 
@@ -162,6 +168,21 @@ class PowerUpTest(unittest.TestCase):
         s.powerUp(p)
 
         self.assertEquals(mm.doSum(), 4)
+
+
+    def test_dynamicAutomaticPowerupFailure(self):
+        """
+        Powerups with '__getPowerupInterfaces__' methods that don't return
+        iterables of pairs report an informative error message when powered up.
+        """
+        s = Store()
+        mm = Summer(store=s)
+        s.powerUp(mm, ISumProducer)
+        p = BrokenPowerup(store=s)
+        err = self.assertRaises(ValueError, s.powerUp, p)
+        self.assertEquals(str(err),
+                          'return value from %r.__getPowerupInterfaces__'
+                          ' not an iterable of 2-tuples' % (p,))
 
 
     def test_automaticPowerDown(self):

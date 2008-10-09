@@ -394,7 +394,7 @@ class Empowered(object):
                 pifs = [(i, p) for (i, p) in pifs]
             except ValueError:
                 raise ValueError("return value from %r.__getPowerupInterfaces__"
-                                 "not an iterable of 2-tuples" % (obj,))
+                                 " not an iterable of 2-tuples" % (self,))
         return pifs
 
 
