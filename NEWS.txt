@@ -1,3 +1,9 @@
+0.5.29 (2008-10-02):
+  - Added 'requiresFromSite' to axiom.dependency, expressing a
+    requirement on the site store for the successful installation of
+    an item in a user store.
+  - Made errors from duplicate item type definition friendlier.
+
 0.5.28 (2008-08-12):
   - Upgraders can now safely upgrade reference attributes.
   - The batch process is no longer started unless it's needed.
