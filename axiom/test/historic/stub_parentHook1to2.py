@@ -1,4 +1,4 @@
-# -*- test-case-name: axiom.test.historic.test_parentHook1to2.py -*-
+# -*- test-case-name: axiom.test.historic.test_parentHook1to2 -*-
 
 """
 Create a stub database to test the upgrade of L{_SubSchedulerParentHook} to add

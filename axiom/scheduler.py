@@ -10,7 +10,7 @@ from twisted.python import log, failure
 from epsilon.extime import Time
 from epsilon import descriptor
 
-from axiom.item import Item
+from axiom.item import Item, declareLegacyItem
 from axiom.attributes import AND, timestamp, reference, integer, inmemory, bytes
 from axiom.dependency import dependsOn, installOn
 from axiom.iaxiom import IScheduler
@@ -36,6 +36,12 @@ class TimedEvent(Item):
     time = timestamp(indexed=True)
     runnable = reference()
 
+    running = inmemory(doc='True if this event is currently running.')
+
+    def activate(self):
+        self.running = False
+
+
     def _rescheduleFromRun(self, newTime):
         """
         Schedule this event to be run at the indicated time, or if the
@@ -56,7 +62,12 @@ class TimedEvent(Item):
         if runnable is None:
             self.deleteFromStore()
         else:
-            self._rescheduleFromRun(runnable.run())
+            try:
+                self.running = True
+                newTime = runnable.run()
+            finally:
+                self.running = False
+            self._rescheduleFromRun(newTime)
 
 
     def handleError(self, now, failureObj):
@@ -183,7 +194,7 @@ class SchedulerMixin:
         """
         events = self.store.query(
             TimedEvent, TimedEvent.runnable == runnable)
-        return events.getColumn("time")
+        return (event.time for event in events if not event.running)
 
 _EPSILON = 1e-20      # A very small amount of time.
 
@@ -284,27 +295,32 @@ class Scheduler(Item, Service, SchedulerMixin):
         self.nextEventAt = when
 
 
+
 class _SubSchedulerParentHook(Item):
-    schemaVersion = 2
+    schemaVersion = 3
     typeName = 'axiom_subscheduler_parent_hook'
 
     loginAccount = reference()
-    scheduledAt = timestamp(default=None)
 
     scheduler = dependsOn(Scheduler)
 
     def run(self):
-        self.scheduledAt = None
+        """
+        Tick our C{loginAccount}'s L{SubScheduler}.
+        """
         IScheduler(self.loginAccount).tick()
 
+
     def _schedule(self, when):
-        if self.scheduledAt is not None:
-            if when < self.scheduledAt:
-                self.scheduler.reschedule(self, self.scheduledAt, when)
-                self.scheduledAt = when
+        """
+        Ensure that this hook is scheduled to run at or before C{when}.
+        """
+        for scheduledAt in self.scheduler.scheduledTimes(self):
+            if when < scheduledAt:
+                self.scheduler.reschedule(self, scheduledAt, when)
+            break
         else:
             self.scheduler.schedule(self, when)
-            self.scheduledAt = when
 
 
 def upgradeParentHook1to2(oldHook):
@@ -319,6 +335,24 @@ def upgradeParentHook1to2(oldHook):
     return newHook
 
 registerUpgrader(upgradeParentHook1to2, _SubSchedulerParentHook.typeName, 1, 2)
+
+declareLegacyItem(
+    _SubSchedulerParentHook.typeName, 2,
+    dict(loginAccount=reference(),
+         scheduledAt=timestamp(default=None),
+         scheduler=reference()))
+
+def upgradeParentHook2to3(old):
+    """
+    Copy all attributes except C{scheduledAt}.
+    """
+    return old.upgradeVersion(
+        old.typeName, 2, 3,
+        loginAccount=old.loginAccount,
+        scheduler=old.scheduler)
+
+registerUpgrader(upgradeParentHook2to3, _SubSchedulerParentHook.typeName, 2, 3)
+
 
 
 class SubScheduler(Item, SchedulerMixin):
