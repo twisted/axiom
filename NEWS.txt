@@ -1,3 +1,8 @@
+0.5.30 (2008-10-15):
+  - Fixed a _SubSchedulerParentHook bug where a transient run failure
+    would cause future event scheduling in the relevant substore to
+    fail/traceback.
+
 0.5.29 (2008-10-02):
   - Added 'requiresFromSite' to axiom.dependency, expressing a
     requirement on the site store for the successful installation of
