@@ -51,7 +51,7 @@ class TestEvent(Item):
                 if isinstance(evt.runnable, _SubSchedulerParentHook):
                     count += 1
             if count > 1:
-                return self.fail("Too many TimedEvents for the SubStore", count)
+                return self.fail("Too many TimedEvents for the SubStore: %d" % (count,))
 
         self.runCount += 1
         if self.runAgain is not None:
@@ -61,8 +61,8 @@ class TestEvent(Item):
             result = None
         return result
 
-    def fail(self, *msg):
-        self.testCase.fail(*msg)
+    def fail(self, msg):
+        self.testCase.fail(msg)
 
 
 class NotActuallyRunnable(Item):
@@ -83,6 +83,20 @@ class SpecialErrorHandler(Item):
     def timedEventErrorHandler(self, timedEvent, failureObj):
         failureObj.trap(SpecialError)
         self.procd = 1
+
+
+
+class HookRunner(Item):
+    """
+    Runnable that simply calls a supplied hook.
+    """
+    ignored = integer()
+    hook = inmemory()
+
+    def run(self):
+        self.hook(self)
+
+
 
 class SchedTest:
     def tearDown(self):
@@ -186,6 +200,24 @@ class SchedTest:
             [now, now + off, now + off + off])
 
 
+    def test_scheduledTimesDuringRun(self):
+        """
+        L{Scheduler.scheduledTimes} should not include scheduled times that have
+        already triggered.
+        """
+        futureTimes = []
+        scheduler = IScheduler(self.store)
+        runner = HookRunner(
+            store=self.store,
+            hook=lambda self: futureTimes.append(
+                list(scheduler.scheduledTimes(self))))
+
+        then = self.now() + timedelta(seconds=1)
+        scheduler.schedule(runner, self.now())
+        scheduler.schedule(runner, then)
+        self.clock.advance(1)
+        self.assertEquals(futureTimes, [[then], []])
+
 
     def test_deletedRunnable(self):
         """
@@ -282,6 +314,39 @@ class SubSchedulerTests(SchedTest, TestCase):
         installOn(scheduler, self.substore)
 
         self.store = self.substore
+
+
+    def test_scheduleAfterParentHookError(self):
+        """
+        A transient error during a L{_SubSchedulerParentHook} run (such as
+        failing to open the substore for whatever reason) should not disable
+        subsequent scheduling.
+        """
+        runnable = TestEvent(store=self.store)
+
+        # Schedule runnable, but fail the _SubSchedulerParentHook run.
+
+        self.scheduler.schedule(runnable, self.now() + timedelta(seconds=1))
+        hook = self.siteStore.findUnique(_SubSchedulerParentHook)
+        def stumble():
+            raise IOError('Denied')
+        object.__setattr__(hook, 'run', stumble)
+        self.clock.advance(1)
+        object.__delattr__(hook, 'run')
+
+        self.assertEquals(
+            self.siteStore.findUnique(TimedEventFailureLog).runnable,
+            hook)
+        [err] = self.flushLoggedErrors(IOError)
+        self.assertEquals(str(err.value), 'Denied')
+        self.assertEquals(runnable.runCount, 0)
+
+        # Schedule runnable again.  The restored hook in the site store should
+        # trigger both scheduled runs in the substore now.
+
+        self.scheduler.schedule(runnable, self.now() + timedelta(seconds=1))
+        self.clock.advance(1)
+        self.assertEquals(runnable.runCount, 2)
 
 
 
