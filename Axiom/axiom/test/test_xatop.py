@@ -1,13 +1,16 @@
+# Copyright 2008 Divmod, Inc.  See LICENSE for details
+
 import sys
 import os
 
 from twisted.trial import unittest
 from twisted.internet import protocol, defer
 from twisted.python.util import sibpath
-from twisted.python import filepath
+from twisted.python import log, filepath
 
 from epsilon import extime
 from axiom import attributes, item, store, errors
+from axiom.iaxiom import IStatEvent
 
 from pysqlite2.dbapi2 import sqlite_version_info
 
@@ -714,3 +717,40 @@ class ConcurrencyTestCase(unittest.TestCase):
 
         ConcurrentItemA(store=firstStore)
         self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)
+
+
+
+class LoggingTests(unittest.TestCase):
+    """
+    Tests for log events emitted by L{axiom.store}.
+    """
+    def _openTest(self, dbdir, expectedValue):
+        events = []
+        log.addObserver(events.append)
+        self.addCleanup(log.removeObserver, events.append)
+        store.Store(dbdir).close()
+        for event in events:
+            if event.get('interface') is not IStatEvent:
+                continue
+            if event.get('store_opened') != expectedValue:
+                continue
+            break
+        else:
+            self.fail("store_opened IStatEvent not emitted")
+
+
+    def test_openOnDisk(self):
+        """
+        Opening a file-backed store logs an event including the path to the
+        store.
+        """
+        dbdir = self.mktemp()
+        self._openTest(dbdir, os.path.abspath(dbdir))
+
+
+    def test_openInMemory(self):
+        """
+        Opening a memory-backed store logs an event with an empty string for
+        the path to the store.
+        """
+        self._openTest(None, '')

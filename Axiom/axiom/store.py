@@ -1,3 +1,4 @@
+# Copyright 2008 Divmod, Inc.  See LICENSE for details
 # -*- test-case-name: axiom.test -*-
 
 """
@@ -1171,6 +1172,9 @@ class Store(Empowered):
             self._upgradeComplete = None
 
         checkSystemVersion(self)
+        log.msg(
+            interface=iaxiom.IStatEvent,
+            store_opened=self.dbdir is not None and self.dbdir.path or '')
 
     _childCounter = 0
 

@@ -6,26 +6,9 @@ class IStatEvent(Interface):
     """
     Marker for a log message that is useful as a statistic.
 
-    Log messages with 'interface' set to this class will be counted over time.
-    This is useful for tracking the rate of events such as page views. These
-    messages are observed and thus tracked with a quotient.stats.Statoscope.
-    These Statoscopes are periodically saved and are made retrievable by a
-    remote interface.
-
-    Log messages conforming to this interface must have these keys:
-
-    - 'name': the name to be used for the backing Statoscope. This is used to
-      group related stats for a component. Examples: "IMAP grabber",
-      "database".
-
-    Optional keys:
-
-    - 'user': if this stat is something that can be blamed squarely on one
-      user, set this to the username (avatar.name)
-
-    - keys starting with 'stat_' map 'stuffs' to 'how many stuffs'. For
-      example, stat_bytes=3182.
-
+    Log messages with 'interface' set to this class will be made available to
+    external observers.  This is useful for tracking the rate of events such as
+    page views.
     """
 
 
