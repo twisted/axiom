@@ -315,7 +315,7 @@ class StricterItem(item.Item):
     schemaVersion = 1
     typeName = 'test_stricter_item'
 
-    aRef = attributes.reference(allowNone=False)
+    aRef = attributes.reference(allowNone=False, whenDeleted=reference.DISALLOW)
 
 
 class AttributeTests(unittest.TestCase):
