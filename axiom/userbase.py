@@ -133,7 +133,7 @@ class LoginMethod(Item):
     protocol = text(indexed=True, allowNone=False)
     account = reference(doc="""
     A reference to the LoginAccount for which this is a login method.
-    """, allowNone=False)
+    """, allowNone=False, whenDeleted=reference.CASCADE)
 
     verified = boolean(indexed=True, allowNone=False)
 
