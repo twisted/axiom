@@ -18,7 +18,10 @@ from twisted.python import log
 
 from axiom.iaxiom import IAxiomaticCommand
 from axiom import store, upgrade, item, errors, attributes
+from axiom.upgrade import _StoreUpgrade
+from axiom.item import declareLegacyItem
 from axiom.scripts import axiomatic
+from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.plugins.axiom_plugins import Upgrade
 from axiom.test.util import CommandStub
@@ -346,6 +349,32 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         self.assertEquals(sword.owner, player)
         self.assertEquals(sword.activated, 1)
         self.assertEquals(player.activated, 1)
+
+
+    def test_multipleLegacyVersions(self):
+        """
+        If multiple legacy schema versions are present, all of them should be
+        upgraded.
+        """
+        playerID, swordID = self._testTwoObjectUpgrade()
+
+        choose(newapp)
+        s = self.openStore()
+        self.startStoreService()
+        def afterFirstUpgrade(result):
+            self.closeStore()
+
+            choose(morenewapp)
+            s = self.openStore()
+            self.startStoreService()
+            return s.whenFullyUpgraded().addCallback(afterSecondUpgrade, s)
+
+        def afterSecondUpgrade(result, store):
+            player = store.getItemByID(playerID, autoUpgrade=False)
+            sword = store.getItemByID(swordID, autoUpgrade=False)
+            self._testPlayerAndSwordState(player, sword)
+
+        return s.whenFullyUpgraded().addCallback(afterFirstUpgrade)
 
 
 
@@ -819,3 +848,24 @@ class AxiomaticUpgradeTest(unittest.TestCase):
             self.assertRaises(
                 KeyError,
                 self.store.getItemByID(ssid).open().getItemByID, swordID)
+
+
+class StoreUpgradeTests(unittest.TestCase):
+    """
+    Tests for L{upgrade._StoreUgprade}.
+    """
+    def setUp(self):
+        self.store = Store()
+        self._upgrader = _StoreUpgrade(self.store)
+
+    def test_queueMultipleVersions(self):
+        """
+        If multiple schema versions are queued for upgrade, upgrades should be
+        attempted for all of them (but only attempted once per version).
+        """
+        legacy1 = declareLegacyItem('test_type', 1, {})
+        legacy2 = declareLegacyItem('test_type', 2, {})
+        self._upgrader.queueTypeUpgrade(legacy1)
+        self._upgrader.queueTypeUpgrade(legacy2)
+        self._upgrader.queueTypeUpgrade(legacy2)
+        self.assertEqual(len(self._upgrader._oldTypesRemaining), 2)

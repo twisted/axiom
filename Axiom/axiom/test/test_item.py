@@ -9,7 +9,7 @@ from twisted.python import log, filepath
 
 from axiom import store, item
 from axiom.store import Store
-from axiom.item import Item
+from axiom.item import Item, declareLegacyItem
 from axiom.errors import ChangeRejected
 from axiom.test import itemtest, itemtestmain
 from axiom.attributes import integer, text, inmemory
@@ -160,6 +160,17 @@ class ItemTestCase(unittest.TestCase):
         self.failUnless(B != A)
         self.failIf(A == B)
         self.failIf(B == A)
+
+
+    def test_legacyItemComparison(self):
+        """
+        Legacy items with different versions must not compare equal.
+        """
+        legacy1 = declareLegacyItem('test_type', 1, {})
+        legacy2 = declareLegacyItem('test_type', 2, {})
+        self.assertNotEqual(legacy1, legacy2)
+        self.assertEqual(legacy1, legacy1)
+        self.assertEqual(legacy2, legacy2)
 
 
     def testCreateItem(self):
