@@ -97,7 +97,8 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         purposes.
         """
         if isinstance(other, MetaItem):
-            return cmp(self.typeName, other.typeName)
+            return cmp((self.typeName, self.schemaVersion),
+                       (other.typeName, other.schemaVersion))
         return NotImplemented
 
 
