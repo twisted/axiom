@@ -384,6 +384,17 @@ class SQLAttributeTestCase(TestCase):
             SQLAttributeDummyClass.dummyAttribute.type)
 
 
+    def test_typeAttributeWithoutDescriptorAccess(self):
+        """
+        The C{type} attribute of an L{SQLAttribute} should be initialized
+        without having to access it as a descriptor first.
+        """
+        attr = SQLAttribute()
+        class UnaccessedDummy(Item):
+            dummy = attr
+        self.assertIdentical(UnaccessedDummy, attr.type)
+
+
     def test_getShortColumnName(self):
         """
         Test that L{Store.getShortColumnName} returns something pretty close to

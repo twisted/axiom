@@ -400,22 +400,10 @@ class SQLAttribute(inmemory, Comparable):
     def __repr__(self):
         return '<%s %s>' % ( self.__class__.__name__, self.fullyQualifiedName())
 
-    def type():
-        def get(self):
-            if self._type is None:
-                from twisted.python.reflect import namedAny
-                self._type = namedAny(self.modname+'.'+self.classname)
-            return self._type
-        return get,
-    _type = None
-    type = property(*type())
 
     def __get__(self, oself, cls=None):
         if cls is not None and oself is None:
-            if self._type is not None:
-                assert self._type == cls
-            else:
-                self._type = cls
+            assert self.type == cls
             return self
 
         pyval = getattr(oself, self.underlying, _NEEDS_FETCH)
