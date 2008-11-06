@@ -46,8 +46,12 @@ class CantInstantiateItem(RuntimeError):
     """
 
 class MetaItem(slotmachine.SchemaMetaMachine):
-    """Simple metaclass for Item that adds Item (and its subclasses) to
+    """
+    Simple metaclass for Item that adds Item (and its subclasses) to
     _typeNameToMostRecentClass mapping.
+
+    It also initializes the C{type} attribute of L{SQLAttribute}s defined on the
+    class.  (See L{Comparable}.)
     """
 
     def __new__(meta, name, bases, dictionary):
@@ -62,6 +66,11 @@ class MetaItem(slotmachine.SchemaMetaMachine):
             T.typeName = normalize(qual(T))
         if T.schemaVersion is None:
             T.schemaVersion = 1
+        # Initialize type attributes of SQLAttributes.
+        for (_, attr) in T.__attributes__:
+            if isinstance(attr, SQLAttribute):
+                attr.type = T
+
         if T.typeName in _typeNameToMostRecentClass:
             # Let's try not to gc.collect() every time.
             gc.collect()
