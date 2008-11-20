@@ -27,10 +27,11 @@ from axiom.scheduler import _SubSchedulerParentHook, SubScheduler, Scheduler
 from axiom.scheduler import TimedEvent
 from axiom import userbase
 from axiom.item import Item
-from axiom.attributes import integer
+from axiom.attributes import boolean, integer, text, reference
 from axiom.scripts import axiomatic
 from axiom import errors
 from axiom import dependency
+from axiom.test.util import assertSchema
 
 class IGarbage(Interface):
     pass
@@ -659,3 +660,20 @@ class PreauthenticatedTests(unittest.TestCase):
             "Preauthenticated did not accept an arbitrary password.")
 
 
+
+class LoginMethodTestCase(unittest.TestCase):
+    """
+    Tests for L{userbase.LoginMethod}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{userbase.LoginMethod}'s schema.
+        """
+        assertSchema(self, userbase.LoginMethod, dict(
+            localpart = text(indexed=True, allowNone=False),
+            domain = text(indexed=True),
+            internal = boolean(allowNone=False),
+            protocol = text(indexed=True, allowNone=False),
+            account = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            verified = boolean(indexed=True, allowNone=False)))

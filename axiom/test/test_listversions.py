@@ -10,14 +10,14 @@ from twisted.trial import unittest
 from twisted.python.versions import Version
 
 from axiom.store import Store
-from axiom import version as axiom_version
-from axiom.listversions import (getSystemVersions,
-                                SystemVersion,
-                                checkSystemVersion)
+from axiom import attributes, version as axiom_version
+from axiom.listversions import (
+    getSystemVersions, SystemVersion, checkSystemVersion, SoftwareVersion)
 
 from axiom.scripts.axiomatic import Options as AxiomaticOptions
 from axiom.test.util import CommandStubMixin
 from axiom.plugins.axiom_plugins import ListVersions
+from axiom.test.util import assertSchema
 
 class SystemVersionTests(unittest.TestCase, CommandStubMixin):
     """
@@ -111,3 +111,23 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
         subCommands = AxiomaticOptions().subCommands
         [options] = [cmd[2] for cmd in subCommands if cmd[0] == 'list-version']
         self.assertIdentical(options, ListVersions)
+
+
+
+class SoftwareVersionTestCase(unittest.TestCase):
+    """
+    Tests for L{SoftwareVersion}.
+    """
+
+    def test_schema(self):
+        """
+        Verify L{SoftwareVersion}'s schema.
+        """
+        assertSchema(self, SoftwareVersion, dict(
+            systemVersion = attributes.reference(
+                allowNone=False, whenDeleted=attributes.reference.CASCADE),
+            package = attributes.text(allowNone=False),
+            version = attributes.text(allowNone=False),
+            major = attributes.integer(allowNone=False),
+            minor = attributes.integer(allowNone=False),
+            micro = attributes.integer(allowNone=False)))
