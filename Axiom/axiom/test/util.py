@@ -7,6 +7,7 @@ from twisted.python.filepath import FilePath
 
 from twisted.trial.unittest import SkipTest
 
+from axiom import attributes
 from axiom.store import Store
 
 _theBaseStorePaths = {}
@@ -156,3 +157,31 @@ class QueryCounter:
             result = self.counter
             self.counter = save
         return result
+
+
+
+def assertSchema(test, itemType, expectedSchema):
+    """
+    Verify that the item type has the given persistent schema.
+
+    @type test: L{twisted.trial.unittest.TestCase}
+    @param itemType: L{axiom.item.Item} subclass whose schema to verify
+    @param expectedSchema: dictionary of names to L{attributes.SQLAttribute}s
+    """
+    schema = dict(itemType.getSchema())
+    test.assertEquals(set(schema.keys()), set(expectedSchema.keys()))
+    for (name, attr) in schema.items():
+        msg = '%s.%s' % (itemType, name)
+        expected = expectedSchema[name]
+        test.assertTrue(isinstance(attr, attributes.SQLAttribute), msg)
+        test.assertEquals(type(attr), type(expected), msg)
+        test.assertEquals(attr.indexed, expected.indexed, msg)
+        test.assertEquals(attr.default, expected.default, msg)
+        test.assertEquals(attr.allowNone, expected.allowNone, msg)
+        if isinstance(attr, attributes.text):
+            test.assertEquals(attr.caseSensitive, expected.caseSensitive, msg)
+        if isinstance(attr, attributes.path):
+            test.assertEquals(attr.relative, expected.relative, msg)
+        if isinstance(attr, attributes.reference):
+            test.assertEquals(attr.reftype, expected.reftype, msg)
+            test.assertEquals(attr.whenDeleted, expected.whenDeleted, msg)
