@@ -913,13 +913,16 @@ class text(SQLAttribute):
     memory as a Python 'unicode'.
     """
 
-    def __init__(self, caseSensitive=False, **kw):
-        SQLAttribute.__init__(self, **kw)
+    def __init__(self, doc='', indexed=False, default=None, allowNone=True,
+                 defaultFactory=None, caseSensitive=False):
+        super(text, self).__init__(
+            doc, indexed, default, allowNone, defaultFactory)
         if caseSensitive:
             self.sqltype = 'TEXT'
         else:
             self.sqltype = 'TEXT COLLATE NOCASE'
         self.caseSensitive = caseSensitive
+
 
     def infilter(self, pyval, oself, store):
         if pyval is None:
@@ -970,9 +973,12 @@ class path(text):
     values.
     """
 
-    def __init__(self, relative=True, **kw):
-        text.__init__(self, **kw)
-        self.relative = True
+    def __init__(self, doc='', indexed=False, default=None, allowNone=True,
+                 defaultFactory=None, relative=True):
+        super(path, self).__init__(doc, indexed, default, allowNone,
+                                   defaultFactory)
+        self.relative = relative
+
 
     def prepareInsert(self, oself, store):
         """
