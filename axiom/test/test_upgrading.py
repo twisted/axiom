@@ -42,7 +42,7 @@ def axiomInvalidate(itemClass):
     """
     # Note, be very careful not to use comparison on attributes here.  For
     # example, do not use list.remove(), since it is equality based. -exarkun
-    for cascades in attributes._cascadingDeletes.itervalues():
+    for cascades in item._cascadingDeletes.itervalues():
         for i in xrange(len(cascades) - 1, -1, -1):
             if cascades[i].type is itemClass:
                 del cascades[i]

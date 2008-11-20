@@ -21,9 +21,11 @@ from axiom.iaxiom import IColumn, IPowerupIndirector
 from axiom.attributes import (
     SQLAttribute, _ComparisonOperatorMuxer, _MatchingOperationMuxer,
     _OrderingMixin, _ContainableMixin, Comparable, compare, inmemory,
-    reference, text, integer, AND, _cascadingDeletes, _disallows)
+    reference, text, integer, AND)
 
 _typeNameToMostRecentClass = WeakValueDictionary()
+_cascadingDeletes = {}
+_disallows = {}
 
 def normalize(qualName):
     """
@@ -45,13 +47,16 @@ class CantInstantiateItem(RuntimeError):
     """You can't instantiate Item directly.  Make a subclass.
     """
 
+
+
 class MetaItem(slotmachine.SchemaMetaMachine):
     """
-    Simple metaclass for Item that adds Item (and its subclasses) to
-    _typeNameToMostRecentClass mapping.
+    Simple metaclass for L{Item} subclasses that:
 
-    It also initializes the C{type} attribute of L{SQLAttribute}s defined on the
-    class.  (See L{Comparable}.)
+     - adds the item type to the L{_typeNameToMostRecentClass} mapping
+     - initializes the item type's L{SQLAttribute}s' C{type} attributes (required
+       for L{Comparable})
+     - keeps track of references that cascade or disallow deletion
     """
 
     def __new__(meta, name, bases, dictionary):
@@ -66,10 +71,18 @@ class MetaItem(slotmachine.SchemaMetaMachine):
             T.typeName = normalize(qual(T))
         if T.schemaVersion is None:
             T.schemaVersion = 1
-        # Initialize type attributes of SQLAttributes.
+
+        # SQLAttribute type attributes and cascading/disallowed deletes...
         for (_, attr) in T.__attributes__:
             if isinstance(attr, SQLAttribute):
                 attr.type = T
+                if isinstance(attr, reference):
+                    if attr.whenDeleted is reference.CASCADE:
+                        _cascadingDeletes.setdefault(
+                            attr.reftype, []).append(attr)
+                    if attr.whenDeleted is reference.DISALLOW:
+                        _disallows.setdefault(
+                            attr.reftype, []).append(attr)
 
         if T.typeName in _typeNameToMostRecentClass:
             # Let's try not to gc.collect() every time.
