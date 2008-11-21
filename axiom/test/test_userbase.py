@@ -675,5 +675,7 @@ class LoginMethodTestCase(unittest.TestCase):
             domain = text(indexed=True),
             internal = boolean(allowNone=False),
             protocol = text(indexed=True, allowNone=False),
-            account = reference(allowNone=False, whenDeleted=reference.CASCADE),
+            account = reference(
+                reftype=userbase.LoginAccount, allowNone=False,
+                whenDeleted=reference.CASCADE),
             verified = boolean(indexed=True, allowNone=False)))

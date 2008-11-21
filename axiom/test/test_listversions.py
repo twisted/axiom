@@ -125,7 +125,8 @@ class SoftwareVersionTestCase(unittest.TestCase):
         """
         assertSchema(self, SoftwareVersion, dict(
             systemVersion = attributes.reference(
-                allowNone=False, whenDeleted=attributes.reference.CASCADE),
+                reftype=SystemVersion, allowNone=False,
+                whenDeleted=attributes.reference.CASCADE),
             package = attributes.text(allowNone=False),
             version = attributes.text(allowNone=False),
             major = attributes.integer(allowNone=False),
