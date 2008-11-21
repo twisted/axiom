@@ -24,6 +24,10 @@ from axiom.attributes import (
     reference, text, integer, AND)
 
 _typeNameToMostRecentClass = WeakValueDictionary()
+
+# These dictionaries map item types back to lists of axiom.attributes.reference
+# instances which refer to them (via reftype), and cascade or disallow deletion.
+# References which do not specify a target reftype are keyed under None instead.
 _cascadingDeletes = {}
 _disallows = {}
 
