@@ -111,44 +111,6 @@ class Preauthenticated(object):
 
 
 
-class LoginMethod(Item):
-    typeName = 'login_method'
-    schemaVersion = 2
-
-    localpart = text(doc="""
-    A local-part of my user's identifier.
-    """, indexed=True, allowNone=False)
-
-    domain = text(doc="""
-    The domain part of my user's identifier. [XXX See TODO below]
-    May be None (generally for "system" users).
-    """, indexed=True)
-
-    internal = boolean(doc="""
-    Flag indicating whether this is a method maintained by this server, or if
-    it represents an external contact mechanism (such as a third-party email
-    provider)
-    """, allowNone=False)
-
-    protocol = text(indexed=True, allowNone=False)
-    account = reference(doc="""
-    A reference to the LoginAccount for which this is a login method.
-    """, allowNone=False, whenDeleted=reference.CASCADE)
-
-    verified = boolean(indexed=True, allowNone=False)
-
-def upgradeLoginMethod1To2(old):
-    return old.upgradeVersion(
-            'login_method', 1, 2,
-            localpart=old.localpart,
-            domain=old.domain,
-            internal=old.internal,
-            protocol=old.protocol,
-            account=old.account,
-            verified=old.verified)
-
-upgrade.registerUpgrader(upgradeLoginMethod1To2, 'login_method', 1, 2)
-
 class LoginAccount(Item):
     """
     I am an entry in a LoginBase.
@@ -270,6 +232,46 @@ class LoginAccount(Item):
                                protocol=protocol,
                                verified=verified,
                                internal=internal)
+
+
+
+class LoginMethod(Item):
+    typeName = 'login_method'
+    schemaVersion = 2
+
+    localpart = text(doc="""
+    A local-part of my user's identifier.
+    """, indexed=True, allowNone=False)
+
+    domain = text(doc="""
+    The domain part of my user's identifier. [XXX See TODO below]
+    May be None (generally for "system" users).
+    """, indexed=True)
+
+    internal = boolean(doc="""
+    Flag indicating whether this is a method maintained by this server, or if
+    it represents an external contact mechanism (such as a third-party email
+    provider)
+    """, allowNone=False)
+
+    protocol = text(indexed=True, allowNone=False)
+    account = reference(doc="""
+    A reference to the LoginAccount for which this is a login method.
+    """, allowNone=False, whenDeleted=reference.CASCADE)
+
+    verified = boolean(indexed=True, allowNone=False)
+
+def upgradeLoginMethod1To2(old):
+    return old.upgradeVersion(
+            'login_method', 1, 2,
+            localpart=old.localpart,
+            domain=old.domain,
+            internal=old.internal,
+            protocol=old.protocol,
+            account=old.account,
+            verified=old.verified)
+
+upgrade.registerUpgrader(upgradeLoginMethod1To2, 'login_method', 1, 2)
 
 
 
