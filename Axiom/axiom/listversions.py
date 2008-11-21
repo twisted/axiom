@@ -61,7 +61,8 @@ class SoftwareVersion(item.Item):
 
     systemVersion = attributes.reference(
         doc="The system version this package version was observed in.",
-        allowNone=False, whenDeleted=attributes.reference.CASCADE)
+        reftype=SystemVersion, allowNone=False,
+        whenDeleted=attributes.reference.CASCADE)
 
     package = attributes.text(doc="The software package.",
                               allowNone=False)
