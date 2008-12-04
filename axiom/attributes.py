@@ -11,7 +11,6 @@ from zope.interface import implements
 
 from twisted.python import filepath
 from twisted.python.components import registerAdapter
-from twisted.python.reflect import qual
 
 from epsilon.extime import Time
 
@@ -64,7 +63,6 @@ class _ComparisonOperatorMuxer:
 
 def compare(left, right, op):
     # interim: maybe we want objects later?  right now strings should be fine
-    a = []
     if IColumn.providedBy(right):
         return TwoAttributeComparison(left, op, right)
     elif right is None:

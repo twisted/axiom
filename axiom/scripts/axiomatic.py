@@ -60,7 +60,6 @@ class PIDMixin:
 
 class Stop(usage.Options, PIDMixin):
     def postOptions(self):
-        dbdir = self.parent.getStoreDirectory()
         self.signalServer(signal.SIGINT)
 
 

@@ -231,13 +231,13 @@ class LoginAccount(Item):
                           disabled=self.disabled)
         for siteMethod in self.store.query(LoginMethod,
                                            LoginMethod.account == self):
-            lm = LoginMethod(store=newStore,
-                             localpart=siteMethod.localpart,
-                             domain=siteMethod.domain,
-                             internal=siteMethod.internal,
-                             protocol=siteMethod.protocol,
-                             verified=siteMethod.verified,
-                             account=la)
+            LoginMethod(store=newStore,
+                        localpart=siteMethod.localpart,
+                        domain=siteMethod.domain,
+                        internal=siteMethod.internal,
+                        protocol=siteMethod.protocol,
+                        verified=siteMethod.verified,
+                        account=la)
         return la
 
     def deleteLoginMethods(self):
@@ -520,9 +520,6 @@ class LoginBase:
         raise NotImplementedError()
 
     def requestAvatarId(self, credentials):
-        passwordSecure = IUsernameHashedPassword(credentials, None) is not None
-        # ^ need to do something with this.  security warning perhaps?
-
         try:
             username, domain = credentials.username.split('@', 1)
         except ValueError:

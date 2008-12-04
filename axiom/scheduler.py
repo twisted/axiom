@@ -87,11 +87,11 @@ class TimedEvent(Item):
 
 
     def _defaultErrorHandler(self, now, failureObj):
-        tefl = TimedEventFailureLog(store=self.store,
-                                    desiredTime=self.time,
-                                    actualTime=now,
-                                    runnable=self.runnable,
-                                    traceback=failureObj.getTraceback())
+        TimedEventFailureLog(store=self.store,
+                             desiredTime=self.time,
+                             actualTime=now,
+                             runnable=self.runnable,
+                             traceback=failureObj.getTraceback())
         self.deleteFromStore()
 
 
@@ -131,7 +131,6 @@ class SchedulerMixin:
     def tick(self):
         now = self.now()
         self.nextEventAt = None
-        before = self.eventsRun
         workBeingDone = True
         workUnitsPerformed = 0
         errors = 0
@@ -217,9 +216,10 @@ class Scheduler(Item, Service, SchedulerMixin):
     callLater = inmemory()
     now = inmemory()
 
-    eventsRun = integer()
-    lastEventAt = timestamp()
-    nextEventAt = timestamp()
+    # This is unused and should be upgraded away.
+    eventsRun = integer(default=0)
+    lastEventAt = timestamp(default=None)
+    nextEventAt = timestamp(default=None)
 
     class running(descriptor.attribute):
         def get(self):
@@ -231,13 +231,6 @@ class Scheduler(Item, Service, SchedulerMixin):
         def set(self, value):
             # Eh whatever
             pass
-
-
-    def __init__(self, **kw):
-        super(Scheduler, self).__init__(**kw)
-        self.eventsRun = 0
-        self.lastEventAt = None
-        self.nextEventAt = None
 
 
     def __repr__(self):

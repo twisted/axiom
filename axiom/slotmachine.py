@@ -38,7 +38,6 @@ class _SlotMetaMachine(type):
         dictionary['__name__'] = name
         slots = list(meta.determineSchema(dictionary))
         for slot in slots:
-            default = _NOSLOT
             for base in bases:
                 defval = getattr(base, slot, _NOSLOT)
                 if defval is not _NOSLOT:
