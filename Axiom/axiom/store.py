@@ -274,15 +274,6 @@ class BaseQuery:
 
 
     def _sqlAndArgs(self, verb, subject):
-
-        # Generate the WHERE clause separately from determining the tables
-        # which are involved so that the loop over those tables above has a
-        # chance to call getTableAlias, which may have side-effects.
-        if self.comparison is not None:
-            where = 'WHERE ' + self.comparison.getQuery(self.store)
-        else:
-            where = ''
-
         limitClause = []
         if self.limit is not None:
             # XXX LIMIT and OFFSET used to be using ?, but they started

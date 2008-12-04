@@ -13,8 +13,7 @@ except ImportError:
 
 from zope.interface import directlyProvides
 
-from twisted.python import usage, filepath, log
-from twisted.python.reflect import qual
+from twisted.python import usage, filepath
 from twisted.plugin import IPlugin
 
 from epsilon.hotfix import require
