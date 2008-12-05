@@ -8,7 +8,6 @@ import sys, os, StringIO
 
 from zope.interface import implements
 
-from twisted.python.versions import Version
 from twisted.python.filepath import FilePath
 from twisted.application.service import IService, IServiceCollection
 from twisted.trial.unittest import TestCase
@@ -18,7 +17,6 @@ from axiom.store import Store
 from axiom.item import Item
 from axiom.attributes import boolean
 from axiom.scripts import axiomatic
-from axiom.listversions import SystemVersion
 from axiom.iaxiom import IAxiomaticCommand
 from twisted.plugins.axiom_plugins import AxiomaticStart
 
@@ -175,26 +173,6 @@ class StartTests(TestCase):
 
         # Also, we don't want to see twistd plugins here.
         self.assertNotIn("axiomatic-start", stdout.getvalue())
-
-
-
-    def test_checkSystemVersion(self):
-        """
-        The L{IService} returned by L{AxiomaticStart.makeService} calls
-        L{checkSystemVersion} with its store when it is started.
-
-        This is done for I{axiomatic start} rather than somewhere in the
-        implementation of L{Store} so that it happens only once per server
-        startup.  The overhead of doing it whenever a store is opened is
-        non-trivial.
-        """
-        dbdir = self.mktemp()
-        store = Store(dbdir)
-        service = AxiomaticStart.makeService({'dbdir': dbdir, 'debug': False})
-        self.assertEqual(store.query(SystemVersion).count(), 0)
-        service.startService()
-        self.assertEqual(store.query(SystemVersion).count(), 1)
-        return service.stopService()
 
 
     def test_axiomOptions(self):
