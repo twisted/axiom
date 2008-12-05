@@ -8,7 +8,7 @@ This module holds the Axiom Store class and related classes, such as queries.
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
-import time, os, itertools, warnings, sys, operator
+import time, os, itertools, warnings, sys, operator, weakref
 
 from zope.interface import implements
 
@@ -27,10 +27,8 @@ from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
 from axiom import item
 from axiom._pysqlite2 import Connection
 
-from axiom.listversions import checkSystemVersion
-
 from axiom.item import \
-    _typeNameToMostRecentClass, declareLegacyItem,\
+    _typeNameToMostRecentClass, declareLegacyItem, \
     _legacyTypes, Empowered, serviceSpecialCase, _StoreIDComparer
 
 IN_MEMORY_DATABASE = ':memory:'
@@ -40,6 +38,18 @@ IN_MEMORY_DATABASE = ':memory:'
 STORE_SELF_ID = -1
 
 tempCounter = itertools.count()
+
+# A mapping from MetaItem instances to precomputed structures describing the
+# indexes necessary for those MetaItems.  Avoiding recomputing this speeds up
+# opening stores significantly.
+_requiredTableIndexes = weakref.WeakKeyDictionary()
+
+# A mapping from MetaItem instances to precomputed structures describing the
+# known in-memory schema for those MetaItems.  Avoiding recomputing this speeds
+# up opening stores significantly.
+_inMemorySchemaCache = weakref.WeakKeyDictionary()
+
+
 
 class NoEmptyItems(Exception):
     """You must define some attributes on every item.
@@ -1162,7 +1172,6 @@ class Store(Empowered):
         else:
             self._upgradeComplete = None
 
-        checkSystemVersion(self)
         log.msg(
             interface=iaxiom.IStatEvent,
             store_opened=self.dbdir is not None and self.dbdir.path or '')
@@ -1212,11 +1221,20 @@ class Store(Empowered):
         version information for upgrader service to run later.
         """
         typesToCheck = []
+
         for oid, module, typename, version in self.querySchemaSQL(_schema.ALL_TYPES):
             if self.debug:
                 print
                 print 'SCHEMA:', oid, module, typename, version
             self.typenameAndVersionToID[typename, version] = oid
+
+        # Can't call this until typenameAndVersionToID is populated, since this
+        # depends on building a reverse map of that.
+        persistedSchema = self._loadTypeSchema()
+
+        # Now that we have persistedSchema, loop over everything again and
+        # prepare old types.
+        for (typename, version), typeID in self.typenameAndVersionToID.iteritems():
             if typename not in _typeNameToMostRecentClass:
                 try:
                     namedAny(module)
@@ -1228,19 +1246,41 @@ class Store(Empowered):
             if cls is not None:
                 if version != cls.schemaVersion:
                     typesToCheck.append(
-                        self._prepareOldVersionOf(oid, typename, version))
+                        self._prepareOldVersionOf(
+                            typename, version, persistedSchema))
                 else:
                     typesToCheck.append(cls)
 
         for cls in typesToCheck:
-            self.checkTypeSchemaConsistency(cls)
+            self._checkTypeSchemaConsistency(cls, persistedSchema)
 
         # Schema is consistent!  Now, if I forgot to create any indexes last
         # time I saw this table, do it now...
+        extantIndexes = self._loadExistingIndexes()
         for cls in typesToCheck:
-            self._createIndexesFor(cls)
+            self._createIndexesFor(cls, extantIndexes)
 
         self._upgradeManager.checkUpgradePaths()
+
+
+    def _loadExistingIndexes(self):
+        """
+        Return a C{set} of the SQL indexes which already exist in the
+        underlying database.  It is important to load all of this information
+        at once (as opposed to using many CREATE INDEX IF NOT EXISTS statements
+        or many CREATE INDEX statements and handling the errors) to minimize
+        the cost of opening a store.  Loading all the indexes at once is much
+        faster than doing pretty much anything that involves doing something
+        once per required index.
+        """
+        # Totally SQLite-specific: look up what indexes exist already in
+        # sqlite_master so we can skip trying to create them (which can be
+        # really slow).
+        return set(
+            name
+            for (name,) in self.querySchemaSQL(
+                "SELECT name FROM *DATABASE*.sqlite_master "
+                "WHERE type = 'index'"))
 
 
     def _initdb(self, dbfname):
@@ -1334,65 +1374,132 @@ class Store(Empowered):
             p = p.child(subdir)
         return p
 
-    def checkTypeSchemaConsistency(self, actualType):
-        """
-        Called for all known types at database startup: make sure that what we know
-        (in memory) about this type is
 
+    def _loadTypeSchema(self):
+        """
+        Load all of the stored schema information for all types known by this
+        store.  It's important to load everything all at once (rather than
+        loading the schema for each type separately as it is needed) to keep
+        store opening fast.  A single query with many results is much faster
+        than many queries with a few results each.
+
+        @return: A dict with two-tuples of item type name and schema version as
+            keys and lists of five-tuples of attribute schema information for
+            that type.  The elements of the five-tuple are::
+
+              - a string giving the name of the Python attribute
+              - a string giving the SQL type
+              - a boolean indicating whether the attribute is indexed
+              - the Python attribute type object (eg, axiom.attributes.integer)
+              - a string giving documentation for the attribute
+        """
+
+        # Oops, need an index going the other way.  This only happens once per
+        # store open, and it's based on data queried from the store, so there
+        # doesn't seem to be any broader way to cache and re-use the result.
+        # However, if we keyed the resulting dict on the database typeID rather
+        # than (typeName, schemaVersion), we wouldn't need the information this
+        # dict gives us.  That would mean changing the callers of this function
+        # to use typeID instead of that tuple, which may be possible.  Probably
+        # only represents a very tiny possible speedup.
+        typeIDToNameAndVersion = {}
+        for key, value in self.typenameAndVersionToID.iteritems():
+            typeIDToNameAndVersion[value] = key
+
+        # Indexing attribute, ordering by it, and getting rid of row_offset
+        # from the schema and the sorted() here doesn't seem to be any faster
+        # than doing this.
+        persistedSchema = sorted(self.querySchemaSQL(
+            "SELECT attribute, type_id, sqltype, indexed, "
+            "pythontype, docstring FROM *DATABASE*.axiom_attributes "))
+
+        # This is trivially (but measurably!) faster than getattr(attributes,
+        # pythontype).
+        getAttribute = attributes.__dict__.__getitem__
+
+        result = {}
+        for (attribute, typeID, sqltype, indexed, pythontype,
+             docstring) in persistedSchema:
+            key = typeIDToNameAndVersion[typeID]
+            if key not in result:
+                result[key] = []
+            result[key].append((
+                    attribute, sqltype, indexed,
+                    getAttribute(pythontype), docstring))
+        return result
+
+
+    def _checkTypeSchemaConsistency(self, actualType, onDiskSchema):
+        """
+        Called for all known types at database startup: make sure that what we
+        know (in memory) about this type agrees with what is stored about this
+        type in the database.
+
+        @param actualType: A L{MetaItem} instance which is associated with a
+            table in this store.  The schema it defines in memory will be
+            checked against the schema known in the database to ensure they
+            agree.
+
+        @param onDiskSchema: A mapping from L{MetaItem} instances (such as
+            C{actualType}) to the schema known in the database and associated
+            with C{actualType}.
+
+        @raise RuntimeError: if the schema defined by C{actualType} does not
+            match the database-present schema given in C{onDiskSchema} or if
+            C{onDiskSchema} contains a newer version of the schema associated
+            with C{actualType} than C{actualType} represents.
         """
         # make sure that both the runtime and the database both know about this
         # type; if they don't both know, we can't check that their views are
         # consistent
+        try:
+            inMemorySchema = _inMemorySchemaCache[actualType]
+        except KeyError:
+            inMemorySchema = _inMemorySchemaCache[actualType] = [
+                (storedAttribute.attrname, storedAttribute.sqltype)
+                for (name, storedAttribute) in actualType.getSchema()]
 
-        inMemorySchema = [(#storedAttribute.indexed,
-                           storedAttribute.sqltype,
-                           #storedAttribute.allowNone,
-                           storedAttribute.attrname)
-                          for (name, storedAttribute) in actualType.getSchema()]
-
-        # getTypeID is the wrong thing to do here because it's recursive!
-        typeID = self.typenameAndVersionToID[actualType.typeName,
-                                             actualType.schemaVersion]
-
-        onDiskSchema = [(ondisksqltype, ondiskattrname) for
-                        (ondiskindexed,
-                         ondisksqltype,
-                         ondiskallownone,
-                         ondiskattrname) in
-                        self.querySchemaSQL(_schema.IDENTIFYING_SCHEMA,
-                                           [typeID])]
-
-        if inMemorySchema != onDiskSchema:
+        key = (actualType.typeName, actualType.schemaVersion)
+        persistedSchema = [(storedAttribute[0], storedAttribute[1])
+                           for storedAttribute in onDiskSchema[key]]
+        if inMemorySchema != persistedSchema:
             raise RuntimeError(
                 "Schema mismatch on already-loaded %r <%r> object version %d: %r != %r" %
                 (actualType, actualType.typeName, actualType.schemaVersion,
                  onDiskSchema, inMemorySchema))
 
-
         if actualType.__legacy__:
             return
 
-        if self.querySchemaSQL(_schema.GET_GREATER_VERSIONS_OF_TYPE,
-                               [actualType.typeName,
-                                actualType.schemaVersion]):
+        if (key[0], key[1] + 1) in onDiskSchema:
             raise RuntimeError(
                 "Greater versions of database %r objects in the DB than in memory" %
                 (actualType.typeName,))
 
-        # finally find old versions of the data and prepare to upgrade it.
 
-    def _prepareOldVersionOf(self, typeID, typename, version):
+    # finally find old versions of the data and prepare to upgrade it.
+    def _prepareOldVersionOf(self, typename, version, persistedSchema):
         """
         Note that this database contains old versions of a particular type.
-        Create the appropriate dummy item subclass.
-        """
+        Create the appropriate dummy item subclass and queue the type to be
+        upgraded.
 
-        appropriateSchema = self.querySchemaSQL(_schema.SCHEMA_FOR_TYPE, [typeID])
+        @param typename: The I{typeName} associated with the schema for which
+            to create a dummy item class.
+
+        @param version: The I{schemaVersion} of the old version of the schema
+            for which to create a dummy item class.
+
+        @param persistedSchema: A mapping giving information about all schemas
+            stored in the database, used to create the attributes of the dummy
+            item class.
+        """
+        appropriateSchema = persistedSchema[typename, version]
         # create actual attribute objects
         dummyAttributes = {}
-        for indexed, pythontype, attribute, docstring in appropriateSchema:
-            atr = getattr(attributes, pythontype)(indexed=indexed,
-                                                  doc=docstring)
+        for (attribute, sqlType, indexed, pythontype,
+             docstring) in appropriateSchema:
+            atr = pythontype(indexed=indexed, doc=docstring)
             dummyAttributes[attribute] = atr
         dummyBases = []
         oldType = declareLegacyItem(
@@ -1758,13 +1865,28 @@ class Store(Empowered):
                                         int( (sum(l)/len(l)) * 1000000.),)
 
     def _indexNameOf(self, tableClass, attrname):
-        return "%s.axiomidx_%s_v%d_%s" % (self.databaseName,
-                                          tableClass.typeName,
-                                          tableClass.schemaVersion,
-                                          '_'.join(attrname))
+        """
+        Return the unqualified (ie, no database name) name of the given
+        attribute of the given table.
+
+        @type tableClass: L{MetaItem}
+        @param tableClass: The Python class associated with a table in the
+            database.
+
+        @param attrname: A sequence of the names of the columns of the
+            indicated table which will be included in the named index.
+
+        @return: A C{str} giving the name of the index which will index the
+            given attributes of the given table.
+        """
+        return "axiomidx_%s_v%d_%s" % (tableClass.typeName,
+                                       tableClass.schemaVersion,
+                                       '_'.join(attrname))
+
 
     def _tableNameFor(self, typename, version):
         return "%s.item_%s_v%d" % (self.databaseName, typename, version)
+
 
     def getTableName(self, tableClass):
         """
@@ -1905,7 +2027,12 @@ class Store(Empowered):
         if self.tablesCreatedThisTransaction is not None:
             self.tablesCreatedThisTransaction.append(tableClass)
 
-        self._createIndexesFor(tableClass)
+        # We can pass () for extantIndexes here because since the table didn't
+        # exist for tableClass, none of its indexes could have either.
+        # Whatever checks _createIndexesFor will make would give the same
+        # result against the actual set of existing indexes as they will
+        # against ().
+        self._createIndexesFor(tableClass, ())
 
         for n, (name, storedAttribute) in enumerate(tableClass.getSchema()):
             self.executeSchemaSQL(
@@ -1920,14 +2047,30 @@ class Store(Empowered):
         return typeID
 
 
-    def _createIndexesFor(self, tableClass):
-        indexes = set()
-        for nam, atr in tableClass.getSchema():
-            if atr.indexed:
-                indexes.add(((atr.getShortColumnName(self),), (atr.attrname,)))
-            for compound in atr.compoundIndexes:
-                indexes.add((tuple(inatr.getShortColumnName(self) for inatr in compound),
-                             tuple(inatr.attrname for inatr in compound)))
+    def _createIndexesFor(self, tableClass, extantIndexes):
+        """
+        Create any indexes which don't exist and are required by the schema
+        defined by C{tableClass}.
+
+        @param tableClass: A L{MetaItem} instance which may define a schema
+            which includes indexes.
+
+        @param extantIndexes: A container (anything which can be the right-hand
+            argument to the C{in} operator) which contains the unqualified
+            names of all indexes which already exist in the underlying database
+            and do not need to be created.
+        """
+        try:
+            indexes = _requiredTableIndexes[tableClass]
+        except KeyError:
+            indexes = set()
+            for nam, atr in tableClass.getSchema():
+                if atr.indexed:
+                    indexes.add(((atr.getShortColumnName(self),), (atr.attrname,)))
+                for compound in atr.compoundIndexes:
+                    indexes.add((tuple(inatr.getShortColumnName(self) for inatr in compound),
+                                 tuple(inatr.attrname for inatr in compound)))
+            _requiredTableIndexes[tableClass] = indexes
 
         # _ZOMFG_ SQL is such a piece of _shit_: you can't fully qualify the
         # table name in CREATE INDEX statements because the _INDEX_ is fully
@@ -1936,16 +2079,13 @@ class Store(Empowered):
         indexColumnPrefix = '.'.join(self.getTableName(tableClass).split(".")[1:])
 
         for (indexColumns, indexAttrs) in indexes:
-            csql = ('CREATE INDEX %s ON %s(%s)' %
-                    (self._indexNameOf(tableClass, indexAttrs),
-                     indexColumnPrefix,
-                     ', '.join(indexColumns)))
-            try:
-                self.createSQL(csql)
-            except errors.SQLError, sqle:
-                # Ignore duplicate indexes.
-                if "already exists" not in str(sqle):
-                    raise
+            nameOfIndex = self._indexNameOf(tableClass, indexAttrs)
+            if nameOfIndex in extantIndexes:
+                continue
+            csql = 'CREATE INDEX %s.%s ON %s(%s)' % (
+                self.databaseName, nameOfIndex, indexColumnPrefix,
+                ', '.join(indexColumns))
+            self.createSQL(csql)
 
 
     def getTableQuery(self, typename, version):
