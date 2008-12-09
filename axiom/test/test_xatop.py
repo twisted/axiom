@@ -121,6 +121,7 @@ class StoreTests(unittest.TestCase):
         s = store.Store()
         self.assertRaises(errors.ItemClassesOnly, s.getTableName, TestItem(store=s))
 
+
     def testTableNameCacheDoesntGrow(self):
         """
         Make sure the table name cache doesn't grow out of control anymore.
@@ -131,13 +132,347 @@ class StoreTests(unittest.TestCase):
         for i in range(10):
             s.getTableName(TestItem)
         self.assertEquals(x, len(s.typeToTableNameCache))
+
+
     def testStoreIDComparerIdentity(self):
         # We really want this to hold, because the storeID object is
         # used like a regular attribute as a key for various caching
         # within store.
         a0 = TestItem.storeID
         a1 = TestItem.storeID
-        assert a0 is a1
+        self.assertIdentical(a0, a1)
+
+
+    def test_loadTypeSchema(self):
+        """
+        L{Store._loadTypeSchema} returns a C{dict} mapping item type names and
+        versions to a list of tuples giving information about the on-disk
+        schema information for each attribute of that version of that type.
+        """
+        s = store.Store()
+        TestItem(store=s)
+
+        loadedSchema = s._loadTypeSchema()
+        self.assertEqual(
+            loadedSchema[(TestItem.typeName, TestItem.schemaVersion)],
+            [('bar', 'TEXT COLLATE NOCASE', False, attributes.text, ''),
+             ('baz', 'INTEGER', False, attributes.timestamp, ''),
+             ('booleanF', 'BOOLEAN', False, attributes.boolean, ''),
+             ('booleanT', 'BOOLEAN', False, attributes.boolean, ''),
+             ('foo', 'INTEGER', True, attributes.integer, ''),
+             ('myStore', 'INTEGER', True, attributes.reference, ''),
+             ('other', 'INTEGER', True, attributes.reference, ''),
+             ])
+
+
+    def test_checkInconsistentTypeSchema(self):
+        """
+        L{Store._checkTypeSchemaConsistency} raises L{RuntimeError} if the in
+        memory schema of the type passed to it differs from the schema stored
+        in the database for that type, either by including too few attributes,
+        too many attributes, or the wrong type for one of the attributes.
+        """
+        s = store.Store()
+
+        schema = [
+            (name, attr.sqltype, attr.indexed, attr, attr.doc)
+            for (name, attr) in TestItem.getSchema()]
+
+        # Test a missing attribute
+        self.assertRaises(
+            RuntimeError,
+            s._checkTypeSchemaConsistency,
+            TestItem,
+            {(TestItem.typeName, TestItem.schemaVersion): schema[:-1]})
+
+        # And an extra attribute
+        self.assertRaises(
+            RuntimeError,
+            s._checkTypeSchemaConsistency,
+            TestItem,
+            {(TestItem.typeName, TestItem.schemaVersion):
+                 schema + [schema[0]]})
+
+        # And the wrong type for one of the attributes
+        self.assertRaises(
+            RuntimeError,
+            s._checkTypeSchemaConsistency,
+            TestItem,
+            {(TestItem.typeName, TestItem.schemaVersion):
+                 [(schema[0], 'VARCHAR(64) (this is made up)',
+                   schema[2], schema[3], schema[4])] + schema[1:]})
+
+
+    def test_inMemorySchemaCacheReset(self):
+        """
+        The global in-memory table schema cache should not change the behavior
+        of consistency checking with respect to the redefinition of in-memory
+        schemas.
+
+        This test is verifying the behavior which is granted by the use of a
+        WeakKeyDictionary for _inMemorySchemaCache.  If that cache kept strong
+        references to item types or used a (typeName, schemaVersion) key,
+        either the second C{SoonToChange} class definition in this method would
+        fail or the schema defined by the first C{SoonToChange} class would be
+        used, even after it should have been replaced by the second definition.
+        """
+        class SoonToChange(item.Item):
+            attribute = attributes.integer()
+
+        dbpath = self.mktemp()
+        s = store.Store(dbpath)
+        SoonToChange(store=s)
+        s.close()
+
+        # This causes a Store._checkTypeSchemaConsistency to cache
+        # SoonToChange.
+        s = store.Store(dbpath)
+        s.close()
+
+        del SoonToChange, s
+
+        class SoonToChange(item.Item):
+            attribute = attributes.boolean()
+
+        self.assertRaises(RuntimeError, store.Store, dbpath)
+
+
+    def test_checkOutdatedTypeSchema(self):
+        """
+        L{Store._checkTypeSchemaConsistency} raises L{RuntimeError} if the type
+        passed to it is the most recent in-memory version of that type and is
+        older than the newest on disk schema for that type.
+        """
+        s = store.Store()
+
+        schema = [
+            (name, attr.sqltype, attr.indexed, attr, attr.doc)
+            for (name, attr) in TestItem.getSchema()]
+
+        self.assertRaises(
+            RuntimeError,
+            s._checkTypeSchemaConsistency,
+            TestItem,
+            {(TestItem.typeName, TestItem.schemaVersion): schema,
+             (TestItem.typeName, TestItem.schemaVersion + 1): schema})
+
+
+    def test_checkConsistencyWhenOpened(self):
+        """
+        L{Store.__init__} checks the consistency of the schema and raises
+        L{RuntimeError} for any inconsistency.
+        """
+        class SoonToChange(item.Item):
+            attribute = attributes.integer()
+
+        dbpath = self.mktemp()
+        s = store.Store(dbpath)
+        SoonToChange(store=s)
+        s.close()
+
+        # Get rid of both the type and the store so that we can define a new
+        # incompatible version.  It might be nice if closed stores didn't keep
+        # references to types, but whatever.  This kind of behavior isn't
+        # really supported, only the unit tests need to do it for now.
+        del SoonToChange, s
+
+        class SoonToChange(item.Item):
+            attribute = attributes.boolean()
+
+        self.assertRaises(RuntimeError, store.Store, dbpath)
+
+
+    def test_createAndLoadExistingIndexes(self):
+        """
+        L{Store._loadExistingIndexes} returns a C{set} containing the names of
+        all of the indexes which exist in the store.
+        """
+        s = store.Store()
+        before = s._loadExistingIndexes()
+        TestItem(store=s)
+        after = s._loadExistingIndexes()
+        created = after - before
+
+        self.assertEqual(
+            created,
+            set([s._indexNameOf(TestItem, ['foo']),
+                 s._indexNameOf(TestItem, ['other']),
+                 s._indexNameOf(TestItem, ['myStore']),
+                 s._indexNameOf(TestItem, ['bar', 'baz'])]))
+
+
+    def test_loadExistingAttachedStoreIndexes(self):
+        """
+        If a store is attached to its parent, L{Store._loadExistingIndexes}
+        returns just the indexes which exist in the child store.
+        """
+        secondaryPath = self.mktemp()
+        main = store.Store()
+        secondary = store.Store(secondaryPath, parent=main, idInParent=17)
+
+        TestItem(store=secondary)
+        before = secondary._loadExistingIndexes()
+        secondary.attachToParent()
+        after = secondary._loadExistingIndexes()
+
+        self.assertEqual(before, after)
+
+
+    def test_createAttachedStoreIndexes(self):
+        """
+        Indexes created by the insertion of the first item of a type into a
+        store are created in the database which backs that store even if that
+        store is attached to another store backed by a different database.
+        """
+        secondaryPath = self.mktemp()
+
+        main = store.Store()
+        secondary = store.Store(secondaryPath, parent=main, idInParent=23)
+
+        before = secondary._loadExistingIndexes()
+        secondary.attachToParent()
+        TestItem(store=secondary)
+
+        # Close it to detach from the parent.  Detach from the parent so we can
+        # re-open and hopefully avoid accidentally getting any results polluted
+        # by the parent store (shouldn't happen, because the above test,
+        # test_loadExistingAttachedStoreIndexes, makes sure we can inspect
+        # indexes without worrying about an attached parent, but I'm being
+        # paranoid).
+        secondary.close()
+        del secondary
+
+        secondary = store.Store(secondaryPath, parent=main, idInParent=23)
+        after = secondary._loadExistingIndexes()
+
+        self.assertEqual(
+            after - before,
+            set([secondary._indexNameOf(TestItem, ['foo']),
+                 secondary._indexNameOf(TestItem, ['other']),
+                 secondary._indexNameOf(TestItem, ['myStore']),
+                 secondary._indexNameOf(TestItem, ['bar', 'baz'])]))
+
+
+    def test_inMemoryIndexCacheReset(self):
+        """
+        The global in-memory index schema cache should not change the behavior
+        of index creation with respect to the redefinition of in-memory
+        schemas.
+
+        This test is verifying the behavior which is granted by the use of a
+        WeakKeyDictionary for _requiredTableIndexes.  If that cache kept strong
+        references to item types or used a (typeName, schemaVersion) key,
+        either the second C{SoonToChange} class definition in this method would
+        fail or the indexes on the schema defined by the first C{SoonToChange}
+        class would be used, even after it should have been replaced by the
+        second definition.
+        """
+        class SoonToChange(item.Item):
+            attribute = attributes.integer()
+
+        dbpath = self.mktemp()
+        s = store.Store(dbpath)
+
+        before = s._loadExistingIndexes()
+        SoonToChange(store=s)
+        after = s._loadExistingIndexes()
+
+        # Sanity check - this version of SoonToChange has no indexes.
+        self.assertEqual(before, after)
+
+        s.close()
+        del SoonToChange, s
+
+        class SoonToChange(item.Item):
+            attribute = attributes.boolean(indexed=True)
+
+        s = store.Store()
+        before = s._loadExistingIndexes()
+        SoonToChange(store=s)
+        after = s._loadExistingIndexes()
+        self.assertEqual(
+            after - before,
+            set([s._indexNameOf(SoonToChange, ['attribute'])]))
+
+
+    def test_loadPythonModuleHint(self):
+        """
+        If the Python definition of a type found in a Store has not yet been
+        loaded, the hint in the I{module} column in type table is loaded.
+        """
+        # Arbitrary constants used in multiple places and processes.
+        typeCount = 3
+        magicOffset = 17
+        baseModuleName = "axiom_unloaded_module_"
+
+        # Path the temporary new modules will be created in.
+        importPath = filepath.FilePath(self.mktemp())
+        importPath.makedirs()
+        sys.path.insert(0, importPath.path)
+        self.addCleanup(sys.path.remove, importPath.path)
+
+        # Path the store will be created at.
+        dbdir = filepath.FilePath(self.mktemp())
+
+        # Create some source files, each defining an item type.
+        for counter in range(typeCount):
+            moduleName = baseModuleName + str(counter)
+
+            # Sanity check - the test can't work if any of the modules is
+            # already imported.
+            self.assertNotIn(moduleName, sys.modules)
+
+            # Write out the source.
+            modulePath = importPath.child(moduleName + ".py")
+            modulePath.setContent("""\
+from axiom.item import Item
+from axiom.attributes import integer
+
+class Unloaded(Item):
+    value = integer()
+""")
+
+        # In another process, so as not to cause the unloaded modules to be
+        # loaded in this process, create a store containing instances of the
+        # Unloaded types.
+        script = filepath.FilePath(self.mktemp())
+        script.setContent("""\
+from sys import argv
+from twisted.python.reflect import namedAny
+from axiom.store import Store
+
+dbdir, typeCount, moduleBase, magicOffset = argv[1:]
+
+s = Store(dbdir)
+for i in range(int(typeCount)):
+    moduleName = moduleBase + str(i)
+    namedAny(moduleName).Unloaded(store=s, value=int(magicOffset) + i)
+s.close()
+""")
+
+        os.system(" ".join([
+                    "PYTHONPATH=%s:$PYTHONPATH" % (importPath.path,),
+                    sys.executable, script.path,
+                    dbdir.path, str(typeCount), baseModuleName,
+                    str(magicOffset)]))
+
+        # Another sanity check.  The modules still better not have been
+        # imported in this process.
+        for counter in range(typeCount):
+            self.assertNotIn(baseModuleName + str(counter), sys.modules)
+
+        # Now open the store here.  This only works if the Store figures out it
+        # needs to import the modules defining the types.
+        s = store.Store(dbdir.path)
+
+        # And to be sure, find the item and make sure it has the value we
+        # expect.
+        for counter in range(typeCount):
+            Unloaded = sys.modules[baseModuleName + str(counter)].Unloaded
+            self.assertEqual(
+                s.query(Unloaded,
+                        Unloaded.value == magicOffset + counter).count(), 1)
+
 
 
 class FailurePathTests(unittest.TestCase):
@@ -300,6 +635,7 @@ class ItemTests(unittest.TestCase):
             self.fail("Transaction should have raised an exception")
 
 
+
 class AttributefulItem(item.Item):
     schemaVersion = 1
     typeName = 'test_attributeful_item'
@@ -307,9 +643,7 @@ class AttributefulItem(item.Item):
     withDefault = attributes.integer(default=42)
     withoutDefault = attributes.integer()
 
-    def __repr__(self):
-        return 'AttributeItem(oid=%s,withDefault=%s,withoutDefault=%s)'%  (
-            self.storeID, self.withDefault, self.withoutDefault)
+
 
 class StricterItem(item.Item):
     schemaVersion = 1

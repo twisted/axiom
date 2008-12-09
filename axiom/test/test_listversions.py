@@ -62,7 +62,7 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
             3. Notices and creates a new system version when the system
                config has reverted to a previous state.
         """
-        versions = getSystemVersions()
+        versions = [Version("foo", 1, 2, 3)]
 
         checkSystemVersion(self.store, versions)
         checkSystemVersion(self.store, versions)
@@ -96,6 +96,8 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
         L{ListVersions} will list versions of code used in this store when
         invoked as an axiomatic subcommand.
         """
+        checkSystemVersion(self.store)
+
         out = StringIO.StringIO()
         self.patch(sys, 'stdout', out)
         lv = ListVersions()
@@ -103,6 +105,7 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
         lv.parseOptions([])
         result = out.getvalue()
         self.assertSubstring("axiom: " + axiom_version.short(), result)
+
 
     def test_axiomaticSubcommand(self):
         """
