@@ -1,3 +1,11 @@
+0.5.31 (2008-12-09):
+  - An IStatEvent is now logged when a store is opened.
+  - Different schema versions of the same item type now no longer
+    compare equal, which fixes some breakage in the upgrade system,
+    among other things.
+  - Significantly reduce the runtime cost of opening a store by
+    reducing the amount of work spent to verify schema correctness.
+
 0.5.30 (2008-10-15):
   - Fixed a _SubSchedulerParentHook bug where a transient run failure
     would cause future event scheduling in the relevant substore to
