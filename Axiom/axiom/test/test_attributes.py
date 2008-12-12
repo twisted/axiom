@@ -11,9 +11,164 @@ from twisted.python.reflect import qual
 from axiom.store import Store
 from axiom.item import Item, normalize, Placeholder
 
-from axiom.attributes import Comparable, SQLAttribute, integer, timestamp, textlist
+from axiom.attributes import (
+    Comparable, SQLAttribute, boolean, integer, bytes, text, textlist, path,
+    timestamp, reference, ieee754_double, point1decimal, money)
 
-from axiom.attributes import ieee754_double, point1decimal, money
+class SQLAttributeTestMixin(object):
+    """
+    Common tests for L{SQLAttribute} subclasses.
+
+    @cvar attrType: The L{SQLAttribute} subclass to test.
+
+    @cvar initArgs: A description of C{attrType}'s initialization arguments
+    @type initArgs: list of (name, values) pairs, where the first value is the
+        expected default
+    """
+
+    def attrType(self):
+        raise NotImplementedError('Specify attrType')
+    attrType = property(attrType)
+
+    initArgs = [
+        ('doc', ['', 'fnord']),
+        ('indexed', [False, True]),
+        ('default', [None, object()]),
+        ('allowNone', [True, False]),
+        ('defaultFactory', [None, object()])]
+
+
+    def assertAttributeValues(self, obj, expectedValues):
+        """
+        Assert that C{obj} has the given attribute values.
+
+        @param obj: any object
+
+        @param expectedValues: attributes expected of C{obj}
+        @type expectedValues: list of (name, value)
+        """
+        for (name, expected) in expectedValues:
+            actual = getattr(obj, name)
+            self.assertIdentical(
+                actual, expected,
+                '%r is %r, expected %r' % (name, actual, expected))
+
+
+    def test_initDefaults(self):
+        """
+        Test initializing the attribute class with its defaults.
+        """
+        attr = self.attrType()
+        defaults = [(name, values[0]) for (name, values) in self.initArgs]
+        self.assertAttributeValues(attr, defaults)
+
+
+    def test_initPositional(self):
+        """
+        Test initialization with positional arguments.
+        """
+        names = list(name for (name, _) in self.initArgs)
+        # For each positional argument...
+        for (i, (_, values)) in enumerate(self.initArgs):
+            args = list(values[0] for (_, values) in self.initArgs)
+            # ...test passing each of its values.
+            for value in values:
+                args[i] = value
+                attr = self.attrType(*args)
+                self.assertAttributeValues(attr, zip(names, args))
+
+
+    def test_initKeywords(self):
+        """
+        Test initialization with keyword arguments.
+        """
+        # For each named argument...
+        for (name, values) in self.initArgs:
+            kw = dict((name, values[0]) for (name, values) in self.initArgs)
+            # ...test passing each of its values.
+            for value in values:
+                kw[name] = value
+                attr = self.attrType(**kw)
+                self.assertAttributeValues(attr, kw.items())
+
+
+
+class BooleanTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{boolean}.
+    """
+    attrType = boolean
+
+
+
+class IntegerTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{integer}.
+    """
+    attrType = integer
+
+
+
+class BytesTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{bytes}.
+    """
+    attrType = bytes
+
+
+
+class TextTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{text}.
+    """
+    attrType = text
+
+    initArgs = SQLAttributeTestMixin.initArgs + [('caseSensitive', [False, True])]
+
+
+
+class TextListTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{textlist}.
+    """
+    attrType = textlist
+
+
+
+class PathTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{path}.
+    """
+    attrType = path
+
+    initArgs = SQLAttributeTestMixin.initArgs + [('relative', [True, False])]
+
+
+
+class TimestampTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{timestamp}.
+    """
+    attrType = timestamp
+
+
+
+class ReferenceTestCase(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{reference}.
+    """
+    attrType = reference
+
+    initArgs = [
+        ('doc', ['', 'fnord']),
+        ('indexed', [True, False]),
+        ('allowNone', [True, False]),
+        ('reftype', [None, object()]),
+        ('whenDeleted', [reference.NULLIFY,
+                         reference.CASCADE,
+                         reference.DISALLOW])]
+
+
 
 class Number(Item):
     typeName = 'test_number'
@@ -22,7 +177,11 @@ class Number(Item):
     value = ieee754_double()
 
 
-class IEEE754DoubleTest(TestCase):
+class IEEE754DoubleTest(SQLAttributeTestMixin, TestCase):
+    """
+    Tests for L{ieee754_double}.
+    """
+    attrType = ieee754_double
 
     def testRoundTrip(self):
         s = Store()
