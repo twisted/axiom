@@ -4,7 +4,7 @@ import operator, random
 from twisted.trial.unittest import TestCase, SkipTest
 
 from axiom.iaxiom import IComparison, IColumn
-from axiom.store import Store, ItemQuery
+from axiom.store import Store, ItemQuery, MultipleItemQuery
 from axiom.item import Item, Placeholder
 from axiom.test.util import QueryCounter
 
@@ -1698,8 +1698,8 @@ class PlaceholderTestCase(TestCase):
 
     def test_placeholderQuery(self):
         """
-        Test that a BaseQuery can be created with Placeholder instances and the
-        SQL it emits as a result correctly assigns and uses table aliases.
+        Test that an ItemQuery can be created with Placeholder instances and
+        the SQL it emits as a result correctly assigns and uses table aliases.
         """
         s = Store()
         p = Placeholder(PlaceholderTestItem)
@@ -1708,6 +1708,23 @@ class PlaceholderTestCase(TestCase):
             sql,
             'SELECT * FROM %s AS placeholder_0' % (
                 PlaceholderTestItem.getTableName(s),))
+
+
+    def test_placeholderMultiQuery(self):
+        """
+        Test that a MultipleItemQuery can be created with Placeholder instances
+        and the SQL it emits as a result correctly assigns and uses table
+        aliases.
+        """
+        s = Store()
+        p1 = Placeholder(PlaceholderTestItem)
+        p2 = Placeholder(PlaceholderTestItem)
+        sql, args = MultipleItemQuery(s, (p1, p2))._sqlAndArgs('SELECT', '*')
+        tableName = PlaceholderTestItem.getTableName(s)
+        self.assertEqual(
+            sql,
+            'SELECT * FROM %s AS placeholder_0, %s AS placeholder_1' % (
+                tableName, tableName))
 
 
     def test_placeholderComparison(self):

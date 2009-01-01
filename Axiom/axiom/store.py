@@ -674,7 +674,7 @@ class MultipleItemQuery(BaseQuery):
         # self.tableClass is a tuple of Item classes.
         for tableClass in self.tableClass:
 
-            schema = tuple(tableClass.getSchema())
+            schema = tableClass.getSchema()
 
             # The extra 1 is oid
             self.schemaLengths.append(len(schema) + 1)

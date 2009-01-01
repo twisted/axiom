@@ -1,0 +1,40 @@
+#!/usr/bin/python
+
+# Benchmark of loading existing Items from an Axiom store.  Accepts one
+# parameter, the number of attributes to place on the schema of the Item to
+# create.  Reports one statistic, the number of seconds it takes to open a
+# store.
+
+import os, sys, time, tempfile
+
+from axiom.store import Store
+
+import benchlib
+
+
+def benchmark(numItemTypes, numAttributes):
+    dbpath = os.path.join(tempfile.mkdtemp(), 'store-opening.axiom')
+    store = Store(dbpath)
+    for i in range(numItemTypes):
+        SomeItem = benchlib.itemTypeWithSomeAttributes(numAttributes)
+        SomeItem(store=store)
+    store.close()
+
+    counter = range(100)
+
+    start = time.time()
+    for i in counter:
+        Store(dbpath).close()
+    finish = time.time()
+
+    return (finish - start) / len(counter)
+
+
+def main(argv):
+    if len(argv) != 3:
+        raise SystemExit("Usage: %s <number of item types> <number of attributes>" % (argv[0],))
+    print benchmark(int(argv[1]), int(argv[2]))
+
+
+if __name__ == '__main__':
+    main(sys.argv)

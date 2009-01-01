@@ -1,0 +1,37 @@
+#!/usr/bin/python
+
+# Benchmark of Axiom query creation.  This does not measure the performance
+# of queries, just of the API for creating an object which represents a
+# query. Accepts one parameter, the number of attributes on the item type
+# for which the query will be.  Reports one statistic, the number of seconds
+# it takes to create a query object.
+
+import sys, time
+
+from axiom.store import Store
+
+import benchlib
+
+
+def benchmark(numAttributes):
+    store = Store()
+    SomeItem = benchlib.itemTypeWithSomeAttributes(numAttributes)
+
+    counter = range(10000)
+
+    before = time.time()
+    for i in counter:
+        store.query(SomeItem)
+    after = time.time()
+
+    return (after - before) / len(counter)
+
+
+def main(argv):
+    if len(argv) != 2:
+        raise SystemExit("Usage: %s <number of attributes>" % (argv[0],))
+    print benchmark(int(argv[1]))
+
+
+if __name__ == '__main__':
+    main(sys.argv)
