@@ -659,7 +659,7 @@ class Item(Empowered, slotmachine._Strict):
                          storeID=storeID,
                          __everInserted=True)
 
-        schema = list(self.getSchema())
+        schema = self.getSchema()
         assert len(schema) == len(attrs), "invalid number of attributes"
         for data, (name, attr) in zip(attrs, schema):
             attr.loaded(self, data)
@@ -675,11 +675,13 @@ class Item(Empowered, slotmachine._Strict):
         """
         return all persistent class attributes
         """
+        schema = []
         for name, atr in cls.__attributes__:
             atr = atr.__get__(None, cls)
             if isinstance(atr, SQLAttribute):
-                yield (name, atr)
-
+                schema.append((name, atr))
+        cls.getSchema = staticmethod(lambda schema=schema: schema)
+        return schema
     getSchema = classmethod(getSchema)
 
 
@@ -1069,9 +1071,14 @@ class Placeholder(object):
         # once in the "SELECT ..." part of the query, determined by
         # getSchema(). In this case, the correct placeholder names
         # need to be used.
+        schema = []
         for (name, atr) in self._placeholderItemClass.getSchema():
-            yield name, _PlaceholderColumn(self,
-                                           getattr(self._placeholderItemClass, name))
+            schema.append((
+                    name,
+                    _PlaceholderColumn(
+                        self, getattr(self._placeholderItemClass, name))))
+        return schema
+
 
     def getTableName(self, store):
         return self._placeholderItemClass.getTableName(store)

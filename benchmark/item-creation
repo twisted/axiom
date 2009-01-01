@@ -1,0 +1,38 @@
+#!/usr/bin/python
+
+# Benchmark of Axiom new Item creation.  Accepts one parameter, the number
+# of attributes to place on the schema of the Item to create.  Reports one
+# statistic, the number of seconds it takes to create an Item of such a
+# type.
+
+import sys, time
+
+from axiom.store import Store
+
+import benchlib
+
+
+def benchmark(numAttributes):
+    SomeItem = benchlib.itemTypeWithSomeAttributes(numAttributes)
+    values = dict.fromkeys((name for (name, attr) in SomeItem.getSchema()), 0)
+
+    store = Store()
+    outerCounter = range(10)
+    innerCounter = range(1000)
+
+    start = time.time()
+    for i in outerCounter:
+        store.transact(benchlib.createSomeItems, store, SomeItem, values, innerCounter)
+    finish = time.time()
+
+    return (finish - start) / (len(outerCounter) * len(innerCounter))
+
+
+def main(argv):
+    if len(argv) != 2:
+        raise SystemExit("Usage: %s <number of attributes>" % (argv[0],))
+    print benchmark(int(argv[1]))
+
+
+if __name__ == '__main__':
+    main(sys.argv)
