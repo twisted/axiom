@@ -13,7 +13,8 @@ except ImportError:
 
 from zope.interface import directlyProvides
 
-from twisted.python import usage, filepath
+from twisted.python import usage, filepath, log
+from twisted.python.reflect import qual
 from twisted.plugin import IPlugin
 
 from epsilon.hotfix import require
@@ -72,7 +73,8 @@ class Upgrade(axiomatic.AxiomaticCommand):
             self.upgradeStore(store)
             print 'Upgrade complete'
         except errors.ItemUpgradeError, e:
-            traceback.print_exc(file=sys.stdout)
+            print 'Upgrader error:'
+            e.originalFailure.printTraceback(file=sys.stdout)
             print self.errorMessageFormat % (
                 e.oldType.typeName, e.storeID, e.oldType.schemaVersion,
                 e.newType.schemaVersion)

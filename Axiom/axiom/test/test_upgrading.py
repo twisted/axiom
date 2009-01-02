@@ -233,11 +233,16 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             # logged.  See #2638.
             loggedErrors = self.flushLoggedErrors(errors.ItemUpgradeError)
             self.assertEqual(len(loggedErrors), 1)
+            upgradeError = loggedErrors[0]
+
+            loggedErrors = self.flushLoggedErrors(brokenapp.UpgradersAreBrokenHere)
+            self.assertEqual(len(loggedErrors), 1)
+            originalError = loggedErrors[0]
 
             oldType = item.declareLegacyItem(
                 oldapp.Sword.typeName,
                 oldapp.Sword.schemaVersion, {})
-            e = loggedErrors[0].value
+            e = upgradeError.value
             self.assertEqual(e.storeID, swordID)
             self.assertIdentical(e.oldType, oldType)
             self.assertIdentical(e.newType, brokenapp.Sword)
@@ -783,6 +788,9 @@ class AxiomaticUpgradeTest(unittest.TestCase):
             errors.ItemUpgradeError,
             callWithStdoutRedirect, cmd.upgradeStore, self.store)
 
+        self.assertTrue(
+            err.originalFailure.check(brokenapp.UpgradersAreBrokenHere))
+
         oldType = item.declareLegacyItem(
             oldapp.Sword.typeName,
             oldapp.Sword.schemaVersion, {})
@@ -811,6 +819,10 @@ class AxiomaticUpgradeTest(unittest.TestCase):
         result, output = callWithStdoutRedirect(
             cmd.parseOptions, ['--count', '100'])
         lines = output.getvalue().splitlines()
+
+        # Ensure that the original error is output.
+        self.assertEqual(lines[0], 'Upgrader error:')
+        self.assertTrue(len(lines) > 2)
 
         oldType = oldapp.Sword
         newType = store._typeNameToMostRecentClass[oldType.typeName]
