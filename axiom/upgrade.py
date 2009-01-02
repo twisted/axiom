@@ -4,6 +4,7 @@
 Axiom Item/schema upgrade support.
 """
 
+from twisted.python.failure import Failure
 from twisted.python.log import msg
 from twisted.python.reflect import qual
 
@@ -152,8 +153,9 @@ class _StoreUpgrade(object):
                 try:
                     self.upgradeItem(theItem)
                 except:
+                    f = Failure()
                     raise ItemUpgradeError(
-                        theItem.storeID, itemType,
+                        f, theItem.storeID, itemType,
                         _typeNameToMostRecentClass[itemType.typeName])
 
             return upgradedAnything

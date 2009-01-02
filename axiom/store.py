@@ -1162,6 +1162,8 @@ class Store(Empowered):
             self._upgradeComplete = PendingEvent()
             d = self._upgradeService.addIterator(self._upgradeManager.upgradeEverything())
             def logUpgradeFailure(aFailure):
+                if aFailure.check(errors.ItemUpgradeError):
+                    log.err(aFailure.value.originalFailure, 'Item upgrade error')
                 log.err(aFailure, "upgrading %r failed" % (self,))
                 return aFailure
             d.addErrback(logUpgradeFailure)
