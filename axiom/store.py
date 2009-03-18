@@ -1410,9 +1410,7 @@ class Store(Empowered):
         # Indexing attribute, ordering by it, and getting rid of row_offset
         # from the schema and the sorted() here doesn't seem to be any faster
         # than doing this.
-        persistedSchema = sorted(self.querySchemaSQL(
-            "SELECT attribute, type_id, sqltype, indexed, "
-            "pythontype, docstring FROM *DATABASE*.axiom_attributes "))
+        persistedSchema = sorted(self.querySchemaSQL(_schema.PERSISTED_SCHEMA))
 
         # This is trivially (but measurably!) faster than getattr(attributes,
         # pythontype).
