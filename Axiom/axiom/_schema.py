@@ -61,9 +61,10 @@ ALL_TYPES = 'SELECT "oid", "module", "typename", "version" FROM "*DATABASE*"."ax
 GET_GREATER_VERSIONS_OF_TYPE = ('SELECT "version" FROM "*DATABASE*"."axiom_types" '
                                 'WHERE "typename" = ? AND "version" > ?')
 
-SCHEMA_FOR_TYPE = ('SELECT "indexed", "pythontype", "attribute", "docstring" '
-                   'FROM "*DATABASE*"."axiom_attributes" '
-                   'WHERE "type_id" = ?')
+PERSISTED_SCHEMA = """
+SELECT "attribute", "type_id", "sqltype", "indexed", "pythontype", "docstring"
+    FROM "*DATABASE*"."axiom_attributes"
+"""
 
 CHANGE_TYPE = 'UPDATE "*DATABASE*"."axiom_objects" SET "type_id" = ? WHERE "oid" = ?'
 
