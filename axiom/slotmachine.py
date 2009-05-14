@@ -127,6 +127,7 @@ class SchemaMetaMachine(_SlotMetaMachine):
 
     determineSchema = classmethod(determineSchema)
 
+
 class _Strict(object):
     """
     I disallow all attributes from being set that do not have an explicit
@@ -137,17 +138,41 @@ class _Strict(object):
         """
         Like PyObject_GenericSetAttr, but call descriptors only.
         """
-        for cls in type(self).__mro__:
-            slot = cls.__dict__.get(name, _NOSLOT)
-            if slot is not _NOSLOT:
-                setter = getattr(slot, '__set__', _NOSLOT)
-                if setter is not _NOSLOT:
-                    setter(self, value)
-                    return
-                else:
-                    break
-        raise AttributeError("%r can't set attribute %r"
-                             % (self.__class__.__name__, name))
+        try:
+            allowed = type(self).__dict__['_Strict__setattr__allowed']
+        except KeyError:
+            allowed = type(self)._Strict__setattr__allowed = {}
+            for cls in type(self).__mro__:
+                for attrName, slot in cls.__dict__.iteritems():
+                    if attrName in allowed:
+                        # It was found earlier in the mro, overriding
+                        # whatever this is.  Ignore it and move on.
+                        continue
+                    setter = getattr(slot, '__set__', _NOSLOT)
+                    if setter is not _NOSLOT:
+                        # It is a data descriptor, so remember the setter
+                        # for it in the cache.
+                        allowed[attrName] = setter
+                    else:
+                        # It is something else, so remember None for it in
+                        # the cache to indicate it cannot have its value
+                        # set.
+                        allowed[attrName] = None
+
+        try:
+            setter = allowed[name]
+        except KeyError:
+            pass
+        else:
+            if setter is not None:
+                setter(self, value)
+                return
+
+        # It wasn't found in the setter cache or it was found to be None,
+        # indicating a non-data descriptor which cannot be set.
+        raise AttributeError(
+            "%r can't set attribute %r" % (self.__class__.__name__, name))
+
 
 class SchemaMachine(_Strict):
     __metaclass__ = SchemaMetaMachine

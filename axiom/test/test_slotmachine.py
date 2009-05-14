@@ -107,9 +107,11 @@ class SlotMachineTest(unittest.TestCase):
         self.assertRaises(AttributeError, setattr, x, 'nottest', 'anything')
         self.assertRaises(AttributeError, getattr, x, 'nottest')
 
+
     def testAttributesTraverseDeepHierarchy(self):
         y = Y()
         self.assertBSchema(y)
+
 
     def test_baseDefault(self):
         """
@@ -119,6 +121,7 @@ class SlotMachineTest(unittest.TestCase):
         # self.failUnless('x' in dt.__slots__, 'x not in '+repr(dt.__slots__) )
         dt.x = 2
 
+
     def test_decoyDefault(self):
         """
         Same as L{test_baseDefault}, but with a decoy subclass.
@@ -126,9 +129,11 @@ class SlotMachineTest(unittest.TestCase):
         d = DecoyDefault()
         d.x = 2
 
+
     def test_descriptorOverride(self):
         """
-        L{DefaultOverride.x} should take precedence over L{DefaultTest.x}.
+        L{DefaultOverride.x} should take precedence over L{DefaultTest.x}
+        and prevent the I{x} attribute from being set.
         """
         d = DefaultOverride()
         err = self.assertRaises(AttributeError, setattr, d, 'x', 23)

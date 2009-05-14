@@ -8,6 +8,7 @@
 import os, sys, time, tempfile
 
 from axiom.store import Store
+from axiom.attributes import integer
 
 import benchlib
 
@@ -16,7 +17,7 @@ def benchmark(numItemTypes, numAttributes):
     dbpath = os.path.join(tempfile.mkdtemp(), 'store-opening.axiom')
     store = Store(dbpath)
     for i in range(numItemTypes):
-        SomeItem = benchlib.itemTypeWithSomeAttributes(numAttributes)
+        SomeItem = benchlib.itemTypeWithSomeAttributes([integer] * numAttributes)
         SomeItem(store=store)
     store.close()
 
