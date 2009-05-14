@@ -8,12 +8,13 @@
 import sys, time
 
 from axiom.store import Store
+from axiom.attributes import integer
 
 import benchlib
 
 
 def benchmark(numAttributes):
-    SomeItem = benchlib.itemTypeWithSomeAttributes(numAttributes)
+    SomeItem = benchlib.itemTypeWithSomeAttributes([integer] * numAttributes)
     values = dict.fromkeys((name for (name, attr) in SomeItem.getSchema()), 0)
 
     store = Store()
