@@ -340,9 +340,10 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
         self._complete, result = None, self._complete
         if self._success:
             if reason.check(ProcessTerminated):
-                if reason.value.signal == signal.SIGTERM:
-                    result.callback(None)
-                    return
+                # Good.  We terminated it.
+                result.callback(None)
+                return
+        # Something went wrong.
         result.errback(reason)
 
 
