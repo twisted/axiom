@@ -4,15 +4,22 @@
 Tests for L{axiom.scripts.axiomatic}.
 """
 
-import sys, os, StringIO
+import sys, os, signal, StringIO
 
 from zope.interface import implements
 
+from twisted.python.log import msg
 from twisted.python.versions import Version
 from twisted.python.filepath import FilePath
-from twisted.application.service import IService, IServiceCollection
+from twisted.python.procutils import which
+from twisted.python.runtime import platform
 from twisted.trial.unittest import TestCase
 from twisted.plugin import IPlugin
+from twisted.internet import reactor
+from twisted.internet.protocol import ProcessProtocol
+from twisted.internet.defer import Deferred
+from twisted.internet.error import ProcessDone, ProcessTerminated
+from twisted.application.service import IService, IServiceCollection
 
 from axiom.store import Store
 from axiom.item import Item
@@ -113,7 +120,7 @@ class StartTests(TestCase):
     def test_logDirectoryCreated(self):
         """
         If L{Start.getArguments} adds a I{--logfile} argument, it creates the
-        necessary directory.\
+        necessary directory.
         """
         dbdir = FilePath(self.mktemp())
         store = Store(dbdir)
@@ -171,7 +178,9 @@ class StartTests(TestCase):
         # still want to do some sanity check against one of them in case we end
         # up getting the twistd version incorrectly somehow... -exarkun
         self.assertIn("--reactor", stdout.getvalue())
-        self.assertIn("--uid", stdout.getvalue())
+        if not platform.isWindows():
+            # This isn't an option on Windows, so it shouldn't be there.
+            self.assertIn("--uid", stdout.getvalue())
 
         # Also, we don't want to see twistd plugins here.
         self.assertNotIn("axiomatic-start", stdout.getvalue())
@@ -229,6 +238,112 @@ class StartTests(TestCase):
 
         store = Store(dbdir)
         self.assertTrue(store.getItemByID(recorder.storeID).started)
+
+
+    def test_reactorSelection(self):
+        """
+        L{AxiomaticStart} optionally takes the name of a reactor and
+        installs it instead of the default reactor.
+        """
+        # Since this process is already hopelessly distant from the state in
+        # which I{axiomatic start} operates, it would make no sense to try a
+        # functional test of this behavior in this process.  Since the
+        # behavior being tested involves lots of subtle interactions between
+        # lots of different pieces of code (the reactor might get installed
+        # at the end of a ten-deep chain of imports going through as many
+        # different projects), it also makes no sense to try to make this a
+        # unit test.  So, start a child process and try to use the alternate
+        # reactor functionality there.
+
+        axiomatics = which("axiomatic")
+        if axiomatics:
+            # Great, it was on the path.
+            axiomatic = axiomatics[0]
+        else:
+            # Try to find it relative to the source of this test.
+            here = FilePath(__file__)
+            bin = here.parent().parent().child("bin")
+            axiomatic = bin.child("axiomatic")
+            if not bin.exists():
+                # Nope, not there, give up.
+                raise SkipTest(
+                    "Could not find axiomatic script on path or at %s" % (
+                        axiomatic.path,))
+            else:
+                axiomatic = axiomatic.path
+
+        # Install select reactor because it available on all platforms, and
+        # it is still an error to try to install the select reactor even if
+        # the already installed reactor was the select reactor.
+        argv = [
+            sys.executable,
+            axiomatic, "-d", self.mktemp(),
+            "start", "--reactor", "select", "-n"]
+        expected = "reactor class: twisted.internet.selectreactor.SelectReactor."
+        proto, complete = AxiomaticStartProcessProtocol.protocolAndDeferred(expected)
+        reactor.spawnProcess(proto, sys.executable, argv, env=os.environ)
+        return complete
+
+
+
+class AxiomaticStartProcessProtocol(ProcessProtocol):
+    """
+    L{AxiomaticStartProcessProtocol} watches an I{axiomatic start} process
+    and fires a L{Deferred} when it sees either successful reactor
+    installation or process termination.
+
+    @ivar _success: A flag which is C{False} until the expected text is found
+        in the child's stdout and C{True} thereafter.
+
+    @ivar _output: A C{str} giving all of the stdout from the child received
+        thus far.
+    """
+    _success = False
+    _output = ""
+
+
+    def protocolAndDeferred(cls, expected):
+        """
+        Create and return an L{AxiomaticStartProcessProtocol} and a
+        L{Deferred}.  The L{Deferred} will fire when the protocol receives
+        the given string on standard out or when the process ends, whichever
+        comes first.
+        """
+        proto = cls()
+        proto._complete = Deferred()
+        proto._expected = expected
+        return proto, proto._complete
+    protocolAndDeferred = classmethod(protocolAndDeferred)
+
+
+    def outReceived(self, bytes):
+        """
+        Add the given bytes to the output buffer and check to see if the
+        reactor has been installed successfully, firing the completion
+        L{Deferred} if so.
+        """
+        msg("Received bytes from axiomatic: %r" % (bytes,))
+        self._output += bytes
+        if not self._success:
+            for line in self._output.splitlines():
+                if self._expected in line:
+                    self._success = True
+                    self.transport.signalProcess("TERM")
+
+
+    def processEnded(self, reason):
+        """
+        Check that the process exited in the way expected and that the required
+        text has been found in its output and fire the result L{Deferred} with
+        either a value or a failure.
+        """
+        self._complete, result = None, self._complete
+        if self._success:
+            if reason.check(ProcessTerminated):
+                if reason.value.signal == signal.SIGTERM:
+                    result.callback(None)
+                    return
+        result.errback(reason)
 
 
 
