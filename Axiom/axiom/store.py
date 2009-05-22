@@ -23,7 +23,7 @@ from twisted.application.service import IService, IServiceCollection
 from epsilon.pending import PendingEvent
 from epsilon.cooperator import SchedulingService
 
-from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors, batch
+from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 from axiom import item
 from axiom._pysqlite2 import Connection
 
@@ -128,6 +128,7 @@ def storeServiceSpecialCase(st, pups):
     st._upgradeService.setServiceParent(collection)
 
     if st.dbdir is not None:
+        from axiom import batch
         batcher = batch.BatchProcessingControllerService(st)
         batcher.setServiceParent(collection)
 
@@ -947,6 +948,15 @@ class AttributeQuery(BaseQuery):
         return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
 
 
+def _storeBatchServiceSpecialCase(*args, **kwargs):
+    """
+    Trivial wrapper around L{batch.storeBatchServiceSpecialCase} to delay
+    the import of axiom.batch, which imports the reactor, which we do not
+    want as a side-effect of importing L{axiom.store}.
+    """
+    from axiom import batch
+    return batch.storeBatchServiceSpecialCase(*args, **kwargs)
+
 
 class Store(Empowered):
     """
@@ -980,7 +990,7 @@ class Store(Empowered):
     aggregateInterfaces = {
         IService: storeServiceSpecialCase,
         IServiceCollection: storeServiceSpecialCase,
-        iaxiom.IBatchService: batch.storeBatchServiceSpecialCase}
+        iaxiom.IBatchService: _storeBatchServiceSpecialCase}
 
     implements(iaxiom.IBeneficiary)
 
