@@ -1137,12 +1137,6 @@ class BatchProcessingService(service.Service):
         return defer.maybeDeferred(getattr(self.store.getItemByID(storeID), methodName))
 
 
-    def deferLater(self, n):
-        d = defer.Deferred()
-        reactor.callLater(n, d.callback, None)
-        return d
-
-
     def items(self):
         return self.store.powerupsFor(iaxiom.IBatchProcessor)
 
@@ -1151,8 +1145,8 @@ class BatchProcessingService(service.Service):
         """
         Run tasks until stopService is called.
         """
-        task = self.step()
-        for result, more in task:
+        work = self.step()
+        for result, more in work:
             yield result
             if not self.running:
                 break
@@ -1160,7 +1154,7 @@ class BatchProcessingService(service.Service):
                 delay = 0.1
             else:
                 delay = 10.0
-            yield self.deferLater(delay)
+            yield task.deferLater(reactor, delay, lambda: None)
 
 
     def step(self):
