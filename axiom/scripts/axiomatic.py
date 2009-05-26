@@ -87,7 +87,7 @@ class Start(twistd.ServerOptions):
             if not logs.exists():
                 logs.makedirs()
             args.extend(["--logfile", logs.child("axiomatic.log").path])
-        if "--pidfile" not in args:
+        if not platform.isWindows() and "--pidfile" not in args:
             args.extend(["--pidfile", run.child("axiomatic.pid").path])
         args.extend(["axiomatic-start", "--dbdir", store.dbdir.path])
         return args
