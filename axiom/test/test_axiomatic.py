@@ -261,21 +261,23 @@ class StartTests(TestCase):
         # reactor functionality there.
 
         here = FilePath(__file__)
-        axiomatics = which("axiomatic")
-        if axiomatics:
-            # Great, it was on the path.
-            axiomatic = axiomatics[0]
+        # Try to find it relative to the source of this test.
+        bin = here.parent().parent().parent().child("bin")
+        axiomatic = bin.child("axiomatic")
+        if axiomatic.exists():
+            # Great, use that one.
+            axiomatic = axiomatic.path
         else:
-            # Try to find it relative to the source of this test.
-            bin = here.parent().parent().parent().child("bin")
-            axiomatic = bin.child("axiomatic")
-            if not bin.exists():
+            # Try to find it on the path, instead.
+            axiomatics = which("axiomatic")
+            if axiomatics:
+                # Great, it was on the path.
+                axiomatic = axiomatics[0]
+            else:
                 # Nope, not there, give up.
                 raise SkipTest(
                     "Could not find axiomatic script on path or at %s" % (
                         axiomatic.path,))
-            else:
-                axiomatic = axiomatic.path
 
         # Install select reactor because it available on all platforms, and
         # it is still an error to try to install the select reactor even if
@@ -284,7 +286,9 @@ class StartTests(TestCase):
             sys.executable,
             axiomatic, "-d", self.mktemp(),
             "start", "--reactor", "select", "-n"]
-        expected = "reactor class: twisted.internet.selectreactor.SelectReactor."
+        expected = [
+            "reactor class: twisted.internet.selectreactor.SelectReactor.",
+            "reactor class: <class 'twisted.internet.selectreactor.SelectReactor'>"]
         proto, complete = AxiomaticStartProcessProtocol.protocolAndDeferred(expected)
 
         # Make sure the version of Axiom under test is found by the child
@@ -345,9 +349,11 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
         self._output += bytes
         if not self._success:
             for line in self._output.splitlines():
-                if self._expected in line:
-                    self._success = True
-                    self.transport.signalProcess("TERM")
+                for expectedLine in self._expected:
+                    if expectedLine in line:
+                        msg("Received expected output")
+                        self._success = True
+                        self.transport.signalProcess("TERM")
 
 
     def processEnded(self, reason):
