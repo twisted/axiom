@@ -267,7 +267,7 @@ class StartTests(TestCase):
         else:
             # Try to find it relative to the source of this test.
             here = FilePath(__file__)
-            bin = here.parent().parent().child("bin")
+            bin = here.parent().parent().parent().child("bin")
             axiomatic = bin.child("axiomatic")
             if not bin.exists():
                 # Nope, not there, give up.
