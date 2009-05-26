@@ -94,7 +94,13 @@ class StartTests(TestCase):
         start = axiomatic.Start()
 
         logfileArg = ["--logfile", logs.child("axiomatic.log").path]
-        pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
+
+        # twistd on Windows doesn't support PID files, so on Windows,
+        # getArguments should *not* add --pidfile.
+        if platform.isWindows():
+            pidfileArg = []
+        else:
+            pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
         restArg = ["axiomatic-start", "--dbdir", dbdir.path]
 
         self.assertEqual(
@@ -339,8 +345,10 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
         """
         self._complete, result = None, self._complete
         if self._success:
-            if reason.check(ProcessTerminated):
-                # Good.  We terminated it.
+            if platform.isWindows() or (
+                # Windows can't tell that we SIGTERM'd it, so sorry.
+                reason.check(ProcessTerminated) and
+                reason.value.signal == signal.SIGTERM):
                 result.callback(None)
                 return
         # Something went wrong.
