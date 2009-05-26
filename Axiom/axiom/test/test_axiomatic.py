@@ -328,13 +328,20 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
     protocolAndDeferred = classmethod(protocolAndDeferred)
 
 
+    def errReceived(self, bytes):
+        """
+        Report the given unexpected stderr data.
+        """
+        msg("Received stderr from axiomatic: %r" % (bytes,))
+
+
     def outReceived(self, bytes):
         """
         Add the given bytes to the output buffer and check to see if the
         reactor has been installed successfully, firing the completion
         L{Deferred} if so.
         """
-        msg("Received bytes from axiomatic: %r" % (bytes,))
+        msg("Received stdout from axiomatic: %r" % (bytes,))
         self._output += bytes
         if not self._success:
             for line in self._output.splitlines():
