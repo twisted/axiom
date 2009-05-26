@@ -260,13 +260,13 @@ class StartTests(TestCase):
         # unit test.  So, start a child process and try to use the alternate
         # reactor functionality there.
 
+        here = FilePath(__file__)
         axiomatics = which("axiomatic")
         if axiomatics:
             # Great, it was on the path.
             axiomatic = axiomatics[0]
         else:
             # Try to find it relative to the source of this test.
-            here = FilePath(__file__)
             bin = here.parent().parent().parent().child("bin")
             axiomatic = bin.child("axiomatic")
             if not bin.exists():
@@ -286,7 +286,14 @@ class StartTests(TestCase):
             "start", "--reactor", "select", "-n"]
         expected = "reactor class: twisted.internet.selectreactor.SelectReactor."
         proto, complete = AxiomaticStartProcessProtocol.protocolAndDeferred(expected)
-        reactor.spawnProcess(proto, sys.executable, argv, env=os.environ)
+
+        # Make sure the version of Axiom under test is found by the child
+        # process.
+        environ = os.environ.copy()
+        environ['PYTHONPATH'] = os.pathsep.join([
+            here.parent().parent().parent().parent().path,
+            environ['PYTHONPATH']])
+        reactor.spawnProcess(proto, sys.executable, argv, env=environ)
         return complete
 
 
