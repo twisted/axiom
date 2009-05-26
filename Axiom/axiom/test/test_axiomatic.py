@@ -9,16 +9,15 @@ import sys, os, signal, StringIO
 from zope.interface import implements
 
 from twisted.python.log import msg
-from twisted.python.versions import Version
 from twisted.python.filepath import FilePath
 from twisted.python.procutils import which
 from twisted.python.runtime import platform
-from twisted.trial.unittest import TestCase
+from twisted.trial.unittest import SkipTest, TestCase
 from twisted.plugin import IPlugin
 from twisted.internet import reactor
 from twisted.internet.protocol import ProcessProtocol
 from twisted.internet.defer import Deferred
-from twisted.internet.error import ProcessDone, ProcessTerminated
+from twisted.internet.error import ProcessTerminated
 from twisted.application.service import IService, IServiceCollection
 
 from axiom.store import Store
