@@ -4,29 +4,20 @@
 Utilities for performing repetitive tasks over potentially large sets
 of data over an extended period of time.
 """
-MANHOLE_PORT = 6022
+
 import weakref, datetime, os, sys
 
 from zope.interface import implements
 
 from twisted.python import reflect, failure, log, procutils, util, runtime
 from twisted.internet import task, defer, reactor, error, protocol
-from twisted.application import internet, service
-from twisted.cred import checkers, portal
-
-from twisted.conch.manhole import ColoredManhole
-from twisted.conch.insults import insults
-try:
-    from twisted.conch import manhole_ssh
-except ImportError:
-    manhole_ssh = None
-from twisted.conch import interfaces as iconch
+from twisted.application import service
 
 from epsilon import extime, process, cooperator, modal, juice
 
 from axiom import iaxiom, errors as eaxiom, item, attributes
 from axiom.scheduler import Scheduler, SubScheduler
-from axiom.upgrade import registerUpgrader
+from axiom.upgrade import registerUpgrader, registerDeletionUpgrader
 from axiom.dependency import installOn
 
 VERBOSE = False
@@ -1037,18 +1028,6 @@ class BatchProcessingProtocol(JuiceChild):
         self.pollCall = task.LoopingCall(self._pollSubStores)
         self.pollCall.start(10.0)
 
-        if manhole_ssh is not None:
-            rlm = portal.IRealm(self.siteStore, None)
-            if rlm is not None:
-                #don't wanna freak out if there's no userbase installed
-                chk = checkers.ICredentialsChecker(self.siteStore, None)
-                ptl = portal.Portal(rlm, [chk])
-                f = manhole_ssh.ConchFactory(ptl)
-                try:
-                    csvc = internet.TCPServer(MANHOLE_PORT, f)
-                    csvc.setServiceParent(self.service)
-                except error.CannotListenError:
-                    pass
         return {}
 
     command_SET_STORE.command = SetStore
@@ -1205,36 +1184,14 @@ class BatchProcessingService(service.Service):
 
 
 
-if manhole_ssh is not None:
-    bases = (manhole_ssh.TerminalUser, manhole_ssh.TerminalSession)
-else:
-    bases = ()
-
 class BatchManholePowerup(item.Item):
-    installedOn = attributes.reference()
+    """
+    Previously, an L{IConchUser} powerup.  This class is only still defined for
+    schema compatibility.  Any instances of it will be deleted by an upgrader.
+    See #1001.
+    """
+    schemaVersion = 2
+    unused = attributes.integer(
+        doc="Satisfy Axiom requirement for at least one attribute")
 
-    original = attributes.inmemory()
-    transportFactory = attributes.inmemory()
-    chainedProtocolFactory = attributes.inmemory()
-    channelLookup = attributes.inmemory()
-    subsystemLookup = attributes.inmemory()
-    width = attributes.inmemory()
-    height = attributes.inmemory()
-    conn = attributes.inmemory()
-
-    powerupInterfaces = (iconch.IConchUser, iconch.ISession)
-
-    def activate(self):
-        if manhole_ssh is not None:
-            manhole_ssh.TerminalSession.__init__(self, self.store)
-            manhole_ssh.TerminalUser.__init__(self, self.store, None)
-
-
-    def chainedProtocolFactory(self):
-        return insults.ServerProtocol(
-            ColoredManhole,
-            None)
-
-
-# I don't even know what to say here. -exarkun
-BatchManholePowerup.__bases__ += bases
+registerDeletionUpgrader(BatchManholePowerup, 1, 2)
