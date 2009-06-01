@@ -1,6 +1,6 @@
 
 from twisted.trial import unittest
-from twisted.python import log, failure, filepath
+from twisted.python import failure, filepath
 from twisted.application import service
 
 from axiom import iaxiom, store, item, attributes, batch, substore
@@ -230,7 +230,7 @@ class BatchTestCase(unittest.TestCase):
         self.assertEquals(errors[0][0], listener)
         self.assertEquals(errors[0][1].information, 1)
 
-        loggedErrors = log.flushErrors(RuntimeError)
+        loggedErrors = self.flushLoggedErrors(RuntimeError)
         self.assertEquals(len(loggedErrors), 1)
         self.assertEquals(loggedErrors[0].getErrorMessage(), errmsg)
 
@@ -604,7 +604,7 @@ class RemoteTestCase(unittest.TestCase):
 
 
         self.assertEquals(
-            len(log.flushErrors(BrokenException)),
+            len(self.flushLoggedErrors(BrokenException)),
             BATCH_WORK_UNITS)
 
         self.assertEquals(
