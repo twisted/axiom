@@ -1,22 +1,17 @@
 
-from axiom.item import Item
-from axiom.attributes import text
-from axiom.batch import processor
-from axiom.iaxiom import IScheduler
+from twisted.internet.defer import Deferred
 
 from axiom.test.historic.stubloader import StubbedTest
 from axiom.test.historic.stub_processor1to2 import DummyProcessor
-
-
 
 class ProcessorUpgradeTest(StubbedTest):
     def setUp(self):
         # Ick, we need to catch the run event of DummyProcessor, and I can't
         # think of another way to do it.
         self.dummyRun = DummyProcessor.run.im_func
-        self.dummyRunCalls = []
+        self.calledBack = Deferred()
         def dummyRun(calledOn):
-            self.dummyRunCalls.append(calledOn)
+            self.calledBack.callback(calledOn)
         DummyProcessor.run = dummyRun
 
         return StubbedTest.setUp(self)
@@ -39,5 +34,7 @@ class ProcessorUpgradeTest(StubbedTest):
         proc = self.store.findUnique(DummyProcessor)
         self.assertEquals(proc.busyInterval, 100)
         self.failIfEqual(proc.scheduled, None)
+        def assertion(result):
+            self.assertEquals(result, proc)
+        return self.calledBack.addCallback(assertion)
 
-        self.assertEquals(self.dummyRunCalls, [proc])
