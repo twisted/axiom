@@ -15,6 +15,7 @@ from twisted.python.runtime import platform
 from twisted.trial.unittest import SkipTest, TestCase
 from twisted.plugin import IPlugin
 from twisted.internet import reactor
+from twisted.internet.task import deferLater
 from twisted.internet.protocol import ProcessProtocol
 from twisted.internet.defer import Deferred
 from twisted.internet.error import ProcessTerminated
@@ -73,6 +74,14 @@ class StartTests(TestCase):
     """
     Test the axiomatic start sub-command.
     """
+    def setUp(self):
+        """
+        Work around Twisted #3178 by tricking trial into thinking something
+        asynchronous is happening.
+        """
+        return deferLater(reactor, 0, lambda: None)
+
+
     def _getRunDir(self, dbdir):
         return dbdir.child("run")
 
