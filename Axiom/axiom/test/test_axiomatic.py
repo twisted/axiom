@@ -1,4 +1,4 @@
-# Copyright 2006 Divmod, Inc.  See LICENSE file for details
+# Copyright 2006-2009 Divmod, Inc.  See LICENSE file for details
 
 """
 Tests for L{axiom.scripts.axiomatic}.
@@ -27,6 +27,8 @@ from axiom.scripts import axiomatic
 from axiom.listversions import SystemVersion
 from axiom.iaxiom import IAxiomaticCommand
 from twisted.plugins.axiom_plugins import AxiomaticStart
+
+from axiom.test.reactorimporthelper import SomeItem
 
 
 class RecorderService(Item):
@@ -279,12 +281,22 @@ class StartTests(TestCase):
                     "Could not find axiomatic script on path or at %s" % (
                         axiomatic.path,))
 
+        # Create a store for the child process to use and put an item in it.
+        # This will force an import of the module that defines that item's
+        # class when the child process starts.  The module imports the default
+        # reactor at the top-level, making this the worst-case for the reactor
+        # selection code.
+        storePath = self.mktemp()
+        store = Store(storePath)
+        SomeItem(store=store)
+        store.close()
+
         # Install select reactor because it available on all platforms, and
         # it is still an error to try to install the select reactor even if
         # the already installed reactor was the select reactor.
         argv = [
             sys.executable,
-            axiomatic, "-d", self.mktemp(),
+            axiomatic, "-d", storePath,
             "start", "--reactor", "select", "-n"]
         expected = [
             "reactor class: twisted.internet.selectreactor.SelectReactor.",
