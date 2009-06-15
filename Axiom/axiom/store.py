@@ -112,6 +112,14 @@ _noItem = object()              # tag for optional argument to getItemByID
 
 
 def storeServiceSpecialCase(st, pups):
+    """
+    Adapt a store to L{IServiceCollection}.
+
+    @param st: The L{Store} to adapt.
+    @param pups: A list of L{IServiceCollection} powerups on C{st}.
+
+    @return: An L{IServiceCollection} which has all of C{pups} as children.
+    """
     if st.parent is not None:
         # If for some bizarre reason we're starting a substore's service, let's
         # just assume that its parent is running its upgraders, rather than
@@ -950,9 +958,10 @@ class AttributeQuery(BaseQuery):
 
 def _storeBatchServiceSpecialCase(*args, **kwargs):
     """
-    Trivial wrapper around L{batch.storeBatchServiceSpecialCase} to delay
-    the import of axiom.batch, which imports the reactor, which we do not
-    want as a side-effect of importing L{axiom.store}.
+    Trivial wrapper around L{batch.storeBatchServiceSpecialCase} to delay the
+    import of axiom.batch, which imports the reactor, which we do not want as a
+    side-effect of importing L{axiom.store} (as this would preclude selecting a
+    reactor after importing this module; see #2864).
     """
     from axiom import batch
     return batch.storeBatchServiceSpecialCase(*args, **kwargs)
