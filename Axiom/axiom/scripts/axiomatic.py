@@ -87,7 +87,7 @@ class Start(twistd.ServerOptions):
             if not logs.exists():
                 logs.makedirs()
             args.extend(["--logfile", logs.child("axiomatic.log").path])
-        if "--pidfile" not in args:
+        if not platform.isWindows() and "--pidfile" not in args:
             args.extend(["--pidfile", run.child("axiomatic.pid").path])
         args.extend(["axiomatic-start", "--dbdir", store.dbdir.path])
         return args
@@ -97,6 +97,14 @@ class Start(twistd.ServerOptions):
         if "--help" in args:
             self.opt_help()
         else:
+            # If a reactor is being selected, it must be done before the store
+            # is opened, since that may execute arbitrary application code
+            # which may in turn install the default reactor.
+            if "--reactor" in args:
+                reactorIndex = args.index("--reactor")
+                shortName = args[reactorIndex + 1]
+                del args[reactorIndex:reactorIndex + 2]
+                self.opt_reactor(shortName)
             sys.argv[1:] = self.getArguments(self.parent.getStore(), args)
             self.run()
 

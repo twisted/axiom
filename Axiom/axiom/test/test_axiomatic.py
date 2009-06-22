@@ -1,18 +1,25 @@
-# Copyright 2006 Divmod, Inc.  See LICENSE file for details
+# Copyright 2006-2009 Divmod, Inc.  See LICENSE file for details
 
 """
 Tests for L{axiom.scripts.axiomatic}.
 """
 
-import sys, os, StringIO
+import sys, os, signal, StringIO
 
 from zope.interface import implements
 
-from twisted.python.versions import Version
+from twisted.python.log import msg
 from twisted.python.filepath import FilePath
-from twisted.application.service import IService, IServiceCollection
-from twisted.trial.unittest import TestCase
+from twisted.python.procutils import which
+from twisted.python.runtime import platform
+from twisted.trial.unittest import SkipTest, TestCase
 from twisted.plugin import IPlugin
+from twisted.internet import reactor
+from twisted.internet.task import deferLater
+from twisted.internet.protocol import ProcessProtocol
+from twisted.internet.defer import Deferred
+from twisted.internet.error import ProcessTerminated
+from twisted.application.service import IService, IServiceCollection
 
 from axiom.store import Store
 from axiom.item import Item
@@ -21,6 +28,8 @@ from axiom.scripts import axiomatic
 from axiom.listversions import SystemVersion
 from axiom.iaxiom import IAxiomaticCommand
 from twisted.plugins.axiom_plugins import AxiomaticStart
+
+from axiom.test.reactorimporthelper import SomeItem
 
 
 class RecorderService(Item):
@@ -65,6 +74,14 @@ class StartTests(TestCase):
     """
     Test the axiomatic start sub-command.
     """
+    def setUp(self):
+        """
+        Work around Twisted #3178 by tricking trial into thinking something
+        asynchronous is happening.
+        """
+        return deferLater(reactor, 0, lambda: None)
+
+
     def _getRunDir(self, dbdir):
         return dbdir.child("run")
 
@@ -87,7 +104,13 @@ class StartTests(TestCase):
         start = axiomatic.Start()
 
         logfileArg = ["--logfile", logs.child("axiomatic.log").path]
-        pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
+
+        # twistd on Windows doesn't support PID files, so on Windows,
+        # getArguments should *not* add --pidfile.
+        if platform.isWindows():
+            pidfileArg = []
+        else:
+            pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
         restArg = ["axiomatic-start", "--dbdir", dbdir.path]
 
         self.assertEqual(
@@ -113,7 +136,7 @@ class StartTests(TestCase):
     def test_logDirectoryCreated(self):
         """
         If L{Start.getArguments} adds a I{--logfile} argument, it creates the
-        necessary directory.\
+        necessary directory.
         """
         dbdir = FilePath(self.mktemp())
         store = Store(dbdir)
@@ -171,7 +194,9 @@ class StartTests(TestCase):
         # still want to do some sanity check against one of them in case we end
         # up getting the twistd version incorrectly somehow... -exarkun
         self.assertIn("--reactor", stdout.getvalue())
-        self.assertIn("--uid", stdout.getvalue())
+        if not platform.isWindows():
+            # This isn't an option on Windows, so it shouldn't be there.
+            self.assertIn("--uid", stdout.getvalue())
 
         # Also, we don't want to see twistd plugins here.
         self.assertNotIn("axiomatic-start", stdout.getvalue())
@@ -229,6 +254,147 @@ class StartTests(TestCase):
 
         store = Store(dbdir)
         self.assertTrue(store.getItemByID(recorder.storeID).started)
+
+
+    def test_reactorSelection(self):
+        """
+        L{AxiomaticStart} optionally takes the name of a reactor and
+        installs it instead of the default reactor.
+        """
+        # Since this process is already hopelessly distant from the state in
+        # which I{axiomatic start} operates, it would make no sense to try a
+        # functional test of this behavior in this process.  Since the
+        # behavior being tested involves lots of subtle interactions between
+        # lots of different pieces of code (the reactor might get installed
+        # at the end of a ten-deep chain of imports going through as many
+        # different projects), it also makes no sense to try to make this a
+        # unit test.  So, start a child process and try to use the alternate
+        # reactor functionality there.
+
+        here = FilePath(__file__)
+        # Try to find it relative to the source of this test.
+        bin = here.parent().parent().parent().child("bin")
+        axiomatic = bin.child("axiomatic")
+        if axiomatic.exists():
+            # Great, use that one.
+            axiomatic = axiomatic.path
+        else:
+            # Try to find it on the path, instead.
+            axiomatics = which("axiomatic")
+            if axiomatics:
+                # Great, it was on the path.
+                axiomatic = axiomatics[0]
+            else:
+                # Nope, not there, give up.
+                raise SkipTest(
+                    "Could not find axiomatic script on path or at %s" % (
+                        axiomatic.path,))
+
+        # Create a store for the child process to use and put an item in it.
+        # This will force an import of the module that defines that item's
+        # class when the child process starts.  The module imports the default
+        # reactor at the top-level, making this the worst-case for the reactor
+        # selection code.
+        storePath = self.mktemp()
+        store = Store(storePath)
+        SomeItem(store=store)
+        store.close()
+
+        # Install select reactor because it available on all platforms, and
+        # it is still an error to try to install the select reactor even if
+        # the already installed reactor was the select reactor.
+        argv = [
+            sys.executable,
+            axiomatic, "-d", storePath,
+            "start", "--reactor", "select", "-n"]
+        expected = [
+            "reactor class: twisted.internet.selectreactor.SelectReactor.",
+            "reactor class: <class 'twisted.internet.selectreactor.SelectReactor'>"]
+        proto, complete = AxiomaticStartProcessProtocol.protocolAndDeferred(expected)
+
+        # Make sure the version of Axiom under test is found by the child
+        # process.
+        import axiom, epsilon
+        environ = os.environ.copy()
+        environ['PYTHONPATH'] = os.pathsep.join([
+            FilePath(epsilon.__file__).parent().parent().path,
+            FilePath(axiom.__file__).parent().parent().path,
+            environ['PYTHONPATH']])
+        reactor.spawnProcess(proto, sys.executable, argv, env=environ)
+        return complete
+
+
+
+class AxiomaticStartProcessProtocol(ProcessProtocol):
+    """
+    L{AxiomaticStartProcessProtocol} watches an I{axiomatic start} process
+    and fires a L{Deferred} when it sees either successful reactor
+    installation or process termination.
+
+    @ivar _success: A flag which is C{False} until the expected text is found
+        in the child's stdout and C{True} thereafter.
+
+    @ivar _output: A C{str} giving all of the stdout from the child received
+        thus far.
+    """
+    _success = False
+    _output = ""
+
+
+    def protocolAndDeferred(cls, expected):
+        """
+        Create and return an L{AxiomaticStartProcessProtocol} and a
+        L{Deferred}.  The L{Deferred} will fire when the protocol receives
+        the given string on standard out or when the process ends, whichever
+        comes first.
+        """
+        proto = cls()
+        proto._complete = Deferred()
+        proto._expected = expected
+        return proto, proto._complete
+    protocolAndDeferred = classmethod(protocolAndDeferred)
+
+
+    def errReceived(self, bytes):
+        """
+        Report the given unexpected stderr data.
+        """
+        msg("Received stderr from axiomatic: %r" % (bytes,))
+
+
+    def outReceived(self, bytes):
+        """
+        Add the given bytes to the output buffer and check to see if the
+        reactor has been installed successfully, firing the completion
+        L{Deferred} if so.
+        """
+        msg("Received stdout from axiomatic: %r" % (bytes,))
+        self._output += bytes
+        if not self._success:
+            for line in self._output.splitlines():
+                for expectedLine in self._expected:
+                    if expectedLine in line:
+                        msg("Received expected output")
+                        self._success = True
+                        self.transport.signalProcess("TERM")
+
+
+    def processEnded(self, reason):
+        """
+        Check that the process exited in the way expected and that the required
+        text has been found in its output and fire the result L{Deferred} with
+        either a value or a failure.
+        """
+        self._complete, result = None, self._complete
+        if self._success:
+            if platform.isWindows() or (
+                # Windows can't tell that we SIGTERM'd it, so sorry.
+                reason.check(ProcessTerminated) and
+                reason.value.signal == signal.SIGTERM):
+                result.callback(None)
+                return
+        # Something went wrong.
+        result.errback(reason)
 
 
 
