@@ -2218,27 +2218,6 @@ class Store(Empowered):
         return default
 
 
-    def _normalizeSQL(self, sql):
-        # It turns out that "ATTACH DATABASE" *requires* string interpolation,
-        # since it syntactically does not support bind parameters.  It takes a
-        # string as a parameter though.  Considering that this assertion was
-        # never tripped before I don't feel too bad commenting it out, but I
-        # wish there were a way to preserve 'paranoid mode'
-
-        # assert "'" not in sql, "Strings are _NOT ALLOWED_"
-        if sql not in self.statementCache:
-            accum = []
-            lines = sql.split('\n')
-            for line in lines:
-                line = line.split('--')[0]         # remove comments
-                words = line.strip().split()
-                accum.extend(words)
-            normsql = ' '.join(accum)   # your SQL should never have any
-                                        # significant whitespace in it, right?
-            self.statementCache[sql] = normsql
-        return self.statementCache[sql]
-
-
     def querySchemaSQL(self, sql, args=()):
         sql = sql.replace("*DATABASE*", self.databaseName)
         return self.querySQL(sql, args)
@@ -2247,7 +2226,6 @@ class Store(Empowered):
     def querySQL(self, sql, args=()):
         """For use with SELECT (or SELECT-like PRAGMA) statements.
         """
-        sql = self._normalizeSQL(sql)
         if self.debug:
             result = timeinto(self.queryTimes, self._queryandfetch, sql, args)
         else:
@@ -2287,7 +2265,6 @@ class Store(Empowered):
 
 
     def _execSQL(self, sql, args):
-        sql = self._normalizeSQL(sql)
         if self.debug:
             rows = timeinto(self.execTimes, self._queryandfetch, sql, args)
         else:
