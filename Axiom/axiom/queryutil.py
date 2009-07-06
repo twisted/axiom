@@ -30,33 +30,34 @@ def overlapping(startAttribute, # X
     arguments.
 
     For a database with Items of class O which represent values in this
-    configuration:
+    configuration::
 
-            X                   Y
-           (a)                 (b)
-            |-------------------|
-      (c)      (d)
-       |--------|          (e)      (f)
-                            |--------|
+              X                   Y
+             (a)                 (b)
+              |-------------------|
+        (c)      (d)
+         |--------|          (e)      (f)
+                              |--------|
 
-   (g) (h)
-    |---|                            (i)    (j)
-                                      |------|
+     (g) (h)
+      |---|                            (i)    (j)
+                                        |------|
 
-   (k)                                   (l)
-    |-------------------------------------|
+     (k)                                   (l)
+      |-------------------------------------|
 
-           (a)                           (l)
-            |-----------------------------|
-      (c)                      (b)
-       |------------------------|
+             (a)                           (l)
+              |-----------------------------|
+        (c)                      (b)
+         |------------------------|
 
-      (c)  (a)
-       |----|
-                               (b)       (l)
-                                |---------|
+        (c)  (a)
+         |----|
+                                 (b)       (l)
+                                  |---------|
 
-    The query:
+    The query::
+
         myStore.query(
             O,
             findOverlapping(O.X, O.Y,
@@ -74,7 +75,6 @@ def overlapping(startAttribute, # X
     N.startAttribute must be less than N.endAttribute.
 
     startValue must be less than endValue.
-
     """
     assert startValue <= endValue
 

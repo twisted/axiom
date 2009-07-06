@@ -1168,12 +1168,12 @@ class reference(integer):
 
 class ieee754_double(SQLAttribute):
     """
-    From the SQLite documentation:
+    From the SQLite documentation::
 
-        'Each value stored in an SQLite database (or manipulated by the
+        Each value stored in an SQLite database (or manipulated by the
         database engine) has one of the following storage classes: (...)
         REAL. The value is a floating point value, stored as an 8-byte IEEE
-        floating point number.'
+        floating point number.
 
     This attribute type implements IEEE754 double-precision binary
     floating-point storage.  Some people call this 'float', and think it is
@@ -1210,24 +1210,21 @@ class AbstractFixedPointDecimal(integer):
     Attribute representing a number with a specified number of decimal
     places.
 
-    This is stored in SQLite as a binary integer multiplied by (10**N) where N
-    is the number of decimal places required by Python.  Therefore, in-database
-    multiplication, division, or queries which compare to integers or
-    fixedpointdecimals with a different number of decimal places, will not
-    work.  Also, you cannot store, or sum to, fixed point decimals greater than
-    (2**63)/(10**N).
+    This is stored in SQLite as a binary integer multiplied by M{10**N}
+    where C{N} is the number of decimal places required by Python. 
+    Therefore, in-database multiplication, division, or queries which
+    compare to integers or fixedpointdecimals with a different number of
+    decimal places, will not work.  Also, you cannot store, or sum to, fixed
+    point decimals greater than M{(2**63)/(10**N)}.
 
     While L{ieee754_double} is handy for representing various floating-point
     numbers, such as scientific measurements, this class (and the associated
     Python decimal class) is more appropriate for arithmetic on sums of money.
 
-    For more information on Python's Decimal class:
-
-        http://www.python.org/doc/current/lib/module-decimal.html
-
-    and on general computerized Decimal math in general:
-
-        http://www2.hursley.ibm.com/decimal/decarith.html
+    For more information on Python's U{Decimal
+    class<http://www.python.org/doc/current/lib/module-decimal.html>} and on
+    general U{computerized Decimal math in
+    general<http://www2.hursley.ibm.com/decimal/decarith.html>}.
 
     This is currently a private helper superclass because we cannot store
     additional metadata about column types; maybe we should fix that.

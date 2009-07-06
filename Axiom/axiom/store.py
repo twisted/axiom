@@ -224,19 +224,18 @@ class BaseQuery:
 
     def explain(self):
         """
-        A debugging API, exposing SQLite's 'EXPLAIN' statement.
+        A debugging API, exposing SQLite's I{EXPLAIN} statement.
 
         While this is not a private method, you also probably don't have any
-        use for it unless you understand this page very well:
-
-            http://www.sqlite.org/opcode.html
+        use for it unless you understand U{SQLite
+        opcodes<http://www.sqlite.org/opcode.html>} very well.
 
         Once you do, it can be handy to call this interactively to get a sense
         of the complexity of a query.
 
         @return: a list, the first element of which is a L{str} (the SQL
         statement which will be run), and the remainder of which is 3-tuples
-        resulting from the 'EXPLAIN' of that statement.
+        resulting from the I{EXPLAIN} of that statement.
         """
         return ([self._sqlAndArgs('SELECT', self._queryTarget)[0]] +
                 self._runQuery('EXPLAIN SELECT', self._queryTarget))
@@ -398,7 +397,7 @@ class BaseQuery:
                 => [1, 2, 3]
 
         You can also use distinct queries to eliminate duplicate results from
-        joining two Item types together in a query, like so:
+        joining two Item types together in a query, like so::
 
             x = X(store=s, value=1, name=u'hello')
             Y(store=s, other=x, ident=u'a')
@@ -973,7 +972,7 @@ class Store(Empowered):
 
     Store an item in me by setting its 'store' attribute to be me.
 
-    I can be created one of two ways:
+    I can be created one of two ways::
 
         Store()                      # Create an in-memory database
 
@@ -1318,11 +1317,11 @@ class Store(Empowered):
 
     def findOrCreate(self, userItemClass, __ifnew=None, **attrs):
         """
-        Usage:
+        Usage::
 
             s.findOrCreate(userItemClass [, function] [, x=1, y=2, ...])
 
-        Example:
+        Example::
 
             class YourItemType(Item):
                 a = integer()
@@ -1576,11 +1575,11 @@ class Store(Empowered):
     def findFirst(self, tableClass, comparison=None,
                   offset=None, sort=None, default=None):
         """
-        Usage:
+        Usage::
 
             s.findFirst(tableClass [, query arguments except 'limit'])
 
-        Example:
+        Example::
 
             class YourItemType(Item):
                 a = integer()
@@ -1916,7 +1915,8 @@ class Store(Empowered):
 
         @param tableClass: an Item subclass
 
-        @raises L{axiom.errors.ItemClassesOnly}: if an object other than a subclass of Item is passed.
+        @raises axiom.errors.ItemClassesOnly: if an object other than a
+            subclass of Item is passed.
 
         @return: a string
         """
