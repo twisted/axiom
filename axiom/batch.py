@@ -544,22 +544,24 @@ def _childProcTerminated(self, err):
 
 
 class ProcessController(object):
-    """Stateful class which tracks a Juice connection to a child process.
+    """
+    Stateful class which tracks a Juice connection to a child process.
 
     Communication occurs over stdin and stdout of the child process.  The
     process is launched and restarted as necessary.  Failures due to the child
     process terminating, either unilaterally of by request, are represented as
     a transient exception class,
 
-    Mode is one of
-      'stopped'       (no process running or starting)
-      'starting'      (process begun but not ready for requests)
-      'ready'         (process ready for requests)
-      'stopping'      (process being torn down)
-      'waiting_ready' (process beginning but will be shut down
-                          as soon as it starts up)
+    Mode is one of::
 
-    Transitions are as follows
+      - 'stopped'       (no process running or starting)
+      - 'starting'      (process begun but not ready for requests)
+      - 'ready'         (process ready for requests)
+      - 'stopping'      (process being torn down)
+      - 'waiting_ready' (process beginning but will be shut down
+                         as soon as it starts up)
+
+    Transitions are as follows::
 
        getProcess:
            stopped -> starting:
