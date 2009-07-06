@@ -80,7 +80,7 @@ class BadReferenceTestCase(TestCase):
         self.assertEqual(referent.ref, None)
 
 
-    def testBrokenReferenceException(self):
+    def test_brokenReferenceException(self):
         """
         Test that an exception is raised when a broken reference is detected
         when this should be impossible (ie. CASCADE or NULLIFY).
@@ -95,9 +95,9 @@ class BadReferenceTestCase(TestCase):
         gc.collect()
 
         referent = store.findFirst(BreakingReferent)
-        BreakingReferent.ref.whenDeleted = reference.CASCADE
+        self.patch(BreakingReferent.ref, 'whenDeleted', reference.CASCADE)
         self.assertRaises(BrokenReference, lambda: referent.ref)
-        BreakingReferent.ref.whenDeleted = reference.NULLIFY
+
 
     def testBadReferenceNoneRevert(self):
         store = Store()
