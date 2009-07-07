@@ -94,6 +94,8 @@ class IPowerupIndirector(Interface):
         @type interface: L{zope.interface.Interface}
         """
 
+
+
 class IScheduler(Interface):
     """
     An interface for scheduling tasks.  Quite often the store will be adaptable
@@ -101,7 +103,7 @@ class IScheduler(Interface):
     assume that it is if your application needs to schedule timed events or
     queue tasks.
     """
-    def schedule(self, runnable, when):
+    def schedule(runnable, when):
         """
         @param runnable: any Item with a 'run' method.
 
@@ -109,6 +111,7 @@ class IScheduler(Interface):
         method will be called.  See extime.Time's documentation for more
         details.
         """
+
 
 
 class IQuery(Interface):

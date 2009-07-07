@@ -1,7 +1,8 @@
-# -*- test-case-name: axiom.test.historic.test_parentHook2to3 -*-
+# -*- test-case-name: axiom.test.historic.test_parentHook3to4 -*-
+
 """
-Generate a test stub for upgrading L{_SubSchedulerParentHook} from version 2 to
-3, which removes the C{scheduledAt} attribute.
+Generate a test stub for upgrading L{_SubSchedulerParentHook} from version 3 to
+4, which removes the C{scheduler} attribute.
 """
 
 from axiom.test.historic.stubloader import saveStub
@@ -20,4 +21,4 @@ def createDatabase(store):
 
 
 if __name__ == '__main__':
-    saveStub(createDatabase, 16800)
+    saveStub(createDatabase, 17606)

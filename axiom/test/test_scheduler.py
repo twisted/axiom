@@ -1,6 +1,6 @@
 # -*- test-case-name: axiom.test.test_scheduler -*-
 
-
+import gc
 from datetime import timedelta
 
 from twisted.trial import unittest
@@ -8,11 +8,12 @@ from twisted.trial.unittest import TestCase
 from twisted.application.service import IService
 from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock
-from twisted.python import filepath
+from twisted.python import filepath, versions
 
 from epsilon.extime import Time
 
-from axiom.scheduler import Scheduler, SubScheduler, TimedEvent, _SubSchedulerParentHook, TimedEventFailureLog
+from axiom.scheduler import TimedEvent, _SubSchedulerParentHook, TimedEventFailureLog
+from axiom.scheduler import Scheduler, SubScheduler
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
@@ -106,9 +107,8 @@ class SchedTest:
     def setUp(self):
         self.clock = Clock()
 
-        scheduler = Scheduler(store=self.siteStore)
+        scheduler = IScheduler(self.siteStore)
         self.stubTime(scheduler)
-        installOn(scheduler, self.siteStore)
         IService(self.siteStore).startService()
 
 
@@ -309,11 +309,24 @@ class SubSchedulerTests(SchedTest, TestCase):
 
         substoreItem = SubStore.createNew(self.siteStore, ['scheduler_test'])
         self.substore = substoreItem.open()
-        self.scheduler = scheduler = SubScheduler(store=self.substore)
+        self.scheduler = scheduler = IScheduler(self.substore)
         self.stubTime(scheduler)
-        installOn(scheduler, self.substore)
 
         self.store = self.substore
+
+
+    def test_now(self):
+        """
+        The user store's L{IScheduler} powerup's C{now} method returns whatever
+        the site store's L{IScheduler} powerup's C{now} method returns.
+        """
+        # I don't want the stubbed now method.
+        del self.scheduler.now
+
+        self.clock.advance(17)
+        self.assertEquals(
+            self.scheduler.now(),
+            Time.fromPOSIXTimestamp(self.clock.seconds()))
 
 
     def test_scheduleAfterParentHookError(self):
@@ -371,15 +384,13 @@ class SchedulerStartupTests(TestCase):
         return self.now() + timedelta(seconds=offset)
 
 
-    def makeScheduler(self, install=True):
+    def makeScheduler(self):
         """
         Create, install, and return a Scheduler with a fake callLater.
         """
-        scheduler = Scheduler(store=self.store)
+        scheduler = IScheduler(self.store)
         scheduler.callLater = self.clock.callLater
         scheduler.now = self.now
-        if install:
-            installOn(scheduler, self.store)
         return scheduler
 
 
@@ -395,16 +406,6 @@ class SchedulerStartupTests(TestCase):
         service = IService(self.store)
         if service.running:
             return service.stopService()
-
-
-    def test_schedulerWithoutParent(self):
-        """
-        Test that a Scheduler with no Service parent is not running.
-        """
-        self.startStoreService()
-        scheduler = self.makeScheduler(False)
-        self.failIf(
-            scheduler.running, "Parentless service should not be running.")
 
 
     def test_scheduleWhileStopped(self):
@@ -483,8 +484,7 @@ class MissingService(unittest.TestCase):
         """
         self.calls = []
         self.store = Store(filepath.FilePath(self.mktemp()))
-        self.siteScheduler = Scheduler(store=self.store)
-        installOn(self.siteScheduler, self.store)
+        self.siteScheduler = IScheduler(self.store)
         self.siteScheduler.callLater = self._callLater
 
 
@@ -506,16 +506,7 @@ class MissingService(unittest.TestCase):
         """
         subst = SubStore.createNew(self.store, ['scheduler_test'])
         substore = subst.open()
-        subscheduler = SubScheduler(store=substore)
-        installOn(subscheduler, substore)
-        return self._testSchedule(subscheduler)
-
-    def test_orphanedSubSchedule(self):
-        """
-        The same as test_scheduler, except using a subscheduler that is orphaned.
-        """
-        subscheduler = SubScheduler(store=self.store)
-        installOn(subscheduler, self.store)
+        subscheduler = IScheduler(substore)
         return self._testSchedule(subscheduler)
 
 
@@ -568,9 +559,6 @@ class SubStoreSchedulerReentrancy(TestCase):
         self.substoreItem = SubStore.createNew(self.store, ['sub'])
         self.substore = self.substoreItem.open()
 
-        installOn(Scheduler(store=self.store), self.store)
-        installOn(SubScheduler(store=self.substore), self.substore)
-
         self.scheduler = IScheduler(self.store)
         self.subscheduler = IScheduler(self.substore)
 
@@ -609,7 +597,7 @@ class SubStoreSchedulerReentrancy(TestCase):
 
         hook = self.store.findUnique(
             _SubSchedulerParentHook,
-            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+            _SubSchedulerParentHook.subStore == self.substoreItem)
 
         self.assertEqual(
             list(self.scheduler.scheduledTimes(hook)),
@@ -641,7 +629,7 @@ class SubStoreSchedulerReentrancy(TestCase):
 
         hook = self.store.findUnique(
             _SubSchedulerParentHook,
-            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+            _SubSchedulerParentHook.subStore == self.substoreItem)
 
         self.assertEqual(
             list(self.scheduler.scheduledTimes(hook)),
@@ -671,7 +659,7 @@ class SubStoreSchedulerReentrancy(TestCase):
 
         hook = self.store.findUnique(
             _SubSchedulerParentHook,
-            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+            _SubSchedulerParentHook.subStore == self.substoreItem)
 
         self.assertEqual(
             list(self.scheduler.scheduledTimes(hook)),
@@ -697,8 +685,139 @@ class SubStoreSchedulerReentrancy(TestCase):
 
         hook = self.store.findUnique(
             _SubSchedulerParentHook,
-            _SubSchedulerParentHook.loginAccount == self.substoreItem)
+            _SubSchedulerParentHook.subStore == self.substoreItem)
 
         self.assertEqual(
             list(self.scheduler.scheduledTimes(hook)),
             [Time.fromPOSIXTimestamp(now + 20)])
+
+
+
+class BackwardsCompatibilitySchedTests(object):
+    """
+    L{Scheduler} and L{SubScheduler} are going to be removed.  In the mean
+    time, if someone gets their hands on one and tries to do something
+    supported to it, it should be as if they were doing it to the suitable
+    replacement, L{_SiteScheduler} or L{_UserScheduler}.  This mixin provides
+    tests for that behavior, as well as for the deprecations of L{Scheduler}
+    and L{SubScheduler}.
+
+    @ivar schedulerType: L{Scheduler} or L{SubScheduler}, whichever is to be
+        tested.
+    """
+    def setUp(self):
+        """
+        Create a store with an instance of C{self.schedulerType} in it.
+        """
+        self.store = Store()
+        self.oldScheduler = self.schedulerType(store=self.store)
+        warnings = self.flushWarnings([self.setUp])
+        self.assertEquals(len(warnings), 1)
+        self.assertEquals(warnings[0]['category'], PendingDeprecationWarning)
+        self.assertEquals(
+            warnings[0]['message'],
+            self.schedulerType.__name__ + " is deprecated since Axiom 0.5.32.  "
+            "Just adapt stores to IScheduler.")
+        self.scheduler = IScheduler(self.store)
+
+
+    def _checkSynonym(self, name):
+        # Whatever the value of the attribute is on the _SiteScheduler or
+        # _UserScheduler instance, that's what it should be on the Scheduler
+        # or SubScheduler Item.
+        foo = object()
+        setattr(self.scheduler, name, foo)
+        self.assertIdentical(getattr(self.oldScheduler, name), foo)
+
+        # And rebinding the attribute on the (Sub)Scheduler Item should rebind it on
+        # the _SiteScheduler instance.
+        bar = object()
+        setattr(self.oldScheduler, name, bar)
+        self.assertIdentical(getattr(self.scheduler, name), bar)
+
+
+    def test_now(self):
+        """
+        L{Scheduler.now} is a synonym for L{_SiteScheduler.now}.
+        """
+        self._checkSynonym("now")
+
+
+    def test_tick(self):
+        """
+        L{Scheduler.tick} is a synonym for L{_SiteScheduler.tick}.
+        """
+        self._checkSynonym("tick")
+
+
+    def test_schedule(self):
+        """
+        L{Scheduler.schedule} is a synonym for L{_SiteScheduler.schedule}.
+        """
+        self._checkSynonym("schedule")
+
+
+    def test_scheduledTimes(self):
+        """
+        L{Scheduler.scheduledTimes} is a synonym for
+        L{_SiteScheduler.scheduledTimes}.
+        """
+        self._checkSynonym("scheduledTimes")
+
+
+    def test_unscheduleAll(self):
+        """
+        L{Scheduler.unscheduleAll} is a synonym for
+        L{_SiteScheduler.unscheduleAll}.
+        """
+        self._checkSynonym("unscheduleAll")
+
+
+    def test_reschedule(self):
+        """
+        L{Scheduler.reschedule} is a synonym for
+        L{_SiteScheduler.reschedule}.
+        """
+        self._checkSynonym("reschedule")
+
+
+    def test_deprecated(self):
+        """
+        Loading an existing L{Scheduler} from a L{Store} emits a deprecation
+        warning.
+        """
+        storeID = self.oldScheduler.storeID
+        del self.oldScheduler
+        gc.collect()
+        scheduler = self.store.getItemByID(storeID)
+        warnings = self.flushWarnings([self.test_deprecated])
+        self.assertEquals(len(warnings), 1)
+        self.assertEquals(warnings[0]['category'], PendingDeprecationWarning)
+        self.assertEquals(
+            warnings[0]['message'],
+            self.schedulerType.__name__ + " is deprecated since Axiom 0.5.32.  "
+            "Just adapt stores to IScheduler.")
+
+
+
+class BackwardsCompatibilitySchedulerTests(BackwardsCompatibilitySchedTests, TestCase):
+    schedulerType = Scheduler
+
+    def test_interface(self):
+        """
+        L{Scheduler} provides L{IScheduler} (which it proxies) and
+        L{IService} (which is a no-op).
+        """
+        self.assertTrue(IScheduler.providedBy(self.oldScheduler))
+        self.assertTrue(IService.providedBy(self.oldScheduler))
+
+
+
+class BackwardsCompatibilitySubSchedulerTests(BackwardsCompatibilitySchedTests, TestCase):
+    schedulerType = SubScheduler
+
+    def test_interface(self):
+        """
+        L{SubScheduler} provides L{IScheduler} (which it proxies).
+        """
+        self.assertTrue(IScheduler.providedBy(self.oldScheduler))
