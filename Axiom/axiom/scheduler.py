@@ -1,20 +1,22 @@
 # -*- test-case-name: axiom.test.test_scheduler -*-
 
+import warnings
+
 from zope.interface import implements
 
 from twisted.internet import reactor
 
-from twisted.application.service import Service, IService
+from twisted.application.service import IService, Service
 from twisted.python import log, failure
 
 from epsilon.extime import Time
-from epsilon import descriptor
 
+from axiom.iaxiom import IScheduler
 from axiom.item import Item, declareLegacyItem
 from axiom.attributes import AND, timestamp, reference, integer, inmemory, bytes
-from axiom.dependency import dependsOn, installOn
-from axiom.iaxiom import IScheduler
+from axiom.dependency import uninstallFrom
 from axiom.upgrade import registerUpgrader
+from axiom.substore import SubStore
 
 VERBOSE = False
 
@@ -197,61 +199,27 @@ class SchedulerMixin:
 
 _EPSILON = 1e-20      # A very small amount of time.
 
-class Scheduler(Item, Service, SchedulerMixin):
+
+
+class _SiteScheduler(object, Service, SchedulerMixin):
     """
-    Track and execute persistent timed events for a I{site} store.
+    Adapter from a site store to L{IScheduler}.
     """
-    typeName = 'axiom_scheduler'
-    schemaVersion = 1
+    implements(IScheduler)
 
-    implements(IService, IScheduler)
+    timer = None
+    callLater = reactor.callLater
+    now = Time
 
-    powerupInterfaces = (IService, IScheduler)
-
-    parent = inmemory()
-    name = inmemory()
-    timer = inmemory()
-
-    # Also testing hooks
-    callLater = inmemory()
-    now = inmemory()
-
-    # This is unused and should be upgraded away.
-    eventsRun = integer(default=0)
-    lastEventAt = timestamp(default=None)
-    nextEventAt = timestamp(default=None)
-
-    class running(descriptor.attribute):
-        def get(self):
-            return (
-                self.parent is self.store._axiom_service and
-                self.store._axiom_service is not None and
-                self.store._axiom_service.running)
-
-        def set(self, value):
-            # Eh whatever
-            pass
-
-
-    def __repr__(self):
-        return '<Scheduler>'
-
-
-    def installed(self):
-        self.setServiceParent(IService(self.store))
-
-
-    def activate(self):
-        self.timer = None
-        self.callLater = reactor.callLater
-        self.now = Time
+    def __init__(self, store):
+        self.store = store
 
 
     def startService(self):
         """
         Start calling persistent timed events whose time has come.
         """
-        super(Scheduler, self).startService()
+        super(_SiteScheduler, self).startService()
         self._transientSchedule(self.now(), self.now())
 
 
@@ -259,7 +227,7 @@ class Scheduler(Item, Service, SchedulerMixin):
         """
         Stop calling persistent timed events.
         """
-        super(Scheduler, self).stopService()
+        super(_SiteScheduler, self).stopService()
         if self.timer is not None:
             self.timer.cancel()
             self.timer = None
@@ -267,10 +235,20 @@ class Scheduler(Item, Service, SchedulerMixin):
 
     def tick(self):
         self.timer = None
-        return super(Scheduler, self).tick()
+        return super(_SiteScheduler, self).tick()
 
 
     def _transientSchedule(self, when, now):
+        """
+        If the service is currently running, schedule a tick to happen no
+        later than C{when}.
+
+        @param when: The time at which to tick.
+        @type when: L{epsilon.extime.Time}
+
+        @param now: The current time.
+        @type now: L{epsilon.extime.Time}
+        """
         if not self.running:
             return
         if self.timer is not None:
@@ -289,31 +267,191 @@ class Scheduler(Item, Service, SchedulerMixin):
 
 
 
+class _UserScheduler(object, Service, SchedulerMixin):
+    """
+    Adapter from a non-site store to L{IScheduler}.
+    """
+    implements(IScheduler)
+
+    def __init__(self, store):
+        self.store = store
+
+
+    def now(self):
+        """
+        Report the current time, as reported by the parent's scheduler.
+        """
+        return IScheduler(self.store.parent).now()
+
+
+    def _transientSchedule(self, when, now):
+        """
+        If this service's store is attached to its parent, ask the parent to
+        schedule this substore to tick at the given time.
+
+        @param when: The time at which to tick.
+        @type when: L{epsilon.extime.Time}
+
+        @param now: Present for signature compatibility with
+            L{_SiteScheduler._transientSchedule}, but ignored otherwise.
+        """
+        if self.store.parent is not None:
+            subStore = self.store.parent.getItemByID(self.store.idInParent)
+            hook = self.store.parent.findOrCreate(
+                _SubSchedulerParentHook,
+                subStore=subStore)
+            hook._schedule(when)
+
+
+    def migrateDown(self):
+        """
+        Remove the components in the site store for this SubScheduler.
+        """
+        subStore = self.store.parent.getItemByID(self.store.idInParent)
+        ssph = self.store.parent.findUnique(
+            _SubSchedulerParentHook,
+            _SubSchedulerParentHook.subStore == subStore,
+            default=None)
+        if ssph is not None:
+            te = self.store.parent.findUnique(TimedEvent,
+                                              TimedEvent.runnable == ssph,
+                                              default=None)
+            if te is not None:
+                te.deleteFromStore()
+            ssph.deleteFromStore()
+
+
+    def migrateUp(self):
+        """
+        Recreate the hooks in the site store to trigger this SubScheduler.
+        """
+        te = self.store.findFirst(TimedEvent, sort=TimedEvent.time.descending)
+        if te is not None:
+            self._transientSchedule(te.time, None)
+
+
+
+class _SchedulerCompatMixin(object):
+    """
+    Backwards compatibility helper for L{Scheduler} and L{SubScheduler}.
+
+    This mixin provides all the attributes from L{IScheduler}, but provides
+    them by adapting the L{Store} the item is in to L{IScheduler} and
+    getting them from the resulting object.  Primarily in support of test
+    code, it also supports rebinding those attributes by rebinding them on
+    the L{IScheduler} powerup.
+
+    @see: L{IScheduler}
+    """
+    implements(IScheduler)
+
+    def forwardToReal(name):
+        def get(self):
+            return getattr(IScheduler(self.store), name)
+        def set(self, value):
+            setattr(IScheduler(self.store), name, value)
+        return property(get, set)
+
+    now = forwardToReal("now")
+    tick = forwardToReal("tick")
+    schedule = forwardToReal("schedule")
+    reschedule = forwardToReal("reschedule")
+    unschedule = forwardToReal("unschedule")
+    unscheduleAll = forwardToReal("unscheduleAll")
+    scheduledTimes = forwardToReal("scheduledTimes")
+
+
+    def activate(self):
+        """
+        Whenever L{Scheduler} or L{SubScheduler} is created, either newly or
+        when loaded from a database, emit a deprecation warning referring
+        people to L{IScheduler}.
+        """
+        # This is unfortunate.  Perhaps it is the best thing which works (it is
+        # the first I found). -exarkun
+        if '_axiom_memory_dummy' in vars(self):
+            stacklevel = 7
+        else:
+            stacklevel = 5
+        warnings.warn(
+            self.__class__.__name__ + " is deprecated since Axiom 0.5.32.  "
+            "Just adapt stores to IScheduler.",
+            category=PendingDeprecationWarning,
+            stacklevel=stacklevel)
+
+
+
+class Scheduler(Item, _SchedulerCompatMixin):
+    """
+    Track and execute persistent timed events for a I{site} store.
+
+    This is deprecated and present only for backwards compatibility.  Adapt
+    the store to L{IScheduler} instead.
+    """
+    implements(IService)
+
+    typeName = 'axiom_scheduler'
+    schemaVersion = 2
+
+    dummy = integer()
+
+    def activate(self):
+        _SchedulerCompatMixin.activate(self)
+
+
+    def setServiceParent(self, parent):
+        """
+        L{Scheduler} is no longer an L{IService}, but still provides this
+        method as a no-op in case an instance which was still an L{IService}
+        powerup is loaded (in which case it will be used like a service
+        once).
+        """
+
+
+
+declareLegacyItem(
+    Scheduler.typeName, 1,
+    dict(eventsRun=integer(default=0),
+         lastEventAt=timestamp(),
+         nextEventAt=timestamp()))
+
+
+def scheduler1to2(old):
+    new = old.upgradeVersion(Scheduler.typeName, 1, 2)
+    new.store.powerDown(new, IService)
+    new.store.powerDown(new, IScheduler)
+    return new
+
+registerUpgrader(scheduler1to2, Scheduler.typeName, 1, 2)
+
+
 class _SubSchedulerParentHook(Item):
-    schemaVersion = 3
+    schemaVersion = 4
     typeName = 'axiom_subscheduler_parent_hook'
 
-    loginAccount = reference()
-
-    scheduler = dependsOn(Scheduler)
+    subStore = reference(
+        doc="""
+        The L{SubStore} for which this scheduling hook exists.
+        """, reftype=SubStore)
 
     def run(self):
         """
-        Tick our C{loginAccount}'s L{SubScheduler}.
+        Tick our C{subStore}'s L{SubScheduler}.
         """
-        IScheduler(self.loginAccount).tick()
+        IScheduler(self.subStore).tick()
 
 
     def _schedule(self, when):
         """
         Ensure that this hook is scheduled to run at or before C{when}.
         """
-        for scheduledAt in self.scheduler.scheduledTimes(self):
+        sched = IScheduler(self.store)
+        for scheduledAt in sched.scheduledTimes(self):
             if when < scheduledAt:
-                self.scheduler.reschedule(self, scheduledAt, when)
+                sched.reschedule(self, scheduledAt, when)
             break
         else:
-            self.scheduler.schedule(self, when)
+            sched.schedule(self, when)
 
 
 def upgradeParentHook1to2(oldHook):
@@ -337,73 +475,56 @@ declareLegacyItem(
 
 def upgradeParentHook2to3(old):
     """
-    Copy all attributes except C{scheduledAt}.
+    Copy the C{loginAccount} attribute, but drop the others.
     """
     return old.upgradeVersion(
         old.typeName, 2, 3,
-        loginAccount=old.loginAccount,
-        scheduler=old.scheduler)
+        loginAccount=old.loginAccount)
 
 registerUpgrader(upgradeParentHook2to3, _SubSchedulerParentHook.typeName, 2, 3)
 
+declareLegacyItem(
+    _SubSchedulerParentHook.typeName, 3,
+    dict(loginAccount=reference(),
+         scheduler=reference()))
+
+def upgradeParentHook3to4(old):
+    """
+    Copy C{loginAccount} to C{subStore} and remove the installation marker.
+    """
+    new = old.upgradeVersion(
+        old.typeName, 3, 4, subStore=old.loginAccount)
+    uninstallFrom(new, new.store)
+    return new
 
 
-class SubScheduler(Item, SchedulerMixin):
+registerUpgrader(upgradeParentHook3to4, _SubSchedulerParentHook.typeName, 3, 4)
+
+
+class SubScheduler(Item, _SchedulerCompatMixin):
     """
     Track and execute persistent timed events for a substore.
+
+    This is deprecated and present only for backwards compatibility.  Adapt
+    the store to L{IScheduler} instead.
     """
-    schemaVersion = 1
+    schemaVersion = 2
     typeName = 'axiom_subscheduler'
 
-    implements(IScheduler)
-
-    powerupInterfaces = (IScheduler,)
-
-    eventsRun = integer(default=0)
-    lastEventAt = timestamp()
-    nextEventAt = timestamp()
-
-    # Also testing hooks
-    callLater = inmemory()
-    now = inmemory()
-
-    def __repr__(self):
-        return '<SubScheduler for %r>' % (self.store,)
-
+    dummy = integer()
 
     def activate(self):
-        self.callLater = reactor.callLater
-        self.now = Time
+        _SchedulerCompatMixin.activate(self)
 
-    def _transientSchedule(self, when, now):
-        if self.store.parent is not None:
-            loginAccount = self.store.parent.getItemByID(self.store.idInParent)
-            hook = self.store.parent.findOrCreate(
-                _SubSchedulerParentHook,
-                lambda hook: installOn(hook, hook.store),
-                loginAccount=loginAccount)
-            hook._schedule(when)
 
-    def migrateDown(self):
-        """
-        Remove the components in the site store for this SubScheduler.
-        """
-        loginAccount = self.store.parent.getItemByID(self.store.idInParent)
-        ssph = self.store.parent.findUnique(_SubSchedulerParentHook,
-                           _SubSchedulerParentHook.loginAccount == loginAccount,
-                                            default=None)
-        if ssph is not None:
-            te = self.store.parent.findUnique(TimedEvent,
-                                              TimedEvent.runnable == ssph,
-                                              default=None)
-            if te is not None:
-                te.deleteFromStore()
-            ssph.deleteFromStore()
+def subscheduler1to2(old):
+    new = old.upgradeVersion(SubScheduler.typeName, 1, 2)
+    try:
+        new.store.powerDown(new, IScheduler)
+    except ValueError:
+        # Someone might have created a SubScheduler but failed to power it
+        # up.  Fine.
+        pass
+    return new
 
-    def migrateUp(self):
-        """
-        Recreate the hooks in the site store to trigger this SubScheduler.
-        """
-        te = self.store.findFirst(TimedEvent, sort=TimedEvent.time.descending)
-        if te is not None:
-            self._transientSchedule(te.time, self.now)
+registerUpgrader(subscheduler1to2, SubScheduler.typeName, 1, 2)

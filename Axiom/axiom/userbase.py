@@ -196,9 +196,7 @@ class LoginAccount(Item):
             for x in list(oldAccounts) + list(oldMethods):
                 x.deleteFromStore()
             self.cloneInto(ss, ss)
-            sched = IScheduler(ss, None)
-            if sched is not None:
-                sched.migrateDown()
+            IScheduler(ss).migrateDown()
         ss.transact(_)
 
     def migrateUp(self):
@@ -214,9 +212,7 @@ class LoginAccount(Item):
             # you're making a mistake. -glyph
             siteStoreSubRef = siteStore.getItemByID(self.store.idInParent)
             self.cloneInto(siteStore, siteStoreSubRef)
-            sched = IScheduler(self.store, None)
-            if sched is not None:
-                sched.migrateUp()
+            IScheduler(self.store).migrateUp()
         siteStore.transact(_)
 
     def cloneInto(self, newStore, avatars):

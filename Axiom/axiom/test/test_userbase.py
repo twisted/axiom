@@ -21,10 +21,10 @@ from twisted.python.filepath import FilePath
 
 from epsilon.extime import Time
 
+from axiom.iaxiom import IScheduler
 from axiom.store import Store
 from axiom.substore import SubStore
-from axiom.scheduler import _SubSchedulerParentHook, SubScheduler, Scheduler
-from axiom.scheduler import TimedEvent
+from axiom.scheduler import TimedEvent, _SubSchedulerParentHook
 from axiom import userbase
 from axiom.item import Item
 from axiom.attributes import integer
@@ -439,16 +439,14 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.dbdir = FilePath(self.mktemp())
         self.store = Store(self.dbdir)
         self.ls = userbase.LoginSystem(store=self.store)
-        self.scheduler = Scheduler(store=self.store)
-        dependency.installOn(self.scheduler, self.store)
+        self.scheduler = IScheduler(self.store)
 
         self.account = self.ls.addAccount(
             self.localpart, self.domain, u'PASSWORD')
 
         self.accountStore = self.account.avatars.open()
 
-        self.ss = self.accountStore.findOrCreate(SubScheduler)
-        dependency.installOn(self.ss, self.accountStore)
+        self.ss = IScheduler(self.accountStore)
 
         self.origdir = self.accountStore.dbdir
         self.destdir = FilePath(self.mktemp())
@@ -504,7 +502,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
             self.IMPORTANT_VALUE)
         siteStoreSubRef = self.store.getItemByID(insertedStore.idInParent)
         ssph = self.store.findUnique(_SubSchedulerParentHook,
-                         _SubSchedulerParentHook.loginAccount == siteStoreSubRef,
+                         _SubSchedulerParentHook.subStore == siteStoreSubRef,
                                      default=None)
         self.failUnless(ssph)
         self.failUnless(self.store.findUnique(TimedEvent,

@@ -4,9 +4,6 @@ from twisted.python import failure, filepath
 from twisted.application import service
 
 from axiom import iaxiom, store, item, attributes, batch, substore
-from axiom.scheduler import Scheduler
-
-from axiom.dependency import installOn
 
 class TestWorkUnit(item.Item):
     information = attributes.integer()
@@ -41,8 +38,7 @@ class BatchTestCase(unittest.TestCase):
     def setUp(self):
         self.procType = batch.processor(TestWorkUnit)
         self.store = store.Store()
-        self.scheduler = Scheduler(store=self.store)
-        installOn(self.scheduler, self.store)
+        self.scheduler = iaxiom.IScheduler(self.store)
 
 
     def testItemTypeCreation(self):
@@ -584,7 +580,6 @@ class RemoteTestCase(unittest.TestCase):
 
         dbdir = filepath.FilePath(self.mktemp())
         st = store.Store(dbdir)
-        installOn(Scheduler(store=st), st)
         source = BatchWorkSource(store=st)
         for i in range(BATCH_WORK_UNITS):
             BatchWorkItem(store=st)

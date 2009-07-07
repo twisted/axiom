@@ -265,14 +265,6 @@ class _ReliableListener(item.Item):
 
 class _BatchProcessorMixin:
 
-    def installed(self):
-        # XXX This is kind of suboptimal because it circumvents the usual
-        # dependency mechanism. But see #1408.
-
-        sch = iaxiom.IScheduler(self.store, None)
-        if sch is None:
-            installOn(SubScheduler(store=self.store), self.store)
-
     def step(self, style=iaxiom.LOCAL, skip=()):
         now = extime.Time()
         first = True
