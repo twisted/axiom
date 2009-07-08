@@ -739,6 +739,7 @@ class MultipleItemQuery(BaseQuery):
 
         return tuple(resultBits)
 
+
     def count(self):
         """
         Count the number of distinct results of the wrapped query.
@@ -755,12 +756,6 @@ class MultipleItemQuery(BaseQuery):
         result = self.store.querySQL(sql, args)
         assert len(result) == 1, 'more than one result: %r' % (result,)
         return result[0][0] or 0
-
-    def distinct(self):
-        """
-        @return: an L{iaxiom.IQuery} provider whose values are distinct.
-        """
-        return _DistinctQuery(self)
 
 
 
@@ -880,6 +875,43 @@ class AttributeQuery(BaseQuery):
         if self.raw:
             return row[0]
         return self.attribute.outfilter(row[0], _FakeItemForFilter(self.store))
+
+
+    def distinct(self):
+        """
+        Yield distinct values for this query.
+
+        @return: a query for whom all values are distinct.
+        @rtype: L{IQuery}
+        """
+        # XXX it's pretty clear that the test coverage for this case is
+        # insufficient.  For one thing, there should be explicit coverage of
+        # the un-sorted case - that's covered by the lower branch right now and
+        # I'm pretty sure it's wrong.  For another, the return value should
+        # actually be an IQuery, not a list.  Also, a query with a 'limit' and
+        # 'offset' will be wrong.  And finally, I believe that a query which
+        # returns items can be convinced to do so in an order whch would cause
+        # this same problem, by sorting by some column in another table (or
+        # potentially by being unordered, but joining another table?)
+        if self.sort.orderColumns() and self.sort.attribute != self.attribute:
+            return self._verySlowDistinct()
+        else:
+            return BaseQuery.distinct(self)
+
+
+    def _verySlowDistinct(self):
+        """
+        Get all the (non-distinct) results for this query, then uniquify the
+        list while preserving its order.
+        """
+        # This case is so catastrophically slow (both in Python code and in
+        # database operations) that I'm tempted to emit a warning.
+        result = list()
+        for item in self:
+            if item not in result:
+                result.append(item)
+        return result
+
 
 
     def count(self):

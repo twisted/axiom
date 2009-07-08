@@ -342,7 +342,12 @@ class BasicQuery(TestCase):
         s.transact(entesten)
         s.close()
 
-    def testAttributeQueryDistinct(self):
+
+    def test_attributeQueryDistinct(self):
+        """
+        L{Store.query}.C{getColumn()}.C{distinct()} will yield results distinct
+        for the given column.
+        """
         s = Store()
         def entesten():
             E(store=s, name=u'a', amount=123)
@@ -350,6 +355,24 @@ class BasicQuery(TestCase):
             E(store=s, name=u'a', amount=456)
             self.assertEquals(list(s.query(E, sort=E.name.ascending).getColumn("name").distinct()),
                               [u"a", u"b"])
+        s.transact(entesten)
+        s.close()
+
+
+    def test_attributeQueryDistinctDifferentSort(self):
+        """
+        L{Store.query}.C{getColumn()}.C{distinct()} will yield distinct results
+        when the sort order of the query differs from the column being
+        rendered.
+        """
+        s = Store()
+        def entesten():
+            E(store=s, name=u'b', amount=123)
+            E(store=s, name=u'a', amount=234)
+            E(store=s, name=u'b', amount=456)
+            self.assertEquals(list(s.query(E, sort=E.amount.ascending)
+                                   .getColumn("name").distinct()),
+                              [u"b", u"a"])
         s.transact(entesten)
         s.close()
 
