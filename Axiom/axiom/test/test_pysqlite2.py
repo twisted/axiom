@@ -2,7 +2,8 @@
 Test cases for PySQLite2-specific parts of the backend.
 """
 
-from pysqlite2.dbapi2 import OperationalError
+from axiom._pysqlite2 import dbapi2
+OperationalError = dbapi2.OperationalError
 
 from twisted.trial.unittest import TestCase
 

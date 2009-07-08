@@ -5,6 +5,8 @@ import os
 
 from twisted.trial import unittest
 from twisted.internet import protocol, defer
+from twisted.internet.task import deferLater
+
 from twisted.python.util import sibpath
 from twisted.python import log, filepath
 
@@ -969,14 +971,16 @@ class ProcessConcurrencyTestCase(unittest.TestCase,
                                  protocol.ProcessProtocol):
 
     def spawn(self, *args):
-        self.d = defer.Deferred()
         from twisted.internet import reactor
-        reactor.spawnProcess(
-            self,
-            sys.executable,
-            [sys.executable] + list(args),
-            os.environ)
-        return self.d
+        def dospawn(result):
+            self.d = defer.Deferred()
+            reactor.spawnProcess(
+                self,
+                sys.executable,
+                [sys.executable] + list(args),
+                os.environ)
+            return self.d
+        return deferLater(reactor, 0, lambda : None).addCallback(dospawn)
 
     ok = 0
 
