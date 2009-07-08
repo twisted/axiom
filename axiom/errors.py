@@ -76,6 +76,33 @@ class SQLError(RuntimeError):
             self.underlying.__class__, self.underlying)
 
 
+class CursorLeftOpen(Exception):
+    """
+    This exception is raised when a cursor which potentially had some results
+    was not fully exhausted before either starting or stopping a database
+    transaction.
+
+    In order for results to be valid, a cursor's results must be fully read in
+    the transaction in which it was run.
+    """
+
+
+class CursorClosed(Exception):
+    """
+    This exception is raised when any operation is attempted on a sqlite cursor
+    which is now closed.
+    """
+
+
+
+class DatabaseLocked(SQLError):
+    """
+    The SQLite database was locked.
+    """
+
+
+
+
 class TableAlreadyExists(SQLError):
     """
     Axiom internally created a table at the same time as another database.

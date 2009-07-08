@@ -138,6 +138,21 @@ class IQuery(Interface):
         """
 
 
+    def iterlazy():
+        """
+        Retrieve an iterator for the results of this query which will not pull
+        results from the database until they are requested.
+
+        A lazy iterator may not be used outside of the transaction it is
+        created.  If a lazy iterator is created outside of any transaction, it
+        will be invalidated as soon as any transaction is started.
+
+        Lazy iterators which have been invalidated will raise
+        L{axiom.eaxiom.CursorLeftOpen} from their C{next()} methods.
+        """
+
+
+
     def count():
         """
         Return the number of results in this query.

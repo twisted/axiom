@@ -324,7 +324,7 @@ class BaseQuery:
         return (sqlstr, self.args)
 
 
-    def _runQuery(self, verb, subject):
+    def _runQuery(self, verb, subject, thunk=list):
         # XXX ideally this should be creating an SQL cursor and iterating
         # through that so we don't have to load the whole query into memory,
         # but right now Store's interface to SQL is all through one cursor.
@@ -334,7 +334,7 @@ class BaseQuery:
         if not self.store.autocommit:
             self.store.checkpoint()
         sqlstr, sqlargs = self._sqlAndArgs(verb, subject)
-        sqlResults = self.store.querySQL(sqlstr, sqlargs)
+        sqlResults = self.store.querySQL(sqlstr, sqlargs, thunk)
         cs = self.locateCallSite()
         log.msg(interface=iaxiom.IStatEvent,
                 querySite=cs, queryTime=time.time() - t, querySQL=sqlstr)
@@ -348,24 +348,6 @@ class BaseQuery:
             i += 1
             frame = sys._getframe(i)
         return (frame.f_code.co_filename, frame.f_lineno)
-
-
-    def _selectStuff(self, verb='SELECT'):
-        """
-        Return a generator which yields the massaged results of this query with
-        a particular SQL verb.
-
-        For an attribute query, massaged results are of the type of that
-        attribute.  For an item query, they are items of the type the query is
-        supposed to return.
-
-        @param verb: a str containing the SQL verb to execute.  This really
-        must be some variant of 'SELECT', the only two currently implemented
-        being 'SELECT' and 'SELECT DISTINCT'.
-        """
-        sqlResults = self._runQuery(verb, self._queryTarget)
-        for row in sqlResults:
-            yield self._massageData(row)
 
 
     def _massageData(self, row):
@@ -420,7 +402,16 @@ class BaseQuery:
         """
         Iterate the results of this query.
         """
-        return self._selectStuff('SELECT')
+        return iter(list(self.iterlazy()))
+
+
+    def iterlazy(self):
+        """
+        Return a generator which yields the results of this query.
+        """
+        sqlResults = self._runQuery("SELECT", self._queryTarget, lambda it: it)
+        for row in sqlResults:
+            yield self._massageData(row)
 
 
     _selfiter = None
@@ -655,6 +646,8 @@ class ItemQuery(BaseQuery):
             # actually run the DELETE for the items in this query.
             self._runQuery('DELETE', "")
 
+
+
 class MultipleItemQuery(BaseQuery):
     """
     A query that returns tuples of Items from a join.
@@ -767,7 +760,9 @@ class MultipleItemQuery(BaseQuery):
         """
         @return: an L{iaxiom.IQuery} provider whose values are distinct.
         """
-        return _MultipleItemDistinctQuery(self)
+        return _DistinctQuery(self)
+
+
 
 class _DistinctQuery(object):
     """
@@ -785,9 +780,11 @@ class _DistinctQuery(object):
         provider is not sufficient, this class relies on implementation details
         of L{BaseQuery}.
         """
-        self.query = query
+        self.query = query.cloneQuery(None)
+        self.query.offset = None
         self.store = query.store
         self.limit = query.limit
+        self.offset = query.offset
 
 
     def cloneQuery(self, limit=_noItem):
@@ -795,6 +792,8 @@ class _DistinctQuery(object):
         Clone the original query which this distinct query wraps, and return a new
         wrapper around that clone.
         """
+        if limit is _noItem:
+            limit = self.limit
         newq = self.query.cloneQuery(limit=limit)
         return self.__class__(newq)
 
@@ -802,11 +801,33 @@ class _DistinctQuery(object):
     def __iter__(self):
         """
         Iterate the distinct results of the wrapped query.
+        """
+        return iter(list(self.iterlazy()))
+
+
+    def iterlazy(self):
+        """
+        Iterate the distinct results of the wrapped query.
 
         @return: a generator which yields distinct values from its delegate
         query, whether they are items or attributes.
         """
-        return self.query._selectStuff('SELECT DISTINCT')
+        yielded = 0
+        passed = 0
+        lastResult = None
+        for result in self.query.iterlazy():
+            if result == lastResult:
+                continue
+            lastResult = result
+            if self.offset is not None:
+                if passed < self.offset:
+                    passed += 1
+                    continue
+            yield result
+            yielded += 1
+            if self.limit is not None:
+                if yielded == self.limit:
+                    return
 
 
     def count(self):
@@ -815,40 +836,8 @@ class _DistinctQuery(object):
 
         @return: an L{int} representing the number of distinct results.
         """
-        if not self.query.store.autocommit:
-            self.query.store.checkpoint()
-        sql, args = self.query._sqlAndArgs(
-            'SELECT DISTINCT',
-            self.query.tableClass.storeID.getColumnName(self.query.store))
-        sql = 'SELECT COUNT(*) FROM (' + sql + ')'
-        result = self.query.store.querySQL(sql, args)
-        assert len(result) == 1, 'more than one result: %r' % (result,)
-        return result[0][0] or 0
+        return len(list(self))
 
-
-class _MultipleItemDistinctQuery(_DistinctQuery):
-    """
-    Distinct query based on a MultipleItemQuery.
-    """
-
-    def count(self):
-        """
-        Count the number of distinct results of the wrapped query.
-
-        @return: an L{int} representing the number of distinct results.
-        """
-        if not self.query.store.autocommit:
-            self.query.store.checkpoint()
-        target = ', '.join([
-            tableClass.storeID.getColumnName(self.query.store)
-            for tableClass in self.query.tableClass ])
-        sql, args = self.query._sqlAndArgs(
-            'SELECT DISTINCT',
-            target)
-        sql = 'SELECT COUNT(*) FROM (' + sql + ')'
-        result = self.query.store.querySQL(sql, args)
-        assert len(result) == 1, 'more than one result: %r' % (result,)
-        return result[0][0] or 0
 
 
 _noDefault = object()
@@ -1829,7 +1818,7 @@ class Store(Empowered):
     def _begin(self):
         if self.debug:
             print '<'*10, 'BEGIN', '>'*10
-        self.cursor.execute("BEGIN IMMEDIATE TRANSACTION")
+        self.connection.begin()
         self._setupTxnState()
 
     def _setupTxnState(self):
@@ -1848,8 +1837,7 @@ class Store(Empowered):
     def _commit(self):
         if self.debug:
             print '*'*10, 'COMMIT', '*'*10
-        # self.connection.commit()
-        self.cursor.execute("COMMIT")
+        self.connection.commit()
         log.msg(interface=iaxiom.IStatEvent, stat_commits=1)
         self._postCommitHook()
 
@@ -1866,8 +1854,7 @@ class Store(Empowered):
     def _rollback(self):
         if self.debug:
             print '>'*10, 'ROLLBACK', '<'*10
-        # self.connection.rollback()
-        self.cursor.execute("ROLLBACK")
+        self.connection.rollback()
         log.msg(interface=iaxiom.IStatEvent, stat_rollbacks=1)
 
 
@@ -2270,29 +2257,35 @@ class Store(Empowered):
         return self.querySQL(sql, args)
 
 
-    def querySQL(self, sql, args=()):
+    def querySQL(self, sql, args=(), thunk=list):
         """For use with SELECT (or SELECT-like PRAGMA) statements.
         """
         if self.debug:
-            result = timeinto(self.queryTimes, self._queryandfetch, sql, args)
+            result = timeinto(self.queryTimes, self._queryandfetch, sql, args, thunk)
         else:
-            result = self._queryandfetch(sql, args)
+            result = self._queryandfetch(sql, args, thunk)
         return result
 
 
-    def _queryandfetch(self, sql, args):
+    def _queryandfetch(self, sql, args, thunk=list):
         if self.debug:
             print '**', sql, '--', ', '.join(map(str, args))
-        self.cursor.execute(sql, args)
+        if thunk is list:
+            # XXX obviously terrible; this is necessary because execSQL calls
+            # this and in that case we need to make sure lastRowID is right.
+            cursor = self.cursor
+        else:
+            cursor = self.connection.cursor()
+        cursor.execute(sql, args)
         before = time.time()
-        result = list(self.cursor)
+        result = thunk(cursor)
         after = time.time()
         if after - before > 2.0:
             log.msg('Extremely long list(cursor): %s' % (after - before,))
             log.msg(sql)
             # import traceback; traceback.print_stack()
         if self.debug:
-            print '  lastrow:', self.cursor.lastRowID()
+            print '  lastrow:', cursor.lastRowID()
             print '  result:', result
         return result
 

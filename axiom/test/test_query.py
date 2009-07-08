@@ -582,6 +582,25 @@ class BasicQuery(TestCase):
         self.assertEqual(q.store, s)
 
 
+    def test_transactWithOpenLazyQuery(self):
+        """
+        If a query is lazily iterated in a different transaction than the one
+        where it is created, it should raise L{CursorLeftOpen}.
+
+        (This also serves as an integration test to make sure that L{Store} is
+        properly using the transaction APIs provided by L{axiom._pysqlite2};
+        otherwise this would blow up because the connection would be in an
+        inconsistent state.)
+        """
+        s = Store()
+        A(store=s)
+        A(store=s)
+        A(store=s)
+        results = s.query(A).iterlazy()
+        results.next()
+        self.assertRaises(errors.CursorLeftOpen, s.transact, results.next)
+
+
 
 class MultipleQuery(TestCase):
     """
@@ -1028,6 +1047,13 @@ class SecondType(Item):
     ref = reference(reftype=FirstType)
 
 
+class IndexedString(Item):
+    """
+    A simple item type, containing a single indexed string column.
+    """
+    value = text(allowNone=False, indexed=True)
+
+
 class QueryComplexity(TestCase):
     comparison = AND(FirstType.value == u"foo",
                      SecondType.ref == FirstType.storeID,
@@ -1083,6 +1109,28 @@ class QueryComplexity(TestCase):
                 count = c
             self.assertEqual(count, c)
             SecondType(store=self.store)
+
+
+    def test_limitedDistinct(self):
+        """
+        Distinct queries with a limit won't do more work than necessary to get
+        their results.
+        """
+        counter = QueryCounter(self.store)
+        query = self.store.query(IndexedString, limit=1, sort=IndexedString.value.ascending
+                                 ).getColumn("value").distinct()
+        IndexedString(store=self.store, value=u'a')
+        IndexedString(store=self.store, value=u'b')
+        first = counter.measure(list, query)
+        firstResults = list(query)
+        IndexedString(store=self.store, value=u'b')
+        IndexedString(store=self.store, value=u'b')
+        IndexedString(store=self.store, value=u'b')
+        second = counter.measure(list, query)
+        secondResults = list(query)
+        self.assertEqual(first, second)
+        self.assertEqual(firstResults, secondResults)
+
 
 
 class AndOrQueries(QueryingTestCase):
