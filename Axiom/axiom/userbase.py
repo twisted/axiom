@@ -585,3 +585,17 @@ def getDomainNames(store):
     return sorted(domains)
 
 
+
+def getUsernames(store):
+    """
+    Retreive all internal usernames in the given store.
+
+    @param store: An Axiom Store that contains LoginMethods.
+
+    @return: A generator of two-tuples of (username, domain) which
+    refer to the given store.
+    """
+    return ((meth.localpart, meth.domain) for meth in store.query(
+            LoginMethod,
+            AND(LoginMethod.internal == True,
+                LoginMethod.domain != None)))
