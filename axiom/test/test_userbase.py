@@ -417,6 +417,24 @@ class AccountTestCase(unittest.TestCase):
                 internal=internal)
         self.assertEquals(userbase.getDomainNames(s), [u"example.com", u"example.net"])
 
+    def testUserNames(self):
+        s = Store()
+        for localpart, domain, internal in [
+            (u'local', u'example.com', True),
+            (u'local', u'example.net', True),
+            (u'remote', u'example.org', False),
+            (u'brokenguy', None, True)]:
+            userbase.LoginMethod(
+                store=s,
+                localpart=localpart,
+                domain=domain,
+                verified=True,
+                account=s,
+                protocol=u'test',
+                internal=internal)
+        self.assertEquals(list(userbase.getUsernames(s)), [
+            (u'local', u'example.com'), (u'local', u'example.net')])
+
 
 
 class ThingThatMovesAround(Item):
