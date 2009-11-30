@@ -12,9 +12,11 @@ distobj = autosetup(
     platforms=["any"],
     description="An in-process object-relational database",
     classifiers=[
+        "Development Status :: 5 - Production/Stable",
+        "Framework :: Twisted",
         "Intended Audience :: Developers",
+        "License :: OSI Approved :: MIT License",
         "Programming Language :: Python",
-        "Development Status :: 2 - Pre-Alpha",
         "Topic :: Database"],
 
     scripts=['bin/axiomatic'])
