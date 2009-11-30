@@ -1,3 +1,15 @@
+0.6.0 (2009-11-25):
+  - Speed up creation, insertion, and various other operations on Item by
+    optimizing Item.getSchema.
+  - Improve error reporting from the batch upgrade system.
+  - Speed up setting attributes on Item instances.
+  - Remove the batch process manhole service.
+  - Improve the reliability of some unit tests.
+  - Fix `axiomatic --reactor ...`.
+  - Remove invalid SQL normalization code which would occassionally corrupt
+    certain obscure but valid SQL statements.
+  - Add an in-memory `IScheduler` powerup for stores and substores.
+
 0.5.31 (2008-12-09):
   - An IStatEvent is now logged when a store is opened.
   - Different schema versions of the same item type now no longer
