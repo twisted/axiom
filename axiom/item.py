@@ -192,6 +192,12 @@ class Empowered(object):
         are being loaded and with a list of powerups found in C{store}.  The
         return value is the powerup.  These are used only by the callable
         interface adaption API, not C{powerupsFor}.
+
+    @type _dbPowerups: C{dict}
+    @ivar _dbPowerups: Mapping from interface classes to lists of (priority,
+        item). This is only populated on the first call to L{powerupsFor} for a
+        particular interface; thereafter, it will be updated when powerups are
+        added and removed, to avoid loading the powerups from the database again.
     """
 
     aggregateInterfaces = {
@@ -270,6 +276,11 @@ class Empowered(object):
                                            powerup=powerup)
             forc.priority = priority
 
+            pups = self._dbPowerups.get(interface)
+            if pups is not None:
+                pups.append((priority, powerup))
+                pups.sort(key=lambda (prio, p): prio, reverse=True)
+
 
     def powerDown(self, powerup, interface=None):
         """
@@ -298,6 +309,10 @@ class Empowered(object):
                                           AND(_PowerupConnector.item == self,
                                               _PowerupConnector.interface == unicode(qual(interface)),
                                               _PowerupConnector.powerup == powerup)):
+                pups = self._dbPowerups.get(interface)
+                if pups is not None:
+                    for elem in [elem for elem in pups if elem[1] is cable.powerup]:
+                        pups.remove(elem)
                 cable.deleteFromStore()
                 return
             raise ValueError("Not powered up for %r with %r" % (interface,
@@ -341,6 +356,27 @@ class Empowered(object):
         inMemoryPowerup = self._inMemoryPowerups.get(interface, None)
         if inMemoryPowerup is not None:
             yield inMemoryPowerup
+
+        try:
+            pups = self._dbPowerups[interface]
+        except KeyError:
+            pups = list(self._powerupsFor(interface))
+        else:
+            pups = [(prio, p) for (prio, p) in pups if p._currentlyValidAsReferentFor(self.store)]
+        self._dbPowerups[interface] = pups
+
+        for (prio, pup) in pups:
+            indirector = IPowerupIndirector(pup, None)
+            if indirector is not None:
+                yield indirector.indirect(interface)
+            else:
+                yield pup
+
+
+    def _powerupsFor(self, interface):
+        """
+        Retrieve powerups from the database.
+        """
         name = unicode(qual(interface), 'ascii')
         for cable in self.store.query(
             _PowerupConnector,
@@ -352,11 +388,7 @@ class Empowered(object):
                 # this powerup was probably deleted during an upgrader.
                 cable.deleteFromStore()
             else:
-                indirector = IPowerupIndirector(pup, None)
-                if indirector is not None:
-                    yield indirector.indirect(interface)
-                else:
-                    yield pup
+                yield (cable.priority, pup)
 
     def interfacesFor(self, powerup):
         """
@@ -495,6 +527,8 @@ class Item(Empowered, slotmachine._Strict):
 
     # A mapping from interfaces to in-memory powerups.
     _inMemoryPowerups = inmemory()
+    # A mapping from interfaces to in-database powerups.
+    _dbPowerups = inmemory()
 
     def _currentlyValidAsReferentFor(self, store):
         """
@@ -587,6 +621,7 @@ class Item(Empowered, slotmachine._Strict):
         """
         self._axiom_service = None
         self._inMemoryPowerups = {}
+        self._dbPowerups = {}
         self.__dirty__ = {}
         to__store = kw.pop('__store', None)
         to__everInserted = kw.pop('__everInserted', False)

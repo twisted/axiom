@@ -652,6 +652,11 @@ class StricterItem(item.Item):
     aRef = attributes.reference(allowNone=False)
 
 
+
+class ReferringItem(item.Item):
+    aRef = attributes.reference(whenDeleted=attributes.reference.NULLIFY)
+
+
 class AttributeTests(unittest.TestCase):
     def testGetAttribute(self):
         s = store.Store()
@@ -955,6 +960,17 @@ class MassInsertDeleteTests(unittest.TestCase):
         DeleteFromStoreTrackingItem(store=self.store)
         self.store.query(DeleteFromStoreTrackingItem).deleteFromStore()
         self.assertEqual(DeleteFromStoreTrackingItem.deletedTimes, 1)
+
+
+    def test_batchDeleteReference(self):
+        """
+        Ensure that a reference to an Item deleted in a batch delete, but still
+        in the object cache, is nullified correctly.
+        """
+        referee = AttributefulItem(store=self.store, withoutDefault=42)
+        referent = ReferringItem(store=self.store, aRef=referee)
+        self.store.query(AttributefulItem).deleteFromStore()
+        self.assertEqual(referent.aRef, None)
 
 
 # Item types we will use to change the underlying database schema (by creating

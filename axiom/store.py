@@ -652,7 +652,13 @@ class ItemQuery(BaseQuery):
                                           self.tableClass, itemsToDelete):
                 it.deleteFromStore()
 
-            # actually run the DELETE for the items in this query.
+            # Slow-delete items in this query that are in the object cache.
+            for storeID in self.getColumn('storeID'):
+                if self.store.objectCache.has(storeID):
+                    obj = self.store.objectCache.get(storeID)
+                    obj.deleteFromStore()
+
+            # Run the DELETE for the rest of the items in this query.
             self._runQuery('DELETE', "")
 
 class MultipleItemQuery(BaseQuery):
@@ -1113,6 +1119,7 @@ class Store(Empowered):
         self.execTimes = []
 
         self._inMemoryPowerups = {}
+        self._dbPowerups = {}
 
         self._attachedChildren = {} # database name => child store object
 

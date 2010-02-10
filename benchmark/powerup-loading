@@ -1,0 +1,58 @@
+#!/usr/bin/python
+
+# Benchmark of Axiom powerup loading. Accepts no parameters. Reports one
+# statistic, the number of milliseconds it takes to query for powerups after they
+# have already been queried for once.
+
+
+import sys, time
+
+from zope.interface import Interface
+
+from axiom.store import Store
+from axiom.attributes import integer
+
+import benchlib
+
+
+class IPowerup(Interface):
+    """
+    Empty interface to use for powerups.
+    """
+
+
+def benchmark():
+    SomeItem = benchlib.itemTypeWithSomeAttributes([integer])
+
+    store = Store()
+    items = []
+    for i in range(10):
+        item = SomeItem(store=store)
+        store.powerUp(item, IPowerup)
+        items.append(item)
+
+
+    def _getPowerups(counter):
+        for i in counter:
+            list(store.powerupsFor(IPowerup))
+
+
+    # cache the powerups first
+    store.transact(_getPowerups, range(1))
+
+    counter = range(1000)
+    before = time.time()
+    store.transact(_getPowerups, counter)
+    after = time.time()
+
+    return (after - before) * 1000 / (len(counter))
+
+
+def main(argv):
+    if len(argv) != 1:
+        raise SystemExit("Usage: %s")
+    print benchmark()
+
+
+if __name__ == '__main__':
+    main(sys.argv)

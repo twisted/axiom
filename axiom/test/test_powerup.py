@@ -1,3 +1,4 @@
+import gc
 
 from twisted.trial import unittest
 
@@ -102,6 +103,20 @@ class BrokenPowerup(Item):
 
     def __getPowerupInterfaces__(self, pifs):
         return 'not a list of pairs'
+
+
+
+class CountingItem(Item):
+    """
+    An Item that increments a counter every time it is loaded from the
+    database.
+    """
+    stuff = integer()
+
+    count = 0
+
+    def activate(self):
+        CountingItem.count += 1
 
 
 class PowerUpTest(unittest.TestCase):
@@ -236,6 +251,95 @@ class PowerUpTest(unittest.TestCase):
         s3 = SubtractThree(store=s)
         self.assertRaises(TypeError, s.powerUp, s3, IPowerupIndirector)
         self.assertEqual(list(s.powerupsFor(IPowerupIndirector)), [])
+
+
+    def test_powerDownDeleted(self):
+        """
+        If a powerup is deleted without powering down first, it should be
+        powered down automatically.
+        """
+        s = Store()
+        mm = Summer(store=s)
+        s.powerUp(mm, ISumProducer)
+        mm.deleteFromStore()
+        self.assertEqual(list(s.powerupsFor(ISumProducer)), [])
+
+
+
+class CachingTests(unittest.TestCase):
+    """
+    Tests for powerup caching behaviour.
+    """
+    def test_powerupCaching(self):
+        """
+        Powerups for an item should only be loaded from database once so long
+        as that item remains in memory.
+        """
+        s = Store()
+        CountingItem.count = 0
+
+        ci = CountingItem(store=s)
+        s.powerUp(ci, ISumProducer)
+        self.assertEqual(CountingItem.count, 1)
+        del ci
+        gc.collect()
+
+        pups = s.powerupsFor(ISumProducer)
+        self.assertEqual(CountingItem.count, 1)
+
+
+    def test_deleteCachedPowerup(self):
+        """
+        A cached powerup that is deleted should be removed from the list of
+        installed powerups.
+        """
+        s = Store()
+        ci = CountingItem(store=s)
+        s.powerUp(ci, ISumProducer)
+
+        pups = list(s.powerupsFor(ISumProducer))
+        self.assertEqual(pups, [ci])
+
+        ci.deleteFromStore()
+        pups2 = list(s.powerupsFor(ISumProducer))
+        self.assertEqual(pups2, [])
+
+
+    def test_newCachedPowerup(self):
+        """
+        Adding a new powerup when there are already cached powerups should add
+        the powerup to the cached list in the correct order.
+        """
+        s = Store()
+        ci = CountingItem(store=s)
+        s.powerUp(ci, ISumProducer)
+
+        pups = list(s.powerupsFor(ISumProducer))
+        self.assertEqual(pups, [ci])
+
+        ci2 = CountingItem(store=s)
+        s.powerUp(ci2, ISumProducer, priority=50)
+        pups2 = list(s.powerupsFor(ISumProducer))
+        self.assertEqual(pups2, [ci2, ci])
+
+
+    def test_newCachedPowerupIndirection(self):
+        """
+        Adding a new indirect powerup when there are already cached powerups
+        should add the powerup to the cached list.
+        """
+        s = Store()
+        s.powerUp(
+            SubtractThree(
+                store=s, valueHaver=SumContributor(store=s, value=5)),
+            IValueHaver)
+        self.assertEqual(len(list(s.powerupsFor(IValueHaver))), 1)
+
+        s.powerUp(
+            SubtractThree(
+                store=s, valueHaver=SumContributor(store=s, value=5)),
+            IValueHaver)
+        self.assertEqual(len(list(s.powerupsFor(IValueHaver))), 2)
 
 
 

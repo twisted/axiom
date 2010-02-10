@@ -1,0 +1,44 @@
+#!/usr/bin/python
+
+# Benchmark of batch Item deletion.  Accepts no parameters.  Reports one
+# statistic, the number of milliseconds it takes to batch delete an Item.
+
+import sys, time
+
+from axiom.store import Store
+from axiom.attributes import integer
+
+import benchlib
+
+
+def benchmark():
+    SomeItem = benchlib.itemTypeWithSomeAttributes([integer])
+
+    store = Store()
+    outerCounter = range(10)
+    innerCounter = range(1000)
+
+    def _create():
+        benchlib.createSomeItems(store, SomeItem, {}, innerCounter)
+
+    def _delete():
+        store.query(SomeItem).deleteFromStore()
+
+    timer = benchlib.StopWatch()
+    for i in outerCounter:
+        store.transact(_create)
+        timer.start()
+        store.transact(_delete)
+        timer.stop()
+
+    return (timer.duration) * 1000 / (len(outerCounter) * len(innerCounter))
+
+
+def main(argv):
+    if len(argv) != 1:
+        raise SystemExit("Usage: %s" % (argv[0],))
+    print benchmark()
+
+
+if __name__ == '__main__':
+    main(sys.argv)
