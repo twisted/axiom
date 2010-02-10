@@ -62,6 +62,22 @@ class BadReferenceTestCase(TestCase):
         (referent,) = list(store.query(SimpleReferent))
         self.assertEqual(referent.ref, None)
 
+
+    def test_badReferencedNoneCache(self):
+        """
+        Test that accessing a broken reference to an Item that has been
+        deleted, but is still in the object cache, correctly nullifies the
+        attribute.
+        """
+        store = Store()
+        def _test():
+            referee = Referee(store=store, topSecret=0)
+            referent = SimpleReferent(store=store, ref=referee)
+            referee.deleteFromStore()
+            self.assertEqual(referent.ref, None)
+        store.transact(_test)
+
+
     def testBadReferenceNoneLoading(self):
         """
         Test that accessing a broken reference on an Item that has not yet been
