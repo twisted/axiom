@@ -12,7 +12,7 @@ from epsilon import extime
 from axiom import attributes, item, store, errors
 from axiom.iaxiom import IStatEvent
 
-from pysqlite2.dbapi2 import sqlite_version_info
+from axiom._pysqlite2 import sqlite_version_info
 
 
 class RevertException(Exception):

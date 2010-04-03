@@ -6,9 +6,21 @@ PySQLite2 Connection and Cursor wrappers.
 These provide a uniform interface on top of PySQLite2 for Axiom, particularly
 including error handling behavior and exception types.
 """
-import time
 
-from pysqlite2 import dbapi2
+import time, sys
+
+try:
+    # Prefer the third-party module, as it is easier to update, and so may
+    # be newer or otherwise better.
+    from pysqlite2 import dbapi2
+except ImportError:
+    # But fall back to the stdlib module if we're on Python 2.6 or newer,
+    # because it should work too.  Don't do this for Python 2.5 because
+    # there are critical, data-destroying bugs in that version.
+    if sys.version_info >= (2, 6):
+        import sqlite3 as dbapi2
+    else:
+        raise
 
 from twisted.python import log
 
@@ -137,3 +149,14 @@ class Cursor(object):
 
     def close(self):
         self._cursor.close()
+
+
+# Export some names from the underlying module.
+sqlite_version_info = dbapi2.sqlite_version_info
+OperationalError = dbapi2.OperationalError
+
+__all__ = [
+    'OperationalError',
+    'Connection',
+    'sqlite_version_info',
+    ]

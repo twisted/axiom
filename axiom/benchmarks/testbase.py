@@ -1,5 +1,5 @@
 
-from pysqlite2.dbapi2 import connect as opendb
+from axiom._pysqlite2 import Connection
 
-con = opendb("test.sqlite")
+con = Connection.fromDatabaseName("test.sqlite")
 cur = con.cursor()

@@ -2,11 +2,9 @@
 Test cases for PySQLite2-specific parts of the backend.
 """
 
-from pysqlite2.dbapi2 import OperationalError
-
 from twisted.trial.unittest import TestCase
 
-from axiom._pysqlite2 import Connection
+from axiom._pysqlite2 import OperationalError, Connection
 from axiom.test.cursortest import ConnectionTestCaseMixin, StubConnection
 
 
