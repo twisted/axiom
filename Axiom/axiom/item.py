@@ -62,7 +62,7 @@ class MetaItem(slotmachine.SchemaMetaMachine):
             T.typeName = normalize(qual(T))
         if T.schemaVersion is None:
             T.schemaVersion = 1
-        if T.typeName in _typeNameToMostRecentClass:
+        if not T.__legacy__ and T.typeName in _typeNameToMostRecentClass:
             # Let's try not to gc.collect() every time.
             gc.collect()
         if T.typeName in _typeNameToMostRecentClass:
