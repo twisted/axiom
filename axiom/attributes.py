@@ -850,7 +850,10 @@ class boolean(SQLAttribute):
                 "must have a database value of 1 or 0; not %r" %
                 (self.classname, self.attrname, dbval))
 
-TOO_BIG = (2 ** 63)-1
+
+
+LARGEST_POSITIVE = (2 ** 63)-1
+LARGEST_NEGATIVE = -(2 ** 63)
 
 class ConstraintError(TypeError):
     """A type constraint was violated.
@@ -872,13 +875,17 @@ class ConstraintError(TypeError):
                             requiredTypes,
                             type(providedValue).__name__))
 
+
+
 def requireType(attributeObj, value, typerepr, *types):
     if not isinstance(value, types):
         raise ConstraintError(attributeObj,
                               typerepr,
                               value)
 
-inttyperepr = "integer less than %r" % (TOO_BIG,)
+
+
+inttyperepr = "integer between %r and %r" % (LARGEST_NEGATIVE, LARGEST_POSITIVE)
 
 class integer(SQLAttribute):
     sqltype = 'INTEGER'
@@ -886,10 +893,12 @@ class integer(SQLAttribute):
         if pyval is None:
             return None
         requireType(self, pyval, inttyperepr, int, long)
-        if pyval > TOO_BIG:
+        if not LARGEST_NEGATIVE <= pyval <= LARGEST_POSITIVE:
             raise ConstraintError(
                 self, inttyperepr, pyval)
         return pyval
+
+
 
 class bytes(SQLAttribute):
     """

@@ -11,9 +11,9 @@ from twisted.python.reflect import qual
 from axiom.store import Store
 from axiom.item import Item, normalize, Placeholder
 
-from axiom.attributes import Comparable, SQLAttribute, integer, timestamp, textlist
-
-from axiom.attributes import ieee754_double, point1decimal, money
+from axiom.attributes import (
+    Comparable, SQLAttribute, integer, timestamp, textlist, ConstraintError,
+    ieee754_double, point1decimal, money)
 
 class Number(Item):
     typeName = 'test_number'
@@ -41,6 +41,52 @@ class IEEE754DoubleTest(TestCase):
         # This isn't really a unit test.  It's documentation.
         self.assertEquals(s.query(Number).getColumn("value").sum(),
                           0.99999999999999989)
+
+
+
+class _Integer(Item):
+    """
+    Dummy item with an integer attribute.
+    """
+    value = integer()
+
+
+
+class IntegerTests(TestCase):
+    """
+    Tests for L{integer} attributes.
+    """
+    def setUp(self):
+        self.store = Store()
+
+
+    def test_roundtrip(self):
+        """
+        A Python int roundtrips through an integer attribute.
+        """
+        i = _Integer(store=self.store, value=42)
+        self.assertEquals(i.value, 42)
+
+
+    def test_roundtripLong(self):
+        """
+        A Python long roundtrips through an integer attribute.
+        """
+        i = _Integer(store=self.store, value=42L)
+        self.assertEquals(i.value, 42)
+
+
+    def test_magnitudeBound(self):
+        """
+        Storing a value larger than what SQLite supports raises an exception.
+        """
+        i = _Integer()
+        self.assertRaises(ConstraintError, _Integer, value=9999999999999999999)
+        self.assertRaises(ConstraintError, _Integer, value=9223372036854775808)
+        _Integer(value=9223372036854775807)
+        _Integer(value=-9223372036854775808)
+        self.assertRaises(ConstraintError, _Integer, value=-9223372036854775809)
+        self.assertRaises(ConstraintError, _Integer, value=-9999999999999999999)
 
 
 
