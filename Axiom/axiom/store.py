@@ -1524,7 +1524,7 @@ class Store(Empowered):
 
         if (key[0], key[1] + 1) in onDiskSchema:
             raise RuntimeError(
-                "Database has version %d of %r; newer versions exist in memory" % (
+                "Memory version of %r is %d; database has newer" % (
                     key[1], actualType.typeName))
 
 
