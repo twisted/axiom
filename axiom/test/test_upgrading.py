@@ -316,6 +316,8 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             player = s.getItemByID(playerID, autoUpgrade=False)
             sword = s.getItemByID(swordID, autoUpgrade=False)
             self._testPlayerAndSwordState(player, sword)
+            # Stop that service we started.
+            return IService(s).stopService()
 
         return s.whenFullyUpgraded().addCallback(afterUpgrade)
 
