@@ -213,6 +213,7 @@ class _SiteScheduler(object, Service, SchedulerMixin):
 
     def __init__(self, store):
         self.store = store
+        self.setName('Site Scheduler')
 
 
     def startService(self):
@@ -275,6 +276,7 @@ class _UserScheduler(object, Service, SchedulerMixin):
 
     def __init__(self, store):
         self.store = store
+        self.setName('User Scheduler')
 
 
     def now(self):

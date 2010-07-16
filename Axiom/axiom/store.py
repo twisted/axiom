@@ -140,6 +140,9 @@ def storeServiceSpecialCase(st, pups):
         batcher = batch.BatchProcessingControllerService(st)
         batcher.setServiceParent(collection)
 
+    scheduler = iaxiom.IScheduler(st)
+    scheduler.setServiceParent(collection)
+
     return collection
 
 
@@ -989,7 +992,6 @@ def _schedulerServiceSpecialCase(empowered, pups):
                 sched = _SiteScheduler(empowered)
             else:
                 sched = _UserScheduler(empowered)
-            sched.setServiceParent(IService(empowered))
             empowered._schedulerService = sched
         return empowered._schedulerService
     return None

@@ -408,6 +408,17 @@ class SchedulerStartupTests(TestCase):
             return service.stopService()
 
 
+    def test_schedulerStartsWhenServiceStarts(self):
+        """
+        Test that IScheduler(store).startService() gets called whenever
+        IService(store).startService() is called.
+        """
+        service = IService(self.store)
+        service.startService()
+        scheduler = service.getServiceNamed('Site Scheduler')
+        self.assertTrue(scheduler.running)
+
+
     def test_scheduleWhileStopped(self):
         """
         Test that a schedule call on a L{Scheduler} which has not been started
