@@ -5,6 +5,7 @@ was largely supplanted by L{_UserScheduler}.
 """
 
 from axiom.iaxiom import IScheduler
+from axiom.substore import SubStore
 from axiom.scheduler import SubScheduler, _UserScheduler
 from axiom.test.historic.stubloader import StubbedTest
 
@@ -16,11 +17,12 @@ class SubSchedulerUpgradeTests(StubbedTest):
         and adapting the L{Store} to L{IScheduler} succeeds with a
         L{_UserScheduler}.
         """
-        scheduler = self.store.findUnique(SubScheduler)
-        self.assertEquals(list(self.store.interfacesFor(scheduler)), [])
+        sub = self.store.findFirst(SubStore).open()
+        upgraded = sub.whenFullyUpgraded()
+        def subUpgraded(ignored):
+            scheduler = sub.findUnique(SubScheduler)
+            self.assertEquals(list(sub.interfacesFor(scheduler)), [])
 
-        # Slothfully grant this test store the appearance of being a user
-        # store.
-        self.store.parent = self.store
-
-        self.assertIsInstance(IScheduler(self.store), _UserScheduler)
+            self.assertIsInstance(IScheduler(sub), _UserScheduler)
+        upgraded.addCallback(subUpgraded)
+        return upgraded
