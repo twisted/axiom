@@ -12,7 +12,7 @@ from zope.interface.verify import verifyObject
 from twisted.trial import unittest
 from twisted.python import filepath
 from twisted.application.service import IService
-from twisted.internet.defer import maybeDeferred
+from twisted.internet.defer import maybeDeferred, succeed
 from twisted.python.reflect import namedModule
 from twisted.python import log
 
@@ -117,8 +117,16 @@ class SchemaUpgradeTest(unittest.TestCase):
         return self.currentStore
 
     def closeStore(self):
-        self.currentStore.close()
-        self.currentStore = None
+        service = IService(self.currentStore)
+        if service.running:
+            result = service.stopService()
+        else:
+            result = succeed(None)
+        def close(ignored):
+            self.currentStore.close()
+            self.currentStore = None
+        result.addCallback(close)
+        return result
 
     def startStoreService(self):
         svc = IService(self.currentStore)
@@ -367,8 +375,6 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         s = self.openStore()
         self.startStoreService()
         def afterFirstUpgrade(result):
-            self.closeStore()
-
             choose(morenewapp)
             s = self.openStore()
             self.startStoreService()
@@ -379,7 +385,10 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             sword = store.getItemByID(swordID, autoUpgrade=False)
             self._testPlayerAndSwordState(player, sword)
 
-        return s.whenFullyUpgraded().addCallback(afterFirstUpgrade)
+        d = s.whenFullyUpgraded()
+        d.addCallback(lambda ignored: self.closeStore())
+        d.addCallback(afterFirstUpgrade)
+        return d
 
 
 
