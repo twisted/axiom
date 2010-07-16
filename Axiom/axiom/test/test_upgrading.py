@@ -411,10 +411,18 @@ class SubStoreCompat(SwordUpgradeTest):
         return self.currentSubStore
 
     def closeStore(self):
-        self.currentSubStore.close()
-        self.currentTopStore.close()
-        self.currentSubStore = None
-        self.currentTopStore = None
+        service = IService(self.currentTopStore)
+        if service.running:
+            result = service.stopService()
+        else:
+            result = succeed(None)
+        def stopped(ignored):
+            self.currentSubStore.close()
+            self.currentTopStore.close()
+            self.currentSubStore = None
+            self.currentTopStore = None
+        result.addCallback(stopped)
+        return result
 
     def startStoreService(self):
         svc = IService(self.currentTopStore)
