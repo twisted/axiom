@@ -6,21 +6,20 @@ from datetime import timedelta
 from twisted.trial import unittest
 from twisted.trial.unittest import TestCase
 from twisted.application.service import IService
-from twisted.internet.defer import Deferred
 from twisted.internet.task import Clock
-from twisted.python import filepath, versions
+from twisted.python import filepath
 
 from epsilon.extime import Time
 
 from axiom.scheduler import TimedEvent, _SubSchedulerParentHook, TimedEventFailureLog
 from axiom.scheduler import Scheduler, SubScheduler
+from axiom.scheduler import SITE_SCHEDULER
 from axiom.store import Store
 from axiom.item import Item
 from axiom.substore import SubStore
 
 from axiom.attributes import integer, text, inmemory, boolean, timestamp
 from axiom.iaxiom import IScheduler
-from axiom.dependency import installOn
 
 class TestEvent(Item):
 
@@ -169,7 +168,6 @@ class SchedTest:
         """
         Test the unscheduleFirst method of the scheduler.
         """
-        d = Deferred()
         sch = IScheduler(self.store)
         t1 = TestEvent(testCase=self, name=u't1', store=self.store)
         t2 = TestEvent(testCase=self, name=u't2', store=self.store, runAgain=None)
@@ -250,6 +248,16 @@ class TopStoreSchedTest(SchedTest, TestCase):
     def setUp(self):
         self.store = self.siteStore = Store()
         super(TopStoreSchedTest, self).setUp()
+
+
+    def test_namedService(self):
+        """
+        The site store IScheduler implementation can be retrieved as a named
+        service from the store's IServiceCollection powerup.
+        """
+        self.assertIdentical(
+            IService(self.store).getServiceNamed(SITE_SCHEDULER),
+            IScheduler(self.store))
 
 
     def testBasicScheduledError(self):
