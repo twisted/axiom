@@ -239,7 +239,7 @@ class _SiteScheduler(object, Service, SchedulerMixin):
 
     def __init__(self, store):
         self.store = store
-        self.setName('Site Scheduler')
+        self.setName(SITE_SCHEDULER)
 
 
     def startService(self):
