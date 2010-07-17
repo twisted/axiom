@@ -116,7 +116,12 @@ class SchemaUpgradeTest(unittest.TestCase):
         self.currentStore = store.Store(self.dbdir, debug=dbg)
         return self.currentStore
 
+
     def closeStore(self):
+        """
+        Close C{self.currentStore} and discard the reference.  If there is a
+        store service running, stop it first.
+        """
         service = IService(self.currentStore)
         if service.running:
             result = service.stopService()
@@ -128,10 +133,13 @@ class SchemaUpgradeTest(unittest.TestCase):
         result.addCallback(close)
         return result
 
+
     def startStoreService(self):
         svc = IService(self.currentStore)
         svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
         svc.startService()
+
+
 
 def _logMessagesFrom(f):
     L = []
@@ -410,7 +418,12 @@ class SubStoreCompat(SwordUpgradeTest):
             self.currentSubStore = ss.open()
         return self.currentSubStore
 
+
     def closeStore(self):
+        """
+        Close C{self.currentTopStore} and C{self.currentSubStore}.  If there is
+        a store service running in C{self.currentTopStore}, stop it first.
+        """
         service = IService(self.currentTopStore)
         if service.running:
             result = service.stopService()
@@ -423,6 +436,7 @@ class SubStoreCompat(SwordUpgradeTest):
             self.currentTopStore = None
         result.addCallback(stopped)
         return result
+
 
     def startStoreService(self):
         svc = IService(self.currentTopStore)
