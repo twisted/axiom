@@ -808,7 +808,8 @@ class BackwardsCompatibilitySchedTests(object):
         storeID = self.oldScheduler.storeID
         del self.oldScheduler
         gc.collect()
-        scheduler = self.store.getItemByID(storeID)
+        # Just load the scheduler, we don't need to use it for anything.
+        self.store.getItemByID(storeID)
         warnings = self.flushWarnings([self.test_deprecated])
         self.assertEquals(len(warnings), 1)
         self.assertEquals(warnings[0]['category'], PendingDeprecationWarning)
