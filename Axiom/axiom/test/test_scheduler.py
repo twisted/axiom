@@ -423,7 +423,7 @@ class SchedulerStartupTests(TestCase):
         """
         service = IService(self.store)
         service.startService()
-        scheduler = service.getServiceNamed('Site Scheduler')
+        scheduler = service.getServiceNamed(SITE_SCHEDULER)
         self.assertTrue(scheduler.running)
 
 
