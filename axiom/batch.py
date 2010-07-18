@@ -400,7 +400,8 @@ class _BatchProcessorMixin:
         processor is being added to the database.
 
         If this processor is not already scheduled to run, this will schedule
-        it.
+        it.  It will also start the batch process if it is not yet running and
+        there are any registered remote listeners.
         """
         localCount = self.store.query(
             _ReliableListener,
@@ -418,7 +419,9 @@ class _BatchProcessorMixin:
             self.scheduled = extime.Time()
             iaxiom.IScheduler(self.store).schedule(self, self.scheduled)
         if remoteCount:
-            iaxiom.IBatchService(self.store).start()
+            batchService = iaxiom.IBatchService(self.store, None)
+            if batchService is not None:
+                batchService.start()
 
 
 
@@ -903,8 +906,13 @@ class BatchProcessingControllerService(service.Service):
     """
     Controls starting, stopping, and passing messages to the system process in
     charge of remote batch processing.
+
+    @ivar batchController: A reference to the L{ProcessController} for
+        interacting with the batch process, if one exists.  Otherwise C{None}.
     """
     implements(iaxiom.IBatchService)
+
+    batchController = None
 
     def __init__(self, store):
         self.store = store
@@ -959,7 +967,8 @@ class BatchProcessingControllerService(service.Service):
 
 
     def start(self):
-        self.batchController.getProcess()
+        if self.batchController is not None:
+            self.batchController.getProcess()
 
 
     def suspend(self, storepath, storeID):
@@ -1005,9 +1014,23 @@ class _SubStoreBatchChannel(object):
 
 
 def storeBatchServiceSpecialCase(st, pups):
+    """
+    Adapt a L{Store} to L{IBatchService}.
+
+    If C{st} is a substore, return a simple wrapper that delegates to the site
+    store's L{IBatchService} powerup.  Return C{None} if C{st} has no
+    L{BatchProcessingControllerService}.
+    """
     if st.parent is not None:
-        return _SubStoreBatchChannel(st)
-    return service.IService(st).getServiceNamed("Batch Processing Controller")
+        try:
+            return _SubStoreBatchChannel(st)
+        except TypeError:
+            return None
+    storeService = service.IService(st)
+    try:
+        return storeService.getServiceNamed("Batch Processing Controller")
+    except KeyError:
+        return None
 
 
 
