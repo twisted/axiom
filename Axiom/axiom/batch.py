@@ -408,9 +408,17 @@ class _BatchProcessorMixin:
                            _ReliableListener.style == iaxiom.LOCAL),
             limit=1).count()
 
+        remoteCount = self.store.query(
+            _ReliableListener,
+            attributes.AND(_ReliableListener.processor == self,
+                           _ReliableListener.style == iaxiom.REMOTE),
+            limit=1).count()
+
         if localCount and self.scheduled is None:
             self.scheduled = extime.Time()
             iaxiom.IScheduler(self.store).schedule(self, self.scheduled)
+        if remoteCount:
+            iaxiom.IBatchService(self.store).start()
 
 
 
@@ -896,6 +904,7 @@ class BatchProcessingControllerService(service.Service):
     Controls starting, stopping, and passing messages to the system process in
     charge of remote batch processing.
     """
+    implements(iaxiom.IBatchService)
 
     def __init__(self, store):
         self.store = store
@@ -949,6 +958,10 @@ class BatchProcessingControllerService(service.Service):
                            method=method).do)
 
 
+    def start(self):
+        self.batchController.getProcess()
+
+
     def suspend(self, storepath, storeID):
         return self.batchController.getProcess().addCallback(
             SuspendProcessor(storepath=storepath, storeid=storeID).do)
@@ -976,6 +989,10 @@ class _SubStoreBatchChannel(object):
 
     def call(self, itemMethod):
         return self.service.call(itemMethod)
+
+
+    def start(self):
+        self.service.start()
 
 
     def suspend(self, storeID):
