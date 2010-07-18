@@ -531,6 +531,29 @@ class WorkingReliableListener(item.Item):
 
 
 class RemoteTestCase(unittest.TestCase):
+    def test_noBatchService(self):
+        """
+        A L{Store} with no database directory cannot be adapted to
+        L{iaxiom.IBatchService}.
+        """
+        st = store.Store()
+        self.assertRaises(TypeError, iaxiom.IBatchService, st)
+        self.assertIdentical(
+            iaxiom.IBatchService(st, None), None)
+
+
+    def test_subStoreNoBatchService(self):
+        """
+        A user L{Store} attached to a site L{Store} with no database directory
+        cannot be adapted to L{iaxiom.IBatchService}.
+        """
+        st = store.Store(filesdir=self.mktemp())
+        ss = substore.SubStore.createNew(st, 'substore').open()
+        self.assertRaises(TypeError, iaxiom.IBatchService, ss)
+        self.assertIdentical(
+            iaxiom.IBatchService(ss, None), None)
+
+
     def testBatchService(self):
         """
         Make sure SubStores can be adapted to L{iaxiom.IBatchService}.
@@ -641,6 +664,53 @@ class RemoteTestCase(unittest.TestCase):
         self.assertIn(batchService.batchController.mode, ('starting', 'ready'))
 
 
+    def test_itemAddedBeforeStarted(self):
+        """
+        If C{itemAdded} is called before the batch service is started, the batch
+        process is not started.
+        """
+        st = store.Store(self.mktemp())
+
+        procType = batch.processor(TestWorkUnit)
+        proc = procType(store=st)
+        listener = WorkListener(store=st)
+        proc.addReliableListener(listener, style=iaxiom.REMOTE)
+
+        proc.itemAdded()
+
+        # When the service later starts, the batch service needn't start its
+        # process.  Not that this would be bad.  Feel free to reverse this
+        # behavior if you really want.
+        svc = service.IService(st)
+        svc.startService()
+        self.addCleanup(svc.stopService)
+
+        batchService = iaxiom.IBatchService(st)
+        self.assertEquals(batchService.batchController.mode, 'stopped')
+
+
+    def test_itemAddedWithoutBatchService(self):
+        """
+        If the store has no batch service, C{itemAdded} doesn't start the batch
+        process and also doesn't raise an exception.
+        """
+        # An in-memory store can't have a batch service.
+        st = store.Store()
+        svc = service.IService(st)
+        svc.startService()
+        self.addCleanup(svc.stopService)
+
+        procType = batch.processor(TestWorkUnit)
+        proc = procType(store=st)
+        listener = WorkListener(store=st)
+        proc.addReliableListener(listener, style=iaxiom.REMOTE)
+
+        proc.itemAdded()
+
+        # And still there should be no batch service at all.
+        self.assertIdentical(iaxiom.IBatchService(st, None), None)
+
+
     def test_subStoreBatchServiceStart(self):
         """
         The substore implementation of L{IBatchService.start} starts the batch
@@ -656,4 +726,3 @@ class RemoteTestCase(unittest.TestCase):
 
         batchService = iaxiom.IBatchService(st)
         self.assertIn(batchService.batchController.mode, ('starting', 'ready'))
-
