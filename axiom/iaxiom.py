@@ -309,11 +309,18 @@ class IBatchProcessor(Interface):
         """
 
 
+
 class IBatchService(Interface):
     """
     Object which allows minimal communication with L{IReliableListener}
     providers which are running remotely (that is, with the L{REMOTE} style).
     """
+    def start():
+        """
+        Start the remote batch process if it has not yet been started, otherwise
+        do nothing.
+        """
+
 
     def suspend(storeID):
         """
@@ -324,6 +331,7 @@ class IBatchService(Interface):
         @return: A Deferred which fires when the listener has been suspended.
         """
 
+
     def resume(storeID):
         """
         @type storeID: C{int}
@@ -332,6 +340,8 @@ class IBatchService(Interface):
         @rtype: L{twisted.internet.defer.Deferred}
         @return: A Deferred which fires when the listener has been resumed.
         """
+
+
 
 class IVersion(Interface):
     """
