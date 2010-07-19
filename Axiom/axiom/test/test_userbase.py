@@ -533,7 +533,7 @@ class RealmTestCase(unittest.TestCase):
     """
     localpart = u'testuser'
     domain = u'example.com'
-    password = u'password'
+    password = 'password'
 
     def setUp(self):
         self.store = Store()
@@ -596,7 +596,7 @@ class RealmTestCase(unittest.TestCase):
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
         username = u'%s@%s' % (self.localpart, self.domain)
-        d = self._requestAvatarId(UsernamePassword(username, u'blahblah'))
+        d = self._requestAvatarId(UsernamePassword(username, 'blahblah'))
         self.assertFailure(d, UnauthorizedLogin)
         return d
 

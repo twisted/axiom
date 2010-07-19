@@ -527,7 +527,7 @@ class LoginBase:
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:
-            password = acct.password
+            password = acct.password.encode('ascii')
             if credentials.checkPassword(password):
                 return acct.storeID
             else:
