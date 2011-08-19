@@ -562,6 +562,7 @@ class RemoteTestCase(unittest.TestCase):
         ss = substore.SubStore.createNew(s, 'substore')
         service.IService(s).startService()
         d = iaxiom.IBatchService(ss).call(BatchCallTestItem(store=ss.open()).callIt)
+        ss.close()
         def called(ign):
             self.failUnless(ss.open().findUnique(BatchCallTestItem).called, "Was not called")
             return service.IService(s).stopService()
