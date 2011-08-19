@@ -73,7 +73,7 @@ class PathAttributesTest(unittest.TestCase):
         TEST_STR = "test 123"
 
         def cb(fpath):
-            fpath.open("w").write(TEST_STR)
+            fpath.setContent(TEST_STR)
 
             PathTesterItem(store=s,
                            relpath=fpath)
@@ -83,7 +83,7 @@ class PathAttributesTest(unittest.TestCase):
             s2 = Store(npath)
             pti = list(s2.query(PathTesterItem))[0]
 
-            self.assertEquals(pti.relpath.open().read(),
+            self.assertEquals(pti.relpath.getContent(),
                               TEST_STR)
 
         return rel.close().addCallback(cb)

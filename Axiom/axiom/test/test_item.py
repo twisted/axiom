@@ -306,12 +306,10 @@ class ItemTestCase(unittest.TestCase):
         st.close()
 
         e = os.environ.copy()
-        # Kind of a heuristic - hmmm
-        e['PYTHONPATH'] = os.pathsep.join(sys.path) # os.pathsep.join([dir for dir in sys.path if not dir.startswith(sys.prefix)])
         d = defer.Deferred()
         p = ProcessOutputCollector(d)
         try:
-            reactor.spawnProcess(p, sys.executable, ["python", '-Wignore', itemtestmain.__file__.rstrip('co'), storePath.path, str(itemID)], e)
+            reactor.spawnProcess(p, sys.executable, [sys.executable, '-Wignore', itemtestmain.__file__.rstrip('co'), storePath.path, str(itemID)], e)
         except NotImplementedError:
             raise unittest.SkipTest("Implement processes here")
 
