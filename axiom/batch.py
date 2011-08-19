@@ -648,7 +648,6 @@ class ProcessController(object):
     def _startProcess(self):
         executable = sys.executable
         env = os.environ.copy()
-        env['PYTHONPATH'] = os.pathsep.join(sys.path)
 
         twistdBinaries = procutils.which("twistd2.4") + procutils.which("twistd")
         if not twistdBinaries:
