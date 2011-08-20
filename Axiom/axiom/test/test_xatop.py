@@ -203,40 +203,6 @@ class StoreTests(unittest.TestCase):
                    schema[2], schema[3], schema[4])] + schema[1:]})
 
 
-    def test_inMemorySchemaCacheReset(self):
-        """
-        The global in-memory table schema cache should not change the behavior
-        of consistency checking with respect to the redefinition of in-memory
-        schemas.
-
-        This test is verifying the behavior which is granted by the use of a
-        WeakKeyDictionary for _inMemorySchemaCache.  If that cache kept strong
-        references to item types or used a (typeName, schemaVersion) key,
-        either the second C{SoonToChange} class definition in this method would
-        fail or the schema defined by the first C{SoonToChange} class would be
-        used, even after it should have been replaced by the second definition.
-        """
-        class SoonToChange(item.Item):
-            attribute = attributes.integer()
-
-        dbpath = self.mktemp()
-        s = store.Store(dbpath)
-        SoonToChange(store=s)
-        s.close()
-
-        # This causes a Store._checkTypeSchemaConsistency to cache
-        # SoonToChange.
-        s = store.Store(dbpath)
-        s.close()
-
-        del SoonToChange, s
-
-        class SoonToChange(item.Item):
-            attribute = attributes.boolean()
-
-        self.assertRaises(RuntimeError, store.Store, dbpath)
-
-
     def test_checkOutdatedTypeSchema(self):
         """
         L{Store._checkTypeSchemaConsistency} raises L{RuntimeError} if the type
@@ -270,11 +236,10 @@ class StoreTests(unittest.TestCase):
         SoonToChange(store=s)
         s.close()
 
-        # Get rid of both the type and the store so that we can define a new
-        # incompatible version.  It might be nice if closed stores didn't keep
-        # references to types, but whatever.  This kind of behavior isn't
-        # really supported, only the unit tests need to do it for now.
-        del SoonToChange, s
+        # Get rid of the cached information about this type
+        from axiom.item import _typeNameToMostRecentClass
+        del _typeNameToMostRecentClass[SoonToChange.typeName]
+        del SoonToChange
 
         class SoonToChange(item.Item):
             attribute = attributes.boolean()
@@ -351,48 +316,6 @@ class StoreTests(unittest.TestCase):
                  secondary._indexNameOf(TestItem, ['other']),
                  secondary._indexNameOf(TestItem, ['myStore']),
                  secondary._indexNameOf(TestItem, ['bar', 'baz'])]))
-
-
-    def test_inMemoryIndexCacheReset(self):
-        """
-        The global in-memory index schema cache should not change the behavior
-        of index creation with respect to the redefinition of in-memory
-        schemas.
-
-        This test is verifying the behavior which is granted by the use of a
-        WeakKeyDictionary for _requiredTableIndexes.  If that cache kept strong
-        references to item types or used a (typeName, schemaVersion) key,
-        either the second C{SoonToChange} class definition in this method would
-        fail or the indexes on the schema defined by the first C{SoonToChange}
-        class would be used, even after it should have been replaced by the
-        second definition.
-        """
-        class SoonToChange(item.Item):
-            attribute = attributes.integer()
-
-        dbpath = self.mktemp()
-        s = store.Store(dbpath)
-
-        before = s._loadExistingIndexes()
-        SoonToChange(store=s)
-        after = s._loadExistingIndexes()
-
-        # Sanity check - this version of SoonToChange has no indexes.
-        self.assertEqual(before, after)
-
-        s.close()
-        del SoonToChange, s
-
-        class SoonToChange(item.Item):
-            attribute = attributes.boolean(indexed=True)
-
-        s = store.Store()
-        before = s._loadExistingIndexes()
-        SoonToChange(store=s)
-        after = s._loadExistingIndexes()
-        self.assertEqual(
-            after - before,
-            set([s._indexNameOf(SoonToChange, ['attribute'])]))
 
 
     def test_loadPythonModuleHint(self):
