@@ -1,5 +1,5 @@
 # -*- test-case-name: axiomatic.test.test_axiomatic -*-
-from zope.interface import directlyProvides
+from zope.interface import alsoProvides, noLongerProvides
 
 import os
 import sys
@@ -7,12 +7,12 @@ import glob
 import errno
 import signal
 
-from twisted import plugin
+from twisted.plugin import IPlugin, getPlugins
 from twisted.python import usage
 from twisted.python.runtime import platform
 from twisted.scripts import twistd
 
-from axiom import iaxiom
+from axiom.iaxiom import IAxiomaticCommand
 
 class AxiomaticSubCommandMixin(object):
     store = property(lambda self: self.parent.getStore())
@@ -23,18 +23,39 @@ class AxiomaticSubCommandMixin(object):
         codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
         return unicode(cmdline, codec)
 
-class _metaASC(type):
+
+
+class _AxiomaticCommandMeta(type):
+    """
+    Metaclass for L{AxiomaticCommand}.
+
+    This serves to make subclasses provide L{IPlugin} and L{IAxiomaticCommand}.
+    """
     def __new__(cls, name, bases, attrs):
         newcls = type.__new__(cls, name, bases, attrs)
-        if not (newcls.__name__ == 'AxiomaticCommand' and newcls.__module__ == _metaASC.__module__):
-            directlyProvides(newcls, plugin.IPlugin, iaxiom.IAxiomaticCommand)
+        alsoProvides(newcls, IPlugin, IAxiomaticCommand)
         return newcls
 
+
+
 class AxiomaticSubCommand(usage.Options, AxiomaticSubCommandMixin):
-    pass
+    """
+    L{twisted.python.usage.Options} subclass for Axiomatic sub commands.
+    """
+
+
 
 class AxiomaticCommand(usage.Options, AxiomaticSubCommandMixin):
-    __metaclass__ = _metaASC
+    """
+    L{twisted.python.usage.Options} subclass for Axiomatic plugin commands.
+
+    Subclass this to have your class automatically provide the necessary
+    interfaces to be picked up by axiomatic.
+    """
+    __metaclass__ = _AxiomaticCommandMeta
+
+noLongerProvides(AxiomaticCommand, IPlugin)
+noLongerProvides(AxiomaticCommand, IAxiomaticCommand)
 
 
 
@@ -119,7 +140,7 @@ class Options(usage.Options):
                 yield ('status', None, Status, 'Report whether a server is running from the given Axiom database')
 
             from axiom import plugins
-            for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins):
+            for plg in getPlugins(IAxiomaticCommand, plugins):
                 try:
                     yield (plg.name, None, plg, plg.description)
                 except AttributeError:
