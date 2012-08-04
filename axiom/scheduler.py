@@ -1,5 +1,28 @@
 # -*- test-case-name: axiom.test.test_scheduler -*-
 
+"""
+Timed event scheduling for Axiom databases.
+
+With this module, applications can schedule an L{Item} to have its C{run} method
+called at a particular point in the future.  This call will happen even if the
+process which initially schedules it exits and the database is later re-opened
+by another process (of course, if the scheduled time comes and goes while no
+process is using the database, then the call will be delayed until some process
+opens the database and starts its services).
+
+This module contains two implementations of the L{axiom.iaxiom.IScheduler}
+interface, one for site stores and one for sub-stores.  Items can only be
+scheduled using an L{IScheduler} implementations from the store containing the
+item.  This means a typical way to schedule an item to be run is::
+
+    IScheduler(item.store).schedule(item, when)
+
+The scheduler service can also be retrieved from the site store's service
+collection by name::
+
+    IServiceCollection(siteStore).getServiceNamed(SITE_SCHEDULER)
+"""
+
 import warnings
 
 from zope.interface import implements
@@ -19,6 +42,9 @@ from axiom.upgrade import registerUpgrader
 from axiom.substore import SubStore
 
 VERBOSE = False
+
+SITE_SCHEDULER = u"Site Scheduler"
+
 
 class TimedEventFailureLog(Item):
     typeName = 'timed_event_failure_log'
@@ -213,6 +239,7 @@ class _SiteScheduler(object, Service, SchedulerMixin):
 
     def __init__(self, store):
         self.store = store
+        self.setName(SITE_SCHEDULER)
 
 
     def startService(self):
