@@ -12,7 +12,7 @@ from zope.interface.verify import verifyObject
 from twisted.trial import unittest
 from twisted.python import filepath
 from twisted.application.service import IService
-from twisted.internet.defer import maybeDeferred
+from twisted.internet.defer import maybeDeferred, succeed
 from twisted.python.reflect import namedModule
 from twisted.python import log
 
@@ -116,14 +116,30 @@ class SchemaUpgradeTest(unittest.TestCase):
         self.currentStore = store.Store(self.dbdir, debug=dbg)
         return self.currentStore
 
+
     def closeStore(self):
-        self.currentStore.close()
-        self.currentStore = None
+        """
+        Close C{self.currentStore} and discard the reference.  If there is a
+        store service running, stop it first.
+        """
+        service = IService(self.currentStore)
+        if service.running:
+            result = service.stopService()
+        else:
+            result = succeed(None)
+        def close(ignored):
+            self.currentStore.close()
+            self.currentStore = None
+        result.addCallback(close)
+        return result
+
 
     def startStoreService(self):
         svc = IService(self.currentStore)
         svc.getServiceNamed("Batch Processing Controller").disownServiceParent()
         svc.startService()
+
+
 
 def _logMessagesFrom(f):
     L = []
@@ -308,6 +324,8 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             player = s.getItemByID(playerID, autoUpgrade=False)
             sword = s.getItemByID(swordID, autoUpgrade=False)
             self._testPlayerAndSwordState(player, sword)
+            # Stop that service we started.
+            return IService(s).stopService()
 
         return s.whenFullyUpgraded().addCallback(afterUpgrade)
 
@@ -367,8 +385,6 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         s = self.openStore()
         self.startStoreService()
         def afterFirstUpgrade(result):
-            self.closeStore()
-
             choose(morenewapp)
             s = self.openStore()
             self.startStoreService()
@@ -379,7 +395,10 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             sword = store.getItemByID(swordID, autoUpgrade=False)
             self._testPlayerAndSwordState(player, sword)
 
-        return s.whenFullyUpgraded().addCallback(afterFirstUpgrade)
+        d = s.whenFullyUpgraded()
+        d.addCallback(lambda ignored: self.closeStore())
+        d.addCallback(afterFirstUpgrade)
+        return d
 
 
 
@@ -399,11 +418,25 @@ class SubStoreCompat(SwordUpgradeTest):
             self.currentSubStore = ss.open()
         return self.currentSubStore
 
+
     def closeStore(self):
-        self.currentSubStore.close()
-        self.currentTopStore.close()
-        self.currentSubStore = None
-        self.currentTopStore = None
+        """
+        Close C{self.currentTopStore} and C{self.currentSubStore}.  If there is
+        a store service running in C{self.currentTopStore}, stop it first.
+        """
+        service = IService(self.currentTopStore)
+        if service.running:
+            result = service.stopService()
+        else:
+            result = succeed(None)
+        def stopped(ignored):
+            self.currentSubStore.close()
+            self.currentTopStore.close()
+            self.currentSubStore = None
+            self.currentTopStore = None
+        result.addCallback(stopped)
+        return result
+
 
     def startStoreService(self):
         svc = IService(self.currentTopStore)

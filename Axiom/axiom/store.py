@@ -140,6 +140,13 @@ def storeServiceSpecialCase(st, pups):
         batcher = batch.BatchProcessingControllerService(st)
         batcher.setServiceParent(collection)
 
+    scheduler = iaxiom.IScheduler(st)
+    # If it's an old database, we might get a SubScheduler instance.  It has no
+    # setServiceParent method.
+    setServiceParent = getattr(scheduler, 'setServiceParent', None)
+    if setServiceParent is not None:
+        setServiceParent(collection)
+
     return collection
 
 
@@ -989,7 +996,6 @@ def _schedulerServiceSpecialCase(empowered, pups):
                 sched = _SiteScheduler(empowered)
             else:
                 sched = _UserScheduler(empowered)
-            sched.setServiceParent(IService(empowered))
             empowered._schedulerService = sched
         return empowered._schedulerService
     return None
@@ -1522,8 +1528,8 @@ class Store(Empowered):
 
         if (key[0], key[1] + 1) in onDiskSchema:
             raise RuntimeError(
-                "Greater versions of database %r objects in the DB than in memory" %
-                (actualType.typeName,))
+                "Memory version of %r is %d; database has newer" % (
+                    actualType.typeName, key[1]))
 
 
     # finally find old versions of the data and prepare to upgrade it.
