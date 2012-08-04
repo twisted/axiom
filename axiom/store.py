@@ -143,8 +143,9 @@ def storeServiceSpecialCase(st, pups):
     scheduler = iaxiom.IScheduler(st)
     # If it's an old database, we might get a SubScheduler instance.  It has no
     # setServiceParent method.
-    if getattr(scheduler, 'setServiceParent', None) is not None:
-        scheduler.setServiceParent(collection)
+    setServiceParent = getattr(scheduler, 'setServiceParent', None)
+    if setServiceParent is not None:
+        setServiceParent(collection)
 
     return collection
 
