@@ -316,7 +316,7 @@ class Empowered(object):
         """
         if interface is IPowerupIndirector:
             # This would cause an infinite loop, since powerupsFor will try to
-            # adapt every popwerup to IPowerupIndirector, calling this method.
+            # adapt every powerup to IPowerupIndirector, calling this method.
             return
 
         try:
