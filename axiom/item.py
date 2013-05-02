@@ -195,8 +195,7 @@ class Empowered(object):
     """
     aggregateInterfaces = {
         IService: serviceSpecialCase,
-        IServiceCollection: serviceSpecialCase
-    }
+        IServiceCollection: serviceSpecialCase}
 
     def inMemoryPowerUp(self, powerup, interface):
         """
