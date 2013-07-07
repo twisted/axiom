@@ -560,7 +560,7 @@ class RemoteTestCase(unittest.TestCase):
         """
         dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
-        ss = substore.SubStore.createNew(s, 'substore')
+        ss = substore.SubStore.createNew(s, ['substore'])
         bs = iaxiom.IBatchService(ss)
         self.failUnless(iaxiom.IBatchService.providedBy(bs))
 
@@ -582,7 +582,7 @@ class RemoteTestCase(unittest.TestCase):
         """
         dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
-        ss = substore.SubStore.createNew(s, 'substore')
+        ss = substore.SubStore.createNew(s, ['substore'])
         service.IService(s).startService()
         d = iaxiom.IBatchService(ss).call(BatchCallTestItem(store=ss.open()).callIt)
         ss.close()
