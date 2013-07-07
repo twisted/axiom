@@ -548,7 +548,7 @@ class RemoteTestCase(unittest.TestCase):
         cannot be adapted to L{iaxiom.IBatchService}.
         """
         st = store.Store(filesdir=self.mktemp())
-        ss = substore.SubStore.createNew(st, 'substore').open()
+        ss = substore.SubStore.createNew(st, ['substore']).open()
         self.assertRaises(TypeError, iaxiom.IBatchService, ss)
         self.assertIdentical(
             iaxiom.IBatchService(ss, None), None)
@@ -560,7 +560,7 @@ class RemoteTestCase(unittest.TestCase):
         """
         dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
-        ss = substore.SubStore.createNew(s, 'substore')
+        ss = substore.SubStore.createNew(s, ['substore'])
         bs = iaxiom.IBatchService(ss)
         self.failUnless(iaxiom.IBatchService.providedBy(bs))
 
@@ -582,12 +582,16 @@ class RemoteTestCase(unittest.TestCase):
         """
         dbdir = filepath.FilePath(self.mktemp())
         s = store.Store(dbdir)
-        ss = substore.SubStore.createNew(s, 'substore')
+        ss = substore.SubStore.createNew(s, ['substore'])
         service.IService(s).startService()
-        d = iaxiom.IBatchService(ss).call(BatchCallTestItem(store=ss.open()).callIt)
+        d = iaxiom.IBatchService(ss).call(
+            BatchCallTestItem(store=ss.open()).callIt)
         ss.close()
         def called(ign):
-            self.failUnless(ss.open().findUnique(BatchCallTestItem).called, "Was not called")
+            self.assertTrue(
+                ss.open().findUnique(BatchCallTestItem).called,
+                "Was not called")
+            ss.close()
             return service.IService(s).stopService()
         return d.addCallback(called)
 
@@ -722,7 +726,7 @@ class RemoteTestCase(unittest.TestCase):
         svc.startService()
         self.addCleanup(svc.stopService)
 
-        ss = substore.SubStore.createNew(st, 'substore').open()
+        ss = substore.SubStore.createNew(st, ['substore']).open()
         iaxiom.IBatchService(ss).start()
 
         batchService = iaxiom.IBatchService(st)

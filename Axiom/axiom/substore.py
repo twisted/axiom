@@ -26,6 +26,9 @@ class SubStore(Item):
         """
         Create a new SubStore, allocating a new file space for it.
         """
+        if isinstance(pathSegments, basestring):
+            raise ValueError(
+                'Received %r instead of a sequence' % (pathSegments,))
         if store.dbdir is None:
             self = cls(store=store, storepath=None)
         else:
@@ -37,10 +40,12 @@ class SubStore(Item):
 
     createNew = classmethod(createNew)
 
+
     def close(self):
         self.substore.close()
         del self.substore._openSubStore
         del self.substore
+
 
     def open(self, debug=False):
         if hasattr(self, 'substore'):
@@ -50,6 +55,7 @@ class SubStore(Item):
             s._openSubStore = self # don't fall out of cache as long as the
                                    # store is alive!
             return s
+
 
     def createStore(self, debug):
         """
@@ -73,6 +79,7 @@ class SubStore(Item):
                          idInParent=self.storeID,
                          debug=debug)
 
+
     def __conform__(self, interface):
         """
         I adapt my store object to whatever interface I am adapted to.  This
@@ -84,6 +91,7 @@ class SubStore(Item):
         ifa = interface(self.open(debug=self.store.debug), None)
         return ifa
 
+
     def indirect(self, interface):
         """
         Like __conform__, I adapt my store to whatever interface I am asked to
@@ -92,6 +100,7 @@ class SubStore(Item):
         additional item type for each interface that we might wish to adapt to.
         """
         return interface(self)
+
 
 
 class SubStoreStartupService(Item, service.Service):
