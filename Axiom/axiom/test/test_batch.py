@@ -548,7 +548,7 @@ class RemoteTestCase(unittest.TestCase):
         cannot be adapted to L{iaxiom.IBatchService}.
         """
         st = store.Store(filesdir=self.mktemp())
-        ss = substore.SubStore.createNew(st, 'substore').open()
+        ss = substore.SubStore.createNew(st, ['substore']).open()
         self.assertRaises(TypeError, iaxiom.IBatchService, ss)
         self.assertIdentical(
             iaxiom.IBatchService(ss, None), None)
@@ -726,7 +726,7 @@ class RemoteTestCase(unittest.TestCase):
         svc.startService()
         self.addCleanup(svc.stopService)
 
-        ss = substore.SubStore.createNew(st, 'substore').open()
+        ss = substore.SubStore.createNew(st, ['substore']).open()
         iaxiom.IBatchService(ss).start()
 
         batchService = iaxiom.IBatchService(st)
