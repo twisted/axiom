@@ -136,7 +136,10 @@ class SubStoreTest(unittest.TestCase):
         L{SubStore.createNew} results in an exception.
         """
         s = Store()
-        self.assertRaises(ValueError, SubStore.createNew, s, 'notasequence')
+        e = self.assertRaises(
+            ValueError, SubStore.createNew, s, 'notasequence')
+        self.assertEqual(
+            e.args[0], "Received 'notasequence' instead of a sequence")
 
 
 
