@@ -586,10 +586,12 @@ class RemoteTestCase(unittest.TestCase):
         service.IService(s).startService()
         d = iaxiom.IBatchService(ss).call(
             BatchCallTestItem(store=ss.open()).callIt)
+        ss.close()
         def called(ign):
             self.assertTrue(
                 ss.open().findUnique(BatchCallTestItem).called,
                 "Was not called")
+            ss.close()
             return service.IService(s).stopService()
         return d.addCallback(called)
 
