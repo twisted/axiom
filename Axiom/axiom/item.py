@@ -193,7 +193,6 @@ class Empowered(object):
         return value is the powerup.  These are used only by the callable
         interface adaption API, not C{powerupsFor}.
     """
-
     aggregateInterfaces = {
         IService: serviceSpecialCase,
         IServiceCollection: serviceSpecialCase}
@@ -314,19 +313,22 @@ class Empowered(object):
         special rules.  The full list of such interfaces is present in the
         'aggregateInterfaces' class attribute.
         """
-        if (self.store is None  # Don't bother doing a *query* if we're not
-                                # even stored in a store yet
-            or interface is IPowerupIndirector): # you can't do a query for
-                                                 # IPowerupIndirector, that
-                                                 # would just start an infinite
-                                                 # loop.
+        if interface is IPowerupIndirector:
+            # This would cause an infinite loop, since powerupsFor will try to
+            # adapt every powerup to IPowerupIndirector, calling this method.
             return
-        pups = self.powerupsFor(interface)
-        agg = self.aggregateInterfaces
-        if interface in agg:
-            return agg[interface](self, pups)
-        for p in pups:
-            return p
+
+        try:
+            pups = self.powerupsFor(interface)
+        except AttributeError:  # self.store is None -> self.store.query...
+            return
+
+        aggregator = self.aggregateInterfaces.get(interface, None)
+        if aggregator is not None:
+            return aggregator(self, pups)
+
+        for pup in pups:
+            return pup  # return first one, or None if no powerups
 
 
     def powerupsFor(self, interface):

@@ -289,14 +289,19 @@ class InMemoryPowerupTests(unittest.TestCase):
     """
     Tests for the behavior of powerups which are not database-resident.
     """
+    def _createEmpowered(self, withStore=True):
+        powerup = object()
+        item = SumContributor(store=Store() if withStore else None)
+        item.inMemoryPowerUp(powerup, ISumProducer)
+        return powerup, item
+
+
     def test_powerupsFor(self):
         """
         L{Item.powerupsFor} returns a list the first element of which is the
         object previously passed to L{Item.inMemoryPowerUp}.
         """
-        powerup = object()
-        item = SumContributor(store=Store())
-        item.inMemoryPowerUp(powerup, ISumProducer)
+        powerup, item = self._createEmpowered()
         self.assertEqual(list(item.powerupsFor(ISumProducer)), [powerup])
 
 
@@ -306,8 +311,15 @@ class InMemoryPowerupTests(unittest.TestCase):
         that item for that interface even if there are database-resident
         powerups on that item for that interface.
         """
-        powerup = object()
-        item = SumContributor(store=Store())
-        item.inMemoryPowerUp(powerup, ISumProducer)
+        powerup, item = self._createEmpowered()
         item.powerUp(item, ISumProducer)
+        self.assertIdentical(ISumProducer(item), powerup)
+
+
+    def test_conformWithoutStore(self):
+        """
+        Adaptation (through L{Item.__conform__}) should be allowed even if the
+        object is not stored, as long as it has an in-memory powerup.
+        """
+        powerup, item = self._createEmpowered(withStore=False)
         self.assertIdentical(ISumProducer(item), powerup)
