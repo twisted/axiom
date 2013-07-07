@@ -130,6 +130,15 @@ class SubStoreTest(unittest.TestCase):
         self.assertEqual(open(f.finalpath.path).read(), "yay")
 
 
+    def test_createNewStringPath(self):
+        """
+        Passing a string instead of a sequence of strings to
+        L{SubStore.createNew} results in an exception.
+        """
+        s = Store()
+        self.assertRaises(ValueError, SubStore.createNew, s, 'notasequence')
+
+
 
 class SubStoreStartupSemantics(unittest.TestCase):
     """
