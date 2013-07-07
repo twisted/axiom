@@ -28,7 +28,7 @@ class SubStore(Item):
         """
         if isinstance(pathSegments, basestring):
             raise ValueError(
-                'Received %s instead of a sequence' % (pathSegments,))
+                'Received %r instead of a sequence' % (pathSegments,))
         if store.dbdir is None:
             self = cls(store=store, storepath=None)
         else:
