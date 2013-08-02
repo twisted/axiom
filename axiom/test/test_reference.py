@@ -186,7 +186,7 @@ class BadReferenceTestCase(TestCase):
         store = Store()
         t = nonUpgradedItem(store=store)
         self.assertEquals(t.__legacy__, True)
-        self.assertFalse(store.objectCache.has(t.storeID))
+        self.assertRaises(KeyError, store.objectCache.get, t.storeID)
         t2 = store.getItemByID(t.storeID)
         self.assertNotIdentical(t, t2)
         self.assertTrue(isinstance(t2, UpgradedItem))

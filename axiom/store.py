@@ -1747,10 +1747,10 @@ class Store(Empowered):
             self.executeSQL(sql, insertArgs)
 
     def _loadedItem(self, itemClass, storeID, attrs):
-        if self.objectCache.has(storeID):
+        try:
             result = self.objectCache.get(storeID)
             # XXX do checks on consistency between attrs and DB object, maybe?
-        else:
+        except KeyError:
             result = itemClass.existingInStore(self, storeID, attrs)
             if not result.__legacy__:
                 self.objectCache.cache(storeID, result)
@@ -2205,8 +2205,10 @@ class Store(Empowered):
                     type(storeID).__name__,))
         if storeID == STORE_SELF_ID:
             return self
-        if self.objectCache.has(storeID):
+        try:
             return self.objectCache.get(storeID)
+        except KeyError:
+            pass
         log.msg(interface=iaxiom.IStatEvent, stat_cache_misses=1, key=storeID)
         results = self.querySchemaSQL(_schema.TYPEOF_QUERY, [storeID])
         assert (len(results) in [1, 0]),\
