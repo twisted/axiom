@@ -36,20 +36,39 @@ def logErrorNoMatterWhat():
 
 
 
-def createCacheRemoveCallback(w, k, f):
+def createCacheRemoveCallback(cacheRef, key, finalizer):
+    """
+    Construct a callable to be used as a weakref callback for cache entries.
+
+    The callable will invoke the provided finalizer, as well as removing the
+    cache entry if the cache still exists and contains an entry for the given
+    key.
+
+    @type  cacheRef: L{weakref.ref} to L{FinalizingCache}
+    @param cacheRef: A weakref to the cache in which the corresponding cache
+        item was stored.
+
+    @param key: The key for which this value is cached.
+
+    @type  finalizer: callable taking 0 arguments
+    @param finalizer: A user-provided callable that will be called when the
+        weakref callback runs.
+    """
     def remove(self):
         # Weakref callbacks cannot raise exceptions or DOOM ensues
         try:
-            f()
+            finalizer()
         except:
             logErrorNoMatterWhat()
         try:
-            self = w()
+            self = cacheRef()
             if self is not None:
                 try:
-                    del self.data[k]
+                    del self.data[key]
                 except KeyError:
-                    # Already gone
+                    # FinalizingCache.get may have already removed the cache
+                    # item from the dictionary; see the comment in that method
+                    # for an explanation of why.
                     pass
         except:
             logErrorNoMatterWhat()
@@ -58,16 +77,35 @@ def createCacheRemoveCallback(w, k, f):
 
 
 class FinalizingCache:
-    """Possibly useful for infrastructure?  This would be a nice addition (or
-    perhaps even replacement) for twisted.python.finalize.
+    """
+    A cache that stores values by weakref.
+
+    A finalizer is invoked when the weakref to a cached value is broken.
+
+    @type data: L{dict}
+    @ivar data: The cached values.
     """
     def __init__(self):
         self.data = {}
 
 
     def cache(self, key, value):
+        """
+        Add an entry to the cache.
+
+        A weakref to the value is stored, rather than a direct reference. The
+        value must have a C{__finalizer__} method that returns a callable which
+        will be invoked when the weakref is broken.
+
+        @param key: The key identifying the cache entry.
+
+        @param value: The value for the cache entry.
+        """
         fin = value.__finalizer__()
         try:
+            # It's okay if there's already a cache entry for this key as long
+            # as the weakref has already been broken. See the comment in
+            # get() for an explanation of why this might happen.
             if self.data[key]() is not None:
                 raise CacheInconsistency(
                     "Duplicate cache key: %r %r %r" % (
@@ -87,18 +125,40 @@ class FinalizingCache:
         must have the given value.
 
         @param key: The key to remove.
+
         @param value: The expected value for the key.
         """
         try:
             assert self.get(key) is value
             del self.data[key]
         except KeyError:
+            # If the entry has already been removed from the cache, this will
+            # result in KeyError which we ignore. If the entry is still in the
+            # cache, but the weakref has been broken, this will result in
+            # CacheFault (a KeyError subclass) which we also ignore. See the
+            # comment in get() for an explanation of why this might happen.
             pass
 
 
     def get(self, key):
+        """
+        Get an entry from the cache by key.
+
+        @raise KeyError: if the given key is not present in the cache.
+
+        @raise CacheFault: (a L{KeyError} subclass) if the given key is present
+            in the cache, but the value it points to is gone.
+        """
         o = self.data[key]()
         if o is None:
+            # On CPython, the weakref callback will always(?) run before any
+            # other code has a chance to observe that the weakref is broken;
+            # and since the callback removes the item from the dict, this
+            # branch of code should never run. However, on PyPy (and possibly
+            # other Python implementations), the weakref callback does not run
+            # immediately, thus we may be able to observe this intermediate
+            # state. Should this occur, we remove the dict item ourselves,
+            # and raise CacheFault (which is a KeyError subclass).
             del self.data[key]
             raise CacheFault(
                 "FinalizingCache has %r but its value is no more." % (key,))
