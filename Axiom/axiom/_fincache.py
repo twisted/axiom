@@ -12,6 +12,13 @@ class CacheFault(KeyError):
 
 
 
+class CacheInconsistency(RuntimeError):
+    """
+    A key being cached is already present in the cache.
+    """
+
+
+
 def logErrorNoMatterWhat():
     try:
         log.msg("Exception in finalizer cannot be propagated")
@@ -60,7 +67,13 @@ class FinalizingCache:
 
     def cache(self, key, value):
         fin = value.__finalizer__()
-        assert key not in self.data, "Duplicate cache key: %r %r %r" % (key, value, self.data[key])
+        try:
+            if self.data[key]() is not None:
+                raise CacheInconsistency(
+                    "Duplicate cache key: %r %r %r" % (
+                        key, value, self.data[key]))
+        except KeyError:
+            pass
         self.data[key] = ref(value, createCacheRemoveCallback(
                 ref(self), key, fin))
         return value
