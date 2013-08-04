@@ -17,7 +17,7 @@ def benchmark():
     numAttributes = 5
     SomeItem = benchlib.itemTypeWithSomeAttributes([integer] * 5)
 
-    counter = range(10000)
+    counter = range(1000)
     store = Store()
     items = []
     for i in counter:
@@ -31,15 +31,17 @@ def benchmark():
             i.attr_2 = 3
             i.attr_3 = 4
             i.attr_4 = 5
-    store.transact(_)
+    for x in range(100):
+        store.transact(_)
     after = time.time()
 
-    return (after - before) / (len(counter) * numAttributes)
+    return (after - before) / (len(counter) * numAttributes * 100)
 
 
 def main(argv):
     if len(argv) != 1:
         raise SystemExit("Usage: %s <number of attributes>")
+    benchmark()
     print benchmark()
 
 

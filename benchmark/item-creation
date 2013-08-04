@@ -18,7 +18,7 @@ def benchmark(numAttributes):
     values = dict.fromkeys((name for (name, attr) in SomeItem.getSchema()), 0)
 
     store = Store()
-    outerCounter = range(10)
+    outerCounter = range(100)
     innerCounter = range(1000)
 
     start = time.time()
@@ -32,6 +32,7 @@ def benchmark(numAttributes):
 def main(argv):
     if len(argv) != 2:
         raise SystemExit("Usage: %s <number of attributes>" % (argv[0],))
+    benchmark(int(argv[1]))
     print benchmark(int(argv[1]))
 
 

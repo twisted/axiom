@@ -18,27 +18,29 @@ def benchmark():
     # Include text attribute because at least one persistent attribute is required.
     SomeItem = benchlib.itemTypeWithSomeAttributes([inmemory] * numAttributes + [text])
 
-    counter = range(10000)
+    counter = range(1000)
     store = Store()
     items = []
     for i in counter:
         items.append(SomeItem(store=store))
 
     before = time.time()
-    for i in items:
-        i.attr_0 = 1
-        i.attr_1 = 2
-        i.attr_2 = 3
-        i.attr_3 = 4
-        i.attr_4 = 5
+    for x in range(1000):
+        for i in items:
+            i.attr_0 = 1
+            i.attr_1 = 2
+            i.attr_2 = 3
+            i.attr_3 = 4
+            i.attr_4 = 5
     after = time.time()
 
-    return (after - before) / (len(counter) * numAttributes)
+    return (after - before) / (len(counter) * numAttributes * 1000)
 
 
 def main(argv):
     if len(argv) != 1:
         raise SystemExit("Usage: %s <number of attributes>")
+    benchmark()
     print benchmark()
 
 
