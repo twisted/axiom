@@ -5,7 +5,7 @@
 # create.  Reports one statistic, the number of seconds it takes to load an
 # Item of such a type.
 
-import sys, time
+import sys, time, gc
 
 from axiom.store import Store
 from axiom.attributes import integer
@@ -18,8 +18,10 @@ def benchmark(numAttributes):
     values = dict.fromkeys((name for (name, attr) in SomeItem.getSchema()), 0)
 
     store = Store()
-    counter = range(1, 10001)
+    counter = range(1, 100001)
     store.transact(benchlib.createSomeItems, store, SomeItem, values, counter)
+
+    gc.collect()
 
     start = time.time()
     for i in counter:
@@ -32,6 +34,7 @@ def benchmark(numAttributes):
 def main(argv):
     if len(argv) != 2:
         raise SystemExit("Usage: %s <number of attributes>" % (argv[0],))
+    benchmark(int(argv[1]))
     print benchmark(int(argv[1]))
 
 
