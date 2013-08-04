@@ -55,6 +55,10 @@ class Connection(object):
         return errors.SQLError(sql, args, e)
 
 
+    def close(self):
+        return self._connection.close()
+
+
 
 class Cursor(object):
     def __init__(self, connection, timeout):

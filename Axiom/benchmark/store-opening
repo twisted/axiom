@@ -21,7 +21,7 @@ def benchmark(numItemTypes, numAttributes):
         SomeItem(store=store)
     store.close()
 
-    counter = range(500)
+    counter = range(10000)
 
     start = time.time()
     for i in counter:
