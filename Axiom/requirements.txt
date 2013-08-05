@@ -2,3 +2,4 @@
 # If you're using Python 2.4, see requirements-py24.txt.
 Twisted>=2.4.0
 Epsilon>=0.5.0
+PyOpenSSL # epsilon.juice depends on this
