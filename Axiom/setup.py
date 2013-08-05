@@ -1,16 +1,22 @@
-from epsilon.setuphelper import autosetup
+import re
+import setuptools
 
-import axiom
+versionLine = open("axiom/_version.py", "rt").read()
+match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", versionLine, re.M)
+versionString = match.group(1)
 
-distobj = autosetup(
+setuptools.setup(
     name="Axiom",
-    version=axiom.version.short(),
+    version=versionString,
+    description="An in-process object-relational database",
+    url="http://divmod.org/trac/wiki/DivmodAxiom",
+
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
-    url="http://divmod.org/trac/wiki/DivmodAxiom",
+
     license="MIT",
     platforms=["any"],
-    description="An in-process object-relational database",
+
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "Framework :: Twisted",
@@ -20,4 +26,3 @@ distobj = autosetup(
         "Topic :: Database"],
 
     scripts=['bin/axiomatic'])
-
