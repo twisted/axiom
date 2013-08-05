@@ -1,0 +1,4 @@
+# This list is for Python 2.5 or better.
+# If you're using Python 2.4, see requirements-py24.txt.
+Twisted>=2.4.0
+Epsilon>=0.5.0
