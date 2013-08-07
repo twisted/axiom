@@ -1,12 +1,11 @@
 
 import operator, random
 
-from twisted.trial.unittest import TestCase, SkipTest
+from twisted.trial.unittest import TestCase
 
 from axiom.iaxiom import IComparison, IColumn
 from axiom.store import Store, ItemQuery, MultipleItemQuery
 from axiom.item import Item, Placeholder
-from axiom.test.util import QueryCounter
 
 from axiom import errors
 from axiom.attributes import (
@@ -309,9 +308,9 @@ class BasicQuery(TestCase):
             self.assertEquals(s.query(E).count(), 0)
             self.assertEquals(s.query(E).getColumn("amount").sum(), 0)
 
-            e1 = E(store=s, name=u'widgets', amount=37)
-            e2 = E(store=s, name=u'widgets', amount=63)
-            e3 = E(store=s, name=u'quatloos', amount=99, transaction=u'yes')
+            E(store=s, name=u'widgets', amount=37)
+            E(store=s, name=u'widgets', amount=63)
+            E(store=s, name=u'quatloos', amount=99, transaction=u'yes')
             s.checkpoint()
             q = s.count(E, E.name == u'widgets')
             self.failUnlessEqual(q, 2)
@@ -663,8 +662,8 @@ class MultipleQuery(TestCase):
             for i in range(3):
                 c = C(store=s, name=u"C.%s" % i)
                 b = B(store=s, name=u"B.%s" % i, cref=c)
-                a = A(store=s, type=u"A.%s" % i, reftoc=b)
-                a = A(store=s, type=u"A.%s" % i, reftoc=b)
+                A(store=s, type=u"A.%s" % i, reftoc=b)
+                A(store=s, type=u"A.%s" % i, reftoc=b)
 
             query = s.query( (B, C),
                              AND(B.cref == C.storeID,
@@ -693,8 +692,8 @@ class MultipleQuery(TestCase):
         def entesten():
             pops = B(store=s, name=u"Pops")
             dad = B(store=s, name=u"Dad", cref=pops)
-            bro = B(store=s, name=u"Bro", cref=dad)
-            sis = B(store=s, name=u"Sis", cref=dad)
+            B(store=s, name=u"Bro", cref=dad)
+            B(store=s, name=u"Sis", cref=dad)
 
             Gen1 = Placeholder(B)
             Gen2 = Placeholder(B)
@@ -1164,7 +1163,7 @@ class SetMembershipQuery(QueryingTestCase):
 
     def testOneOfWithList(self):
         cx = C(store=self.store, name=u'x')
-        cy = C(store=self.store, name=u'y')
+        C(store=self.store, name=u'y')
         cz = C(store=self.store, name=u'z')
 
         query = self.store.query(
@@ -1177,7 +1176,7 @@ class SetMembershipQuery(QueryingTestCase):
         s = Store()
 
         cx = C(store=s, name=u'x')
-        cy = C(store=s, name=u'y')
+        C(store=s, name=u'y')
         cz = C(store=s, name=u'z')
 
         self.assertEquals(list(s.query(C, C.name.oneOf(set([u'x', u'z', u'a'])), sort=C.name.ascending)),
@@ -1367,7 +1366,6 @@ class PlaceholderTestCase(TestCase):
         """
         Test that a column from a placeholder provides L{IColumn}.
         """
-        value = 0
         p = Placeholder(PlaceholderTestItem)
         a = p.attr
         self.failUnless(IColumn.providedBy(a))
@@ -1392,7 +1390,6 @@ class PlaceholderTestCase(TestCase):
         underlying Item class and comparing it to another column returns an
         L{IComparison} provider.
         """
-        value = 0
         p = Placeholder(PlaceholderTestItem)
         for op in COMPARISON_OPS:
             self.failUnless(IComparison.providedBy(op(p.attr, PlaceholderTestItem.attr)))
