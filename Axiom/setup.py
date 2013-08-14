@@ -1,13 +1,21 @@
 import re
 import setuptools
 
-versionLine = open("axiom/_version.py", "rt").read()
-match = re.search(r"^__version__ = ['\"]([^'\"]*)['\"]", versionLine, re.M)
-versionString = match.group(1)
+versionPattern = re.compile(
+    r"__version__ = Version\("
+    "\"(?P<name>\w*)\", "
+    "(?P<major>\d*), "
+    "(?P<minor>\d*), "
+    "(?P<micro>\d*)\)")
+
+with open("axiom/_version.py", "rt") as f:
+    match = versionPattern.search(f.read())
+    name, major, minor, micro = match.groups()
+    print name, major, minor, micro
 
 setuptools.setup(
-    name="Axiom",
-    version=versionString,
+    name=name,
+    version=".".join([major, minor, micro]),
     description="An in-process object-relational database",
     url="http://divmod.org/trac/wiki/DivmodAxiom",
 
