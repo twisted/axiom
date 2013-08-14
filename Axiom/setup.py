@@ -14,7 +14,7 @@ setuptools.setup(
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
 
-    packages=["axiom", "axiom.test", "axiom.plugins"],
+    packages=setuptools.find_packages() + ["twisted.plugins"],
     scripts=['bin/axiomatic'],
 
     license="MIT",
