@@ -5,15 +5,17 @@ Plugins provided by Axiom for Axiom.
 """
 
 import getpass
-import code
-import os
-import sys
+import code, os, traceback, sys
 try:
     import readline
 except ImportError:
     readline = None
 
-from twisted.python import usage, filepath
+from zope.interface import directlyProvides
+
+from twisted.python import usage, filepath, log
+from twisted.python.reflect import qual
+from twisted.plugin import IPlugin
 
 from epsilon.hotfix import require
 require('twisted', 'filepath_copyTo')
@@ -23,6 +25,10 @@ from axiom import store, attributes, userbase, dependency, errors
 from axiom.substore import SubStore
 from axiom.scripts import axiomatic
 from axiom.listversions import ListVersions
+from axiom import version
+from axiom.iaxiom import IVersion
+
+directlyProvides(version, IPlugin, IVersion)
 
 #placate pyflakes
 ListVersions
