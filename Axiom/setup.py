@@ -14,6 +14,9 @@ setuptools.setup(
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
 
+    packages=["axiom", "axiom.test", "axiom.plugins"],
+    scripts=['bin/axiomatic'],
+
     license="MIT",
     platforms=["any"],
 
@@ -23,6 +26,4 @@ setuptools.setup(
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python",
-        "Topic :: Database"],
-
-    scripts=['bin/axiomatic'])
+        "Topic :: Database"])
