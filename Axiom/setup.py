@@ -1,20 +1,13 @@
 from distutils.core import setup
 import re
 
-versionPattern = re.compile(
-    r"__version__ = versions\.Version\("
-    "\"(?P<package>\w*)\", "
-    "(?P<major>\d*), "
-    "(?P<minor>\d*), "
-    "(?P<micro>\d*)\)")
-
+versionPattern = re.compile(r"""^__version__ = ['"](.*?)['"]$""", re.M)
 with open("axiom/_version.py", "rt") as f:
-    match = versionPattern.search(f.read())
-    package, major, minor, micro = match.groups()
+    version = versionPattern.search(f.read()).group(1)
 
 setup(
-    name=package.title(),
-    version=".".join([major, minor, micro]),
+    name="Axiom",
+    version=version,
     description="An in-process object-relational database",
     url="http://divmod.org/trac/wiki/DivmodAxiom",
 
