@@ -1,2 +1,3 @@
-from twisted.python import versions
-__version__ = versions.Version("axiom", 0, 6, 0)
+
+# Do not change the triple-quote/strip: setup.py relies on it!
+__version__ = "0.6.0"
