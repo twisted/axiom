@@ -2,7 +2,7 @@ import re
 import setuptools
 
 versionPattern = re.compile(
-    r"__version__ = Version\("
+    r"__version__ = versions\.Version\("
     "\"(?P<package>\w*)\", "
     "(?P<major>\d*), "
     "(?P<minor>\d*), "
