@@ -1,5 +1,5 @@
-# This list is for Python 2.5 or better.
-# If you're using Python 2.4, see requirements-py24.txt.
-Twisted>=2.4.0
-Epsilon>=0.5.0
-PyOpenSSL # epsilon.juice depends on this
+Twisted>=13.1.0
+Epsilon>=0.6.0
+PyOpenSSL>=0.13 # epsilon.juice depends on this
+# You may also optionally install pysqlite2. If you don't, the stdlib
+# sqlite module will be used.
