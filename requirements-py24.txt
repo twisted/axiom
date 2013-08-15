@@ -1,2 +1,0 @@
-# Python2.4 doesn't include stdlib SQLite, so requires
-pysqlite==2.6.3
