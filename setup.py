@@ -1,5 +1,5 @@
+from distutils.core import setup
 import re
-import setuptools
 
 versionPattern = re.compile(
     r"__version__ = versions\.Version\("
@@ -12,7 +12,7 @@ with open("axiom/_version.py", "rt") as f:
     match = versionPattern.search(f.read())
     package, major, minor, micro = match.groups()
 
-setuptools.setup(
+setup(
     name=package.title(),
     version=".".join([major, minor, micro]),
     description="An in-process object-relational database",
@@ -21,7 +21,16 @@ setuptools.setup(
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
 
-    packages=setuptools.find_packages() + ["twisted.plugins"],
+    install_requires=["twisted", "epsilon"],
+    packages=[
+        'axiom',
+        'axiom.scripts',
+        'axiom.test',
+        'axiom.test.upgrade_fixtures',
+        'axiom.test.historic',
+        'axiom.plugins',
+        'twisted.plugins'
+    ],
     scripts=['bin/axiomatic'],
 
     license="MIT",
