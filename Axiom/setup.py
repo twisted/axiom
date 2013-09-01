@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup, find_packages
 import re
 
 versionPattern = re.compile(r"""^__version__ = ['"](.*?)['"]$""", re.M)
@@ -15,15 +15,7 @@ setup(
     maintainer_email="support@divmod.org",
 
     install_requires=["twisted", "epsilon"],
-    packages=[
-        'axiom',
-        'axiom.scripts',
-        'axiom.test',
-        'axiom.test.upgrade_fixtures',
-        'axiom.test.historic',
-        'axiom.plugins',
-        'twisted.plugins'
-    ],
+    packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
 
     license="MIT",
