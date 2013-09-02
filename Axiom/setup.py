@@ -19,7 +19,7 @@ setup(
     name="Axiom",
     version=version,
     description="An in-process object-relational database",
-    url="http://divmod.org/trac/wiki/DivmodAxiom",
+    url="https://launchpad.net/divmod.org",
 
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
