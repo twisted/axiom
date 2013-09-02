@@ -1,9 +1,19 @@
 from setuptools import setup, find_packages
+from setuptools.command.install import install as Install
 import re
 
 versionPattern = re.compile(r"""^__version__ = ['"](.*?)['"]$""", re.M)
 with open("axiom/_version.py", "rt") as f:
     version = versionPattern.search(f.read()).group(1)
+
+class InstallAndRegenerate(Install):
+    def run(self):
+        """
+        Runs the usual install logic, then regenerates the plugin cache.
+        """
+        Install.run(self)
+        from twisted import plugin
+        list(plugin.getPlugins(plugin.IPlugin, "axiom.plugins"))
 
 setup(
     name="Axiom",
