@@ -1,0 +1,5 @@
+Twisted>=13.1.0
+Epsilon>=0.6.0
+PyOpenSSL>=0.13 # epsilon.juice depends on this
+# You may also optionally install pysqlite2. If you don't, the stdlib
+# sqlite module will be used.
