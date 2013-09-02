@@ -1,3 +1,3 @@
-# This is an auto-generated file. Use Epsilon/bin/release-divmod to update.
-from twisted.python import versions
-version = versions.Version(__name__[:__name__.rfind('.')], 0, 6, 0)
+
+# Do not change the triple-quote/strip: setup.py relies on it!
+__version__ = "0.6.0"
