@@ -1,0 +1,5 @@
+Twisted
+Epsilon
+pysqlite
+Axiom
+Sphinx
