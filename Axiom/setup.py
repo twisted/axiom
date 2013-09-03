@@ -6,14 +6,24 @@ versionPattern = re.compile(r"""^__version__ = ['"](.*?)['"]$""", re.M)
 with open("axiom/_version.py", "rt") as f:
     version = versionPattern.search(f.read()).group(1)
 
+
+
 class InstallAndRegenerate(Install):
     def run(self):
         """
         Runs the usual install logic, then regenerates the plugin cache.
         """
         Install.run(self)
-        from twisted import plugin
-        list(plugin.getPlugins(plugin.IPlugin, "axiom.plugins"))
+        _regenerateCache()
+
+
+
+def _regenerateCache():
+    from twisted import plugin
+    from axiom import plugins
+    list(plugin.getPlugins(plugin.IPlugin)) # Twisted
+    list(plugin.getPlugins(plugin.IPlugin, plugins)) # Axiom
+
 
 setup(
     name="Axiom",
