@@ -37,6 +37,9 @@ setup(
     install_requires=["twisted", "epsilon"],
     packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
+    cmdclass={
+        "install": InstallAndRegenerate,
+    },
 
     license="MIT",
     platforms=["any"],
