@@ -6,20 +6,30 @@ versionPattern = re.compile(r"""^__version__ = ['"](.*?)['"]$""", re.M)
 with open("axiom/_version.py", "rt") as f:
     version = versionPattern.search(f.read()).group(1)
 
+
+
 class InstallAndRegenerate(Install):
     def run(self):
         """
         Runs the usual install logic, then regenerates the plugin cache.
         """
         Install.run(self)
-        from twisted import plugin
-        list(plugin.getPlugins(plugin.IPlugin, "axiom.plugins"))
+        _regenerateCache()
+
+
+
+def _regenerateCache():
+    from twisted import plugin
+    from axiom import plugins
+    list(plugin.getPlugins(plugin.IPlugin)) # Twisted
+    list(plugin.getPlugins(plugin.IPlugin, plugins)) # Axiom
+
 
 setup(
     name="Axiom",
     version=version,
     description="An in-process object-relational database",
-    url="http://divmod.org/trac/wiki/DivmodAxiom",
+    url="https://launchpad.net/divmod.org",
 
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
@@ -27,6 +37,9 @@ setup(
     install_requires=["twisted", "epsilon"],
     packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
+    cmdclass={
+        "install": InstallAndRegenerate,
+    },
 
     license="MIT",
     platforms=["any"],
