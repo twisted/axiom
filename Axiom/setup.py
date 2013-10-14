@@ -35,6 +35,8 @@ setup(
     maintainer_email="support@divmod.org",
 
     install_requires=["twisted", "epsilon", "PyOpenSSL"],
+    # XXX: Remove PyOpenSSL install_requires as soon as epsilon
+    # specifies this dependency
     packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
     cmdclass={
