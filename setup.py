@@ -34,7 +34,7 @@ setup(
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
 
-    install_requires=["twisted", "epsilon"],
+    install_requires=["twisted", "epsilon", "PyOpenSSL"],
     packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
     cmdclass={
