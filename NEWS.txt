@@ -1,3 +1,35 @@
+0.7.0 (2014-01-11):
+  Major:
+
+  - Only Python 2.6 and 2.7 are supported now. 2.4, 2.5 is deprecated.
+  - setup.py now uses setuptools, and stores its dependencies. This
+    means you no longer need to manually install dependencies.
+  - setup.py no longer requires Epsilon for egg_info, making it easier
+    to install Axiom using pip.
+  - Significant improvements to PyPy support. PyPy is now a supported
+    platform, with CI support.
+  - Axiom now uses the stdlib sqlite3 if pysqlite2 is not available.
+    Since all supported versions have this, installing pysqlite2 is
+    now no longer necessary, and is only an (optional) performance
+    improvement on CPython. This is a huge improvement for PyPy, where
+    the stdlib version is reportedly much faster.
+
+  Minor:
+
+  - Passing a string to SubStore.createNew now raises an exception
+    instead of silently almost certainly doing the wrong thing.
+  - Setting an integer value that is too negative will now raise an
+    exception.
+  - __conform__ (interface adaptation) now also works for items that
+    are not in a store.
+  - Starting the store service now automatically activates the
+    scheduler service as well.
+  - Batch processing can now be triggered by adding remote work.
+  - Startup performance for stores with many legacy type declarations
+    is improved.
+  - Several benchmarks were added.
+  - Many internal cleanups.
+
 0.6.0 (2009-11-25):
   - Speed up creation, insertion, and various other operations on Item by
     optimizing Item.getSchema.
@@ -91,11 +123,11 @@
     a query's result-gathering work into multiple "pages" so that we can deal
     with extremely large result sets.
   - A dependency management system for Items has been added in
-    axiom.dependency. InstallableMixin has been removed; 
+    axiom.dependency. InstallableMixin has been removed;
     axiom.dependency.installOn is now used to install Items and connect powerups.
     Items can declare their dependence on another item by declaring attributes
     with axiom.dependency.dependsOn. When items are installed, their dependencies
-    will be created and installed as well. Installation is no longer tracked by 
+    will be created and installed as well. Installation is no longer tracked by
     'installedOn' attributes but by _DependencyConnector items.
   - A bug preventing 'axiomatic userbase list' from working on a fresh
     mantissa database has been fixed.
@@ -183,7 +215,7 @@
 0.5.1 (2006-06-16):
   - axiom.slotmachine._structlike removed in favor of the implementation in
     Epsilon, epsilon.structlike.record.
-  - The batch process has been adjusted to do more work per iteration. 
+  - The batch process has been adjusted to do more work per iteration.
 
 0.5.0 (2006-06-12):
   Highlights:
