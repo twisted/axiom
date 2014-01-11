@@ -1,5 +1,8 @@
 # -*- test-case-name: axiom.test -*-
+from twisted.python import versions
+from axiom._version import __version__
 
-from axiom._version import version
-version                         # tell pyflakes we're exporting it.
+def _asTwistedVersion(packageName, versionString):
+    return versions.Version(packageName, *map(int, versionString.split(".")))
 
+version = _asTwistedVersion("axiom", __version__)
