@@ -34,7 +34,11 @@ setup(
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
 
-    install_requires=["twisted", "epsilon", "PyOpenSSL"],
+    install_requires=[
+        "Twisted>=13.2.0",
+        "Epsilon>=0.6.0",
+        "PyOpenSSL>=0.13"
+    ],
     # XXX: Remove PyOpenSSL install_requires as soon as epsilon
     # specifies this dependency
     packages=find_packages() + ['twisted.plugins'],
