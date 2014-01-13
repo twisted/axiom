@@ -36,11 +36,8 @@ setup(
 
     install_requires=[
         "Twisted>=13.2.0",
-        "Epsilon>=0.6.0",
-        "PyOpenSSL>=0.13"
+        "Epsilon>=0.6.0"
     ],
-    # XXX: Remove PyOpenSSL install_requires as soon as epsilon
-    # specifies this dependency
     packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
     cmdclass={
