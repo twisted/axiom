@@ -1,2 +1,5 @@
 include LICENSE
 include NAME.txt
+recursive-include axiom/test/historic *.tbz2
+include axiom/batch.tac
+graft axiom/examples
