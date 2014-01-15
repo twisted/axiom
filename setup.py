@@ -43,6 +43,7 @@ setup(
     cmdclass={
         "install": InstallAndRegenerate,
     },
+    include_package_data=True,
 
     license="MIT",
     platforms=["any"],
