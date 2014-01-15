@@ -36,7 +36,7 @@ setup(
 
     install_requires=[
         "Twisted>=13.2.0",
-        "Epsilon>=0.6.0"
+        "Epsilon>=0.7.0"
     ],
     packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
