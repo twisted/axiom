@@ -312,14 +312,7 @@ class StartTests(TestCase):
             "reactor class: <class 'twisted.internet.selectreactor.SelectReactor'>"]
         proto, complete = AxiomaticStartProcessProtocol.protocolAndDeferred(expected)
 
-        # Make sure the version of Axiom under test is found by the child
-        # process.
-        import axiom, epsilon
         environ = os.environ.copy()
-        environ['PYTHONPATH'] = os.pathsep.join([
-            FilePath(epsilon.__file__).parent().parent().path,
-            FilePath(axiom.__file__).parent().parent().path,
-            environ['PYTHONPATH']])
         reactor.spawnProcess(proto, sys.executable, argv, env=environ)
         return complete
 
