@@ -1346,7 +1346,7 @@ class Store(Empowered):
         if self.dbdir is None:
             dbdir = '(in memory)'
 
-        return "<Store {dbdir}@{id:#x}".format(dbdir, id=id(self))
+        return "<Store {dbdir}@{id:#x}".format(dbdir=dbdir, id=id(self))
 
 
     def findOrCreate(self, userItemClass, __ifnew=None, **attrs):
