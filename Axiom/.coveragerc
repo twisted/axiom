@@ -1,8 +1,9 @@
 [run]
 branch = True
 source =
-    axiom 
+    axiom
 
 [report]
 exclude_lines =
     pragma: no cover
+show_missing = True
