@@ -62,7 +62,7 @@ noLongerProvides(AxiomaticCommand, IAxiomaticCommand)
 class PIDMixin:
 
     def _sendSignal(self, signal):
-        if platform.isWinNT():
+        if platform.isWindows():
             raise usage.UsageError("You can't send signals on Windows (XXX TODO)")
         dbdir = self.parent.getStoreDirectory()
         serverpid = int(file(os.path.join(dbdir, 'run', 'axiomatic.pid')).read())
@@ -135,7 +135,7 @@ class Options(usage.Options):
     def subCommands():
         def get(self):
             yield ('start', None, Start, 'Launch the given Axiom database')
-            if not platform.isWinNT():
+            if not platform.isWindows():
                 yield ('stop', None, Stop, 'Stop the server running from the given Axiom database')
                 yield ('status', None, Status, 'Report whether a server is running from the given Axiom database')
 

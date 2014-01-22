@@ -10,7 +10,6 @@ from weakref import WeakValueDictionary
 
 from twisted.python import log
 from twisted.python.reflect import qual, namedAny
-from twisted.python.util import unsignedID
 from twisted.python.util import mergeFunctionMetadata
 from twisted.application.service import IService, IServiceCollection, MultiService
 
@@ -563,23 +562,16 @@ class Item(Empowered, slotmachine._Strict):
 
     store = property(*store())
 
+
     def __repr__(self):
         """
         Return a nice string representation of the Item which contains some
         information about each of its attributes.
         """
-
-        L = [self.__name__]
-        L.append('(')
-        A = []
-        for nam, atr in sorted(self.getSchema()):
-            V = atr.reprFor(self)
-            A.append('%s=%s' % (nam, V))
-        A.append('storeID=' + str(self.storeID))
-        L.append(', '.join(A))
-        L.append(')')
-        L.append('@0x%X' % unsignedID(self))
-        return ''.join(L)
+        attrs = ", ".join("{n}={v}".format(n=name, v=attr.reprFor(self))
+                          for name, attr in sorted(self.getSchema()))
+        template = b"{s.__name__}({attrs}, storeID={s.storeID})@{id:#x}"
+        return template.format(s=self, attrs=attrs, id=id(self))
 
 
     def __subinit__(self, **kw):
@@ -1145,4 +1137,3 @@ class _PowerupConnector(Item):
 
 POWERUP_BEFORE = 1              # Priority for 'high' priority powerups.
 POWERUP_AFTER = -1              # Priority for 'low' priority powerups.
-
