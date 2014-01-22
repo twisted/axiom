@@ -4,7 +4,6 @@
 """
 This module holds the Axiom Store class and related classes, such as queries.
 """
-
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
@@ -17,7 +16,6 @@ from twisted.python.failure import Failure
 from twisted.python import filepath
 from twisted.internet import defer
 from twisted.python.reflect import namedAny
-from twisted.python.util import unsignedID
 from twisted.application.service import IService, IServiceCollection
 
 from epsilon.pending import PendingEvent
@@ -1344,12 +1342,12 @@ class Store(Empowered):
 
 
     def __repr__(self):
-        d = self.dbdir
-        if d is None:
-            d = '(in memory)'
-        else:
-            d = repr(d)
-        return '<Store %s@0x%x>' % (d, unsignedID(self))
+        dbdir = self.dbdir
+        if self.dbdir is None:
+            dbdir = '(in memory)'
+
+        return "<Store {dbdir}@{id:#x}".format(dbdir, id=id(self))
+
 
     def findOrCreate(self, userItemClass, __ifnew=None, **attrs):
         """
