@@ -1,5 +1,6 @@
 
 from twisted.trial import unittest
+from twisted.python.components import registerAdapter
 
 from axiom.item import Item
 from axiom.store import Store
@@ -285,6 +286,16 @@ class SpecialCaseTest(unittest.TestCase):
 
 
 
+class ItemWithAdapter(Item):
+    """
+    An item which will have an adapter registered for its type.
+    """
+    attribute = integer()
+
+registerAdapter(lambda o: 42, ItemWithAdapter, ISumProducer)
+
+
+
 class InMemoryPowerupTests(unittest.TestCase):
     """
     Tests for the behavior of powerups which are not database-resident.
@@ -323,3 +334,23 @@ class InMemoryPowerupTests(unittest.TestCase):
         """
         powerup, item = self._createEmpowered(withStore=False)
         self.assertIdentical(ISumProducer(item), powerup)
+
+
+    def test_noPowerups(self):
+        """
+        L{Item.powerupsFor} returns no powerups for a storeless item with no
+        powerups for the given interface, and adaption to the interface fails
+        with L{TypeError}.
+        """
+        item = SumContributor()
+        self.assertEquals(list(item.powerupsFor(ISumProducer)), [])
+        self.assertRaises(TypeError, ISumProducer, item)
+
+
+    def test_adapterNoPowerups(self):
+        """
+        Adapting an item to an interface for which no powerups are installed
+        will allow adaption to procede via a registered adapter.
+        """
+        item = ItemWithAdapter()
+        self.assertEquals(ISumProducer(item), 42)
