@@ -317,11 +317,7 @@ class Empowered(object):
             # adapt every powerup to IPowerupIndirector, calling this method.
             return
 
-        try:
-            pups = self.powerupsFor(interface)
-        except AttributeError:  # self.store is None -> self.store.query...
-            return
-
+        pups = self.powerupsFor(interface)
         aggregator = self.aggregateInterfaces.get(interface, None)
         if aggregator is not None:
             return aggregator(self, pups)
@@ -342,6 +338,8 @@ class Empowered(object):
         inMemoryPowerup = self._inMemoryPowerups.get(interface, None)
         if inMemoryPowerup is not None:
             yield inMemoryPowerup
+        if self.store is None:
+            return
         name = unicode(qual(interface), 'ascii')
         for cable in self.store.query(
             _PowerupConnector,
