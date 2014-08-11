@@ -29,7 +29,7 @@ setup(
     name="Axiom",
     version=version,
     description="An in-process object-relational database",
-    url="https://launchpad.net/divmod.org",
+    url="https://github.com/twisted/axiom",
 
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
