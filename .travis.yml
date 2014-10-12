@@ -1,8 +1,13 @@
 language: python
-python:
-  - "2.6"
-  - "2.7"
+env:
+  - TOX_ENV=py26-trunkdeps
+  - TOX_ENV=py27-trunkdeps
+  - TOX_ENV=pypy-trunkdeps
 install:
-  - "pip install -e ."
+  - pip install -e .
+  - pip install tox
+  - pip install coveralls
 script:
-  - "trial axiom"
+  - tox -e $TOX_ENV
+after_success:
+  - coveralls
