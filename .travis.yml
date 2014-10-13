@@ -7,6 +7,6 @@ install:
   - pip install -e .
   - pip install coverage coveralls
 script:
-    - coverage run --source=axiom $(which trial) axiom
+  - coverage run --source=axiom $(which trial) axiom
 after_success:
   - coveralls
