@@ -191,3 +191,11 @@ class UnsatisfiedRequirement(AttributeError):
     satisfied by the database, and could not be satisfied automatically at
     runtime by a default factory.
     """
+
+
+
+class ReferenceTypeMismatch(TypeError):
+    """
+    The L{axiom.item.Item} type does not match the specified
+    L{axiom.attribute.reference.reftype}.
+    """
