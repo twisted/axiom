@@ -1,5 +1,3 @@
-# -*- test-case-name: axiom.test.test_fincache -*-
-
 from weakref import ref
 from traceback import print_exc
 
@@ -87,8 +85,9 @@ class FinalizingCache:
     @type data: L{dict}
     @ivar data: The cached values.
     """
-    def __init__(self):
+    def __init__(self, _ref=ref):
         self.data = {}
+        self._ref = _ref
 
 
     def cache(self, key, value):
@@ -114,8 +113,8 @@ class FinalizingCache:
                         key, value, self.data[key]))
         except KeyError:
             pass
-        self.data[key] = ref(value, createCacheRemoveCallback(
-                ref(self), key, fin))
+        callback = createCacheRemoveCallback(self._ref(self), key, fin)
+        self.data[key] = self._ref(value, callback)
         return value
 
 
