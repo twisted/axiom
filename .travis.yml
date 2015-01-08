@@ -1,0 +1,12 @@
+language: python
+python:
+  - 2.6
+  - 2.7
+  - pypy
+install:
+  - pip install -e .
+  - pip install coverage coveralls
+script:
+  - coverage run --source=axiom $(which trial) axiom
+after_success:
+  - coveralls
