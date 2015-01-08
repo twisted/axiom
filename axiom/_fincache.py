@@ -54,22 +54,18 @@ def createCacheRemoveCallback(cacheRef, key, finalizer):
     @param finalizer: A user-provided callable that will be called when the
         weakref callback runs.
     """
-    def remove(self):
+    def remove(reference):
         # Weakref callbacks cannot raise exceptions or DOOM ensues
         try:
             finalizer()
         except:
             logErrorNoMatterWhat()
         try:
-            self = cacheRef()
-            if self is not None:
-                try:
-                    del self.data[key]
-                except KeyError:
-                    # FinalizingCache.get may have already removed the cache
-                    # item from the dictionary; see the comment in that method
-                    # for an explanation of why.
-                    pass
+            cache = cacheRef()
+            if cache is not None:
+                if key in cache.data:
+                    if cache.data[key] is reference:
+                        del cache.data[key]
         except:
             logErrorNoMatterWhat()
     return remove
