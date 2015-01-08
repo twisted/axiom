@@ -1,3 +1,5 @@
+# -*- test-case-name: axiom.test.test_fincache -*-
+
 from weakref import ref
 from traceback import print_exc
 
