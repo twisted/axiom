@@ -478,7 +478,9 @@ def processor(forType):
     created.
     """
     MILLI = 1000
-    if forType not in _processors:
+    try:
+        processor = _processors[forType]
+    except KeyError:
         def __init__(self, *a, **kw):
             item.Item.__init__(self, *a, **kw)
             self.store.powerUp(self, iaxiom.IBatchProcessor)
@@ -503,7 +505,7 @@ def processor(forType):
             # MAGIC NUMBERS AREN'T THEY WONDERFUL?
             'busyInterval': attributes.integer(doc="", default=MILLI / 10),
             }
-        _processors[forType] = item.MetaItem(
+        _processors[forType] = processor = item.MetaItem(
             attrs['__name__'],
             (item.Item, _BatchProcessorMixin),
             attrs)
@@ -513,7 +515,7 @@ def processor(forType):
             _processors[forType].typeName,
             1, 2)
 
-    return _processors[forType]
+    return processor
 
 
 
