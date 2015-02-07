@@ -178,6 +178,27 @@ class BadReferenceTestCase(TestCase):
                                                     type(newReferee),
                                                     UpgradedItem))
 
+
+    def test_dummyItemReferenceUpgraded(self):
+        """
+        Getting the value of a reference attribute which has been set to a
+        legacy item, which is then upgraded while the reference is "live",
+        results in an instance of the most recent type for that item.
+        """
+        store = Store()
+        referent = SimpleReferent(store=store)
+        oldReferee = nonUpgradedItem(store=store)
+        referent.ref = oldReferee
+        # Manually run the upgrader on this specific legacy item. This is the
+        # same as if the SimpleReferent item had been created in an upgrader
+        # for UpgradedItem, except that we can keep a strong reference to
+        # oldReferee to ensure it is not garbage collected (this would
+        # otherwise happen nondeterministically on platforms like PyPy).
+        newReferee = item1to2(oldReferee)
+        self.assertIsInstance(newReferee, UpgradedItem)
+        self.assertIdentical(referent.ref, newReferee)
+
+
     def test_dummyItemGetItemByID(self):
         """
         Instantiating a dummy item and then getting it by its storeID should
