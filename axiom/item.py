@@ -735,7 +735,7 @@ class Item(Empowered, slotmachine._Strict):
             self.deleted()
             if not self.__legacy__:
                 self.store.objectCache.uncache(self.storeID, self)
-            self.__store = None
+                self.__store = None
         self.__justCreated = False
 
 
