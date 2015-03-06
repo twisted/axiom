@@ -27,9 +27,16 @@ from twisted.python import log
 from axiom import errors, iaxiom
 
 class Connection(object):
+    """
+    Wrapper for an SQLite3 C{Connection} object.
+
+    @type closed: L{bool}
+    @ivar closed: Has this cursor been closed?
+    """
     def __init__(self, connection, timeout=None):
         self._connection = connection
         self._timeout = timeout
+        self.closed = False
 
 
     def fromDatabaseName(cls, dbFilename, timeout=None, isolationLevel=None):
@@ -55,12 +62,27 @@ class Connection(object):
         return errors.SQLError(sql, args, e)
 
 
+    def close(self):
+        """
+        Close the underlying connection.
+        """
+        self.closed = True
+        self._connection.close()
+
+
 
 class Cursor(object):
+    """
+    Wrapper for an SQLite3 C{Cursor} object.
+
+    @type closed: L{bool}
+    @ivar closed: Has this cursor been closed?
+    """
     def __init__(self, connection, timeout):
         self._connection = connection
         self._cursor = connection._connection.cursor()
         self.timeout = timeout
+        self.closed = False
 
 
     def __iter__(self):
@@ -148,6 +170,7 @@ class Cursor(object):
 
 
     def close(self):
+        self.closed = True
         self._cursor.close()
 
 
