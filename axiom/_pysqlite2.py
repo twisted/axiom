@@ -170,6 +170,9 @@ class Cursor(object):
 
 
     def close(self):
+        """
+        Close the underlying cursor.
+        """
         self._cursor.close()
         self.closed = True
 
