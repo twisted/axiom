@@ -66,8 +66,8 @@ class Connection(object):
         """
         Close the underlying connection.
         """
-        self.closed = True
         self._connection.close()
+        self.closed = True
 
 
 
@@ -170,8 +170,8 @@ class Cursor(object):
 
 
     def close(self):
-        self.closed = True
         self._cursor.close()
+        self.closed = True
 
 
 # Export some names from the underlying module.
