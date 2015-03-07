@@ -16,8 +16,8 @@ def mean(values):
 
 
 
-def bench(op, wrap=lambda f: f(), stepTime=1.0, samples=20, outliers=2,
-          threshold=0.00000001):
+def bench(op, wrap=lambda f: f(), loops=0, extraFactor=1, stepTime=1.0, samples=20,
+          outliers=2, threshold=0.01):
     """
     Benchmark an operation.
 
@@ -37,21 +37,24 @@ def bench(op, wrap=lambda f: f(), stepTime=1.0, samples=20, outliers=2,
     @param outliers: The number of outlier samples to discard.
 
     @type  threshold: L{float}
-    @param threshold: Maximum variance fraction to allow. The benchmark will be
-        run until the variance fraction of the considered samples is below this
-        value.
+    @param threshold: Maximum variation coefficient to allow. The benchmark
+        will be run until the coefficient of variation of the considered
+        samples is below this value.
     """
     totalStart = time.time()
 
-    # Initial calibration
-    def _calibrate():
-        loops = 0
-        start = time.time()
-        while time.time() - start < stepTime:
-            op()
-            loops += 1
-        return loops
-    loops = wrap(_calibrate)
+    if loops == 0:
+        sys.stdout.write('Calibrating...')
+        sys.stdout.flush()
+        def _calibrate():
+            loops = 0
+            start = time.time()
+            while time.time() - start < stepTime * 5:
+                op()
+                loops += 1
+            return int(loops / 5)
+        sys.stdout.write('{} loops\n'.format(wrap(_calibrate)))
+        return
 
     def _runIteration():
         for n in xrange(loops):
@@ -62,7 +65,7 @@ def bench(op, wrap=lambda f: f(), stepTime=1.0, samples=20, outliers=2,
         start = time.time()
         wrap(_runIteration)
         end = time.time()
-        lastTime = (end - start) / loops
+        lastTime = (end - start) / (loops * extraFactor)
         times.insert(0, lastTime)
         if len(times) <= outliers:
             continue
@@ -72,14 +75,11 @@ def bench(op, wrap=lambda f: f(), stepTime=1.0, samples=20, outliers=2,
         lastSlice = sorted(
             lastSlice, key=lambda x: abs(x - meanTime))[:-outliers]
         meanTime = mean(lastSlice)
-        meanVariance = mean((x - meanTime) ** 2 for x in lastSlice) / meanTime
+        variationCoefficient = mean((x - meanTime) ** 2 for x in lastSlice) ** 0.5 / meanTime
         cumulativeTime = time.time() - totalStart
-        sys.stdout.write('\r[{:0.2f}] {:0.16f} / {:d} ({:0.16f})'.format(
-            cumulativeTime, meanTime, loops, meanVariance))
+        sys.stdout.write('\r[{:0.2f}] {:0.16f} ({:0.16f})'.format(
+            cumulativeTime, meanTime, variationCoefficient))
         sys.stdout.flush()
-        if len(times) > samples and meanVariance < threshold:
+        if len(times) > samples and variationCoefficient < threshold:
             break
-
-        # Recalibrate number of loops for next iteration
-        loops = int(stepTime / meanTime)
     print

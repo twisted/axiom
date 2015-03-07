@@ -14,20 +14,23 @@ from axiom._bench import bench
 import benchlib
 
 
-def benchmark(numAttributes):
+
+def benchmark(numAttributes, numLoops):
     SomeItem = benchlib.itemTypeWithSomeAttributes([integer] * numAttributes)
     values = dict.fromkeys((name for (name, attr) in SomeItem.getSchema()), 0)
     store = Store()
 
     bench(
-        lambda: SomeItem(store=store, **values),
-        wrap=store.transact)
+        lambda: store.transact(
+            benchlib.createSomeItems, store, SomeItem, values, xrange(1000)),
+        extraFactor=1000,
+        loops=numLoops)
 
 
 def main(argv):
-    if len(argv) != 2:
-        raise SystemExit("Usage: %s <number of attributes>" % (argv[0],))
-    benchmark(int(argv[1]))
+    if len(argv) != 3:
+        raise SystemExit("Usage: %s <number of attributes> <number of loops>" % (argv[0],))
+    benchmark(int(argv[1]), int(argv[2]))
 
 
 if __name__ == '__main__':
