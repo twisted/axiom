@@ -5,12 +5,13 @@
 # have already been queried for once.
 
 
-import sys, time
+import sys
 
 from zope.interface import Interface
 
 from axiom.store import Store
 from axiom.attributes import integer
+from axiom._bench import bench
 
 import benchlib
 
@@ -21,9 +22,8 @@ class IPowerup(Interface):
     """
 
 
-def benchmark():
+def benchmark(numLoops):
     SomeItem = benchlib.itemTypeWithSomeAttributes([integer])
-
     store = Store()
     items = []
     for i in range(10):
@@ -31,27 +31,16 @@ def benchmark():
         store.powerUp(item, IPowerup)
         items.append(item)
 
-
     def _getPowerups(counter):
-        for i in counter:
-            list(store.powerupsFor(IPowerup))
+        list(store.powerupsFor(IPowerup))
 
-
-    # cache the powerups first
-    store.transact(_getPowerups, range(1))
-
-    counter = range(1000)
-    before = time.time()
-    store.transact(_getPowerups, counter)
-    after = time.time()
-
-    return (after - before) * 1000 / (len(counter))
+    bench(lambda: _getPowerups, loops=numLoops)
 
 
 def main(argv):
-    if len(argv) != 1:
-        raise SystemExit("Usage: %s")
-    print benchmark()
+    if len(argv) != 2:
+        raise SystemExit("Usage: %s <number of loops>" % (sys.argv[0],))
+    benchmark(int(sys.argv[1]))
 
 
 if __name__ == '__main__':

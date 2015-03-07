@@ -18,7 +18,11 @@ import benchlib
 def benchmark(numAttributes, numLoops):
     store = Store()
     SomeItem = benchlib.itemTypeWithSomeAttributes([integer] * numAttributes)
-    bench(lambda: store.query(SomeItem), loops=numLoops)
+    bench(
+        lambda: store.query(SomeItem),
+        loops=numLoops,
+        # Higher threshold because this benchmark is quite noisy
+        threshold=0.015)
 
 
 def main(argv):
