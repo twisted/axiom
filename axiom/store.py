@@ -1919,6 +1919,7 @@ class Store(Empowered):
 
     def close(self, _report=True):
         self.cursor.close()
+        self.connection.close()
         self.cursor = self.connection = None
         if self.debug and _report:
             if not self.queryTimes:
