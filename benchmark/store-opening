@@ -5,15 +5,18 @@
 # create.  Reports one statistic, the number of seconds it takes to open a
 # store.
 
-import os, sys, time, tempfile
+import os
+import sys
+import tempfile
 
 from axiom.store import Store
 from axiom.attributes import integer
+from axiom._bench import bench
 
 import benchlib
 
 
-def benchmark(numItemTypes, numAttributes):
+def benchmark(numItemTypes, numAttributes, numLoops):
     dbpath = os.path.join(tempfile.mkdtemp(), 'store-opening.axiom')
     store = Store(dbpath)
     for i in range(numItemTypes):
@@ -21,20 +24,15 @@ def benchmark(numItemTypes, numAttributes):
         SomeItem(store=store)
     store.close()
 
-    counter = range(100)
-
-    start = time.time()
-    for i in counter:
-        Store(dbpath).close()
-    finish = time.time()
-
-    return (finish - start) / len(counter)
+    bench(lambda: Store(dbpath).close(), loops=numLoops)
 
 
 def main(argv):
-    if len(argv) != 3:
-        raise SystemExit("Usage: %s <number of item types> <number of attributes>" % (argv[0],))
-    print benchmark(int(argv[1]), int(argv[2]))
+    if len(argv) != 4:
+        raise SystemExit(
+            "Usage: %s <number of item types> <number of attributes> "
+            "<number of loops>" % (argv[0],))
+    benchmark(int(argv[1]), int(argv[2]), int(argv[3]))
 
 
 if __name__ == '__main__':

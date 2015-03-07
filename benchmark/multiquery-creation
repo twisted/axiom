@@ -6,34 +6,30 @@
 # and the number of attributes on each item type.  Reports one statistic,
 # the number of seconds it takes to create a query object.
 
-import sys, time
+import sys
 
 from axiom.store import Store
 from axiom.attributes import integer
+from axiom._bench import bench
 
 import benchlib
 
 
-def benchmark(numItemTypes, numAttributes):
+def benchmark(numItemTypes, numAttributes, numLoops):
     store = Store()
     itemTypes = tuple([
         benchlib.itemTypeWithSomeAttributes([integer] * numAttributes)
         for i in range(numItemTypes)])
 
-    counter = range(10000)
-
-    before = time.time()
-    for i in counter:
-        store.query(itemTypes)
-    after = time.time()
-
-    return (after - before) / len(counter)
+    bench(lambda: store.query(itemTypes), loops=numLoops)
 
 
 def main(argv):
-    if len(argv) != 3:
-        raise SystemExit("Usage: %s <number of types> <number of attributes>" % (argv[0],))
-    print benchmark(int(argv[1]), int(argv[2]))
+    if len(argv) != 4:
+        raise SystemExit(
+            "Usage: %s <number of types> <number of attributes> "
+            "<number of loops>" % (argv[0],))
+    benchmark(int(argv[1]), int(argv[2]), int(argv[3]))
 
 
 if __name__ == '__main__':

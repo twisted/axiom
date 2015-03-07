@@ -5,34 +5,44 @@
 # create.  Reports one statistic, the number of seconds it takes to load an
 # Item of such a type.
 
-import sys, time
+import sys
+import gc
 
 from axiom.store import Store
 from axiom.attributes import integer
+from axiom._bench import bench
 
 import benchlib
 
 
-def benchmark(numAttributes):
+def benchmark(numAttributes, numItems):
     SomeItem = benchlib.itemTypeWithSomeAttributes([integer] * numAttributes)
     values = dict.fromkeys((name for (name, attr) in SomeItem.getSchema()), 0)
 
     store = Store()
-    counter = range(1, 10001)
+    counter = range(1, numItems + 1)
     store.transact(benchlib.createSomeItems, store, SomeItem, values, counter)
 
-    start = time.time()
-    for i in counter:
-        store.getItemByID(i)
-    finish = time.time()
+    def wrap(f):
+        gc.collect()
+        f()
 
-    return (finish - start) / len(counter)
+    def _():
+        for i in counter:
+            store.getItemByID(i)
+
+    bench(
+        _,
+        prepare=lambda: gc.collect(),
+        extraFactor=len(counter),
+        loops=1)
 
 
 def main(argv):
-    if len(argv) != 2:
-        raise SystemExit("Usage: %s <number of attributes>" % (argv[0],))
-    print benchmark(int(argv[1]))
+    if len(argv) != 3:
+        raise SystemExit(
+            "Usage: %s <number of attributes> <number of items>" % (argv[0],))
+    benchmark(int(argv[1]), int(argv[2]))
 
 
 if __name__ == '__main__':

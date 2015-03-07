@@ -5,41 +5,42 @@
 # change the value of an in-memory attribute.
 
 
-import sys, time
+import sys
 
 from axiom.store import Store
 from axiom.attributes import inmemory, text
+from axiom._bench import bench
 
 import benchlib
 
 
-def benchmark():
+def benchmark(numLoops):
     numAttributes = 5
     # Include text attribute because at least one persistent attribute is required.
     SomeItem = benchlib.itemTypeWithSomeAttributes([inmemory] * numAttributes + [text])
 
-    counter = range(10000)
+    counter = range(1000)
     store = Store()
     items = []
     for i in counter:
         items.append(SomeItem(store=store))
 
-    before = time.time()
-    for i in items:
-        i.attr_0 = 1
-        i.attr_1 = 2
-        i.attr_2 = 3
-        i.attr_3 = 4
-        i.attr_4 = 5
-    after = time.time()
+    def _setAttrs():
+        for i in items:
+            i.attr_0 = 1
+            i.attr_1 = 2
+            i.attr_2 = 3
+            i.attr_3 = 4
+            i.attr_4 = 5
 
-    return (after - before) / (len(counter) * numAttributes)
+    bench(
+        _setAttrs, extraFactor=len(counter) * numAttributes, loops=numLoops)
 
 
 def main(argv):
-    if len(argv) != 1:
-        raise SystemExit("Usage: %s <number of attributes>")
-    print benchmark()
+    if len(argv) != 2:
+        raise SystemExit("Usage: %s <number of loops>" % (argv[0],))
+    benchmark(int(argv[1]))
 
 
 if __name__ == '__main__':

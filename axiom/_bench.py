@@ -16,8 +16,8 @@ def mean(values):
 
 
 
-def bench(op, wrap=lambda f: f(), loops=0, extraFactor=1, stepTime=1.0, samples=20,
-          outliers=2, threshold=0.01):
+def bench(op, wrap=lambda f: f(), prepare=lambda: None, loops=0, extraFactor=1,
+          stepTime=1.0, samples=20, outliers=2, threshold=0.01):
     """
     Benchmark an operation.
 
@@ -62,6 +62,7 @@ def bench(op, wrap=lambda f: f(), loops=0, extraFactor=1, stepTime=1.0, samples=
 
     times = []
     while True:
+        prepare()
         start = time.time()
         wrap(_runIteration)
         end = time.time()

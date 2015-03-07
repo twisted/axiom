@@ -29,7 +29,8 @@ def benchmark(numAttributes, numLoops):
 
 def main(argv):
     if len(argv) != 3:
-        raise SystemExit("Usage: %s <number of attributes> <number of loops>" % (argv[0],))
+        raise SystemExit(
+            "Usage: %s <number of attributes> <number of loops>" % (argv[0],))
     benchmark(int(argv[1]), int(argv[2]))
 
 
