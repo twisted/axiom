@@ -396,6 +396,20 @@ s.close()
                 s.query(Unloaded,
                         Unloaded.value == magicOffset + counter).count(), 1)
 
+    def test_closing(self):
+        """
+        Closing a store explicitly closes the cursor and connection that were
+        used by the store.
+        """
+        s = store.Store()
+        connection = s.connection
+        cursor = s.cursor
+        self.assertFalse(connection.closed, 'Connection should be open')
+        self.assertFalse(cursor.closed, 'Cursor should be open')
+        s.close()
+        self.assertTrue(connection.closed, 'Connection should be closed')
+        self.assertTrue(cursor.closed, 'Cursor should be closed')
+
 
 
 class FailurePathTests(unittest.TestCase):
