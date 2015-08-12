@@ -7,17 +7,28 @@ branches:
   only:
     - master
 python:
-  - 2.6
   - 2.7
-  - pypy
+
+env:
+  - TOX_ENV=py26-twlatest
+  - TOX_ENV=py27-twlatest
+  - TOX_ENV=pypy-twlatest
+  - TOX_ENV=py26-tw150
+  - TOX_ENV=py27-tw150
+  - TOX_ENV=pypy-tw150
+  - TOX_ENV=py26-twtrunk
+  - TOX_ENV=py27-twtrunk
+  - TOX_ENV=pypy-twtrunk
+
 install:
-  - pip install -e .
-  - pip install coverage coveralls
+  - pip install tox
+
 script:
-  - coverage run --branch --source=axiom $(which trial) axiom
-  - coverage report -m
+  - tox -e $TOX_ENV
+
 after_success:
   - coveralls
+
 notifications:
   email: false
   irc:

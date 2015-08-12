@@ -1,0 +1,7 @@
+*.pyc
+*.cache
+_trial_temp/
+apidocs/
+.tox/
+*~
+*.egg-info/
