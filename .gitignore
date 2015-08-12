@@ -5,3 +5,4 @@ apidocs/
 .tox/
 *~
 *.egg-info/
+.coverage
