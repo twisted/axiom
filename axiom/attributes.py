@@ -1123,7 +1123,7 @@ class reference(integer):
             assert self.whenDeleted is reference.NULLIFY, (
                 "not sure what to do if not...")
             return None
-        if rv.__legacy__:
+        if rv.__legacy__ and not oself.__legacy__:
             delattr(oself, self.underlying)
             return super(reference, self).__get__(oself, cls)
         return rv

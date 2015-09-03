@@ -3,7 +3,7 @@ import gc
 from twisted.trial.unittest import TestCase
 
 from axiom.store import Store
-from axiom.upgrade import registerUpgrader
+from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 from axiom.item import Item, declareLegacyItem
 from axiom.attributes import integer, reference
 from axiom.errors import BrokenReference, DeletionDisallowed
@@ -187,16 +187,33 @@ class BadReferenceTestCase(TestCase):
         """
         store = Store()
         referent = SimpleReferent(store=store)
-        oldReferee = nonUpgradedItem(store=store)
+        oldReferee = nonUpgradedItem2(store=store)
         referent.ref = oldReferee
         # Manually run the upgrader on this specific legacy item. This is the
         # same as if the SimpleReferent item had been created in an upgrader
         # for UpgradedItem, except that we can keep a strong reference to
         # oldReferee to ensure it is not garbage collected (this would
         # otherwise happen nondeterministically on platforms like PyPy).
-        newReferee = item1to2(oldReferee)
+        newReferee = item2to3(oldReferee)
         self.assertIsInstance(newReferee, UpgradedItem)
         self.assertIdentical(referent.ref, newReferee)
+
+
+    def test_dummyItemReferenceInUpgrade(self):
+        """
+        Setting the value of a reference attribute to a legacy item during an
+        upgrade does not lose the value.
+        """
+        store = Store()
+        def tx():
+            oldReferent = nonUpgradedItem(store=store)
+            oldReferee = nonUpgradedItem(store=store)
+            newReferent = oldReferent.upgradeVersion(
+                UpgradedItem.typeName, 1, 2)
+            newReferee = oldReferee.upgradeVersion(
+                UpgradedItem.typeName, 1, 2, ref=newReferent)
+            self.assertIdentical(newReferee.ref, newReferent)
+        store.transact(tx)
 
 
     def test_dummyItemGetItemByID(self):
@@ -218,21 +235,28 @@ class UpgradedItem(Item):
     """
     A simple item which is the current version of L{nonUpgradedItem}.
     """
-    schemaVersion = 2
-    dummy = integer()
+    schemaVersion = 3
+    ref = reference()
 
 
 
 nonUpgradedItem = declareLegacyItem(
     UpgradedItem.typeName, 1,
-    dict(dummy=integer()))
+    dict(ref=reference()))
 
 
 
-def item1to2(old):
+nonUpgradedItem2 = declareLegacyItem(
+    UpgradedItem.typeName, 2,
+    dict(ref=reference()))
+
+registerAttributeCopyingUpgrader(UpgradedItem, 1, 2)
+
+
+def item2to3(old):
     """
     Upgrade an nonUpgradedItem to UpgradedItem
     """
-    return old.upgradeVersion(UpgradedItem.typeName, 1, 2, dummy=old.dummy)
+    return old.upgradeVersion(UpgradedItem.typeName, 2, 3, ref=old.ref)
 
-registerUpgrader(item1to2, UpgradedItem.typeName, 1, 2)
+registerUpgrader(item2to3, UpgradedItem.typeName, 2, 3)
