@@ -10,6 +10,9 @@ python:
   - 2.6
   - 2.7
   - pypy
+matrix:
+  allow_failures:
+    - python: "pypy"
 install:
   - pip install -e .
   - pip install coverage coveralls
