@@ -239,7 +239,14 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         Verify that if an exception is raised in an upgrader, the exception
         will be logged.
         """
-        playerID, swordID = self._testTwoObjectUpgrade()
+        choose(oldapp)
+        s = self.openStore()
+        swordID = oldapp.Sword(
+            store=s,
+            name=u'flaming vorpal doom',
+            hurtfulness=7).storeID
+        self.closeStore()
+
         choose(brokenapp)
         s = self.openStore()
         self.startStoreService()
