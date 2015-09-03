@@ -2099,6 +2099,10 @@ class Store(Empowered):
         if self.tablesCreatedThisTransaction is not None:
             self.tablesCreatedThisTransaction.append(tableClass)
 
+        cls = _typeNameToMostRecentClass.get(tableClass.typeName)
+        if cls is not None and tableClass.schemaVersion != cls.schemaVersion:
+            self._upgradeManager.queueTypeUpgrade(tableClass)
+
         # We can pass () for extantIndexes here because since the table didn't
         # exist for tableClass, none of its indexes could have either.
         # Whatever checks _createIndexesFor will make would give the same
