@@ -260,7 +260,6 @@ class SwordUpgradeTest(SchemaUpgradeTest):
 
             loggedErrors = self.flushLoggedErrors(brokenapp.UpgradersAreBrokenHere)
             self.assertEqual(len(loggedErrors), 1)
-            originalError = loggedErrors[0]
 
             oldType = item.declareLegacyItem(
                 oldapp.Sword.typeName,
