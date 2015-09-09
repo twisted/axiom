@@ -1123,6 +1123,11 @@ class reference(integer):
             assert self.whenDeleted is reference.NULLIFY, (
                 "not sure what to do if not...")
             return None
+        # If the current cached value is a legacy item, we discard it in order
+        # to force another fetch from the database. However, if *this item* is
+        # also a legacy item, then the item referred to may have been created
+        # in an upgrader and not have been stored yet, so we shouldn't discard
+        # it.
         if rv.__legacy__ and not oself.__legacy__:
             delattr(oself, self.underlying)
             return super(reference, self).__get__(oself, cls)
