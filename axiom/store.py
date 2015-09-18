@@ -2099,6 +2099,13 @@ class Store(Empowered):
         if self.tablesCreatedThisTransaction is not None:
             self.tablesCreatedThisTransaction.append(tableClass)
 
+        # If the new type is a legacy type (not the current version), we need
+        # to queue it for upgrade to ensure that if we are in the middle of an
+        # upgrade, legacy items of this version get upgraded.
+        cls = _typeNameToMostRecentClass.get(tableClass.typeName)
+        if cls is not None and tableClass.schemaVersion != cls.schemaVersion:
+            self._upgradeManager.queueTypeUpgrade(tableClass)
+
         # We can pass () for extantIndexes here because since the table didn't
         # exist for tableClass, none of its indexes could have either.
         # Whatever checks _createIndexesFor will make would give the same
