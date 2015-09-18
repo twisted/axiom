@@ -21,6 +21,7 @@ env:
   - TOX_ENV=pypy-twtrunk
 
 install:
+  - pip install -U pip setuptools wheel
   - pip install tox coveralls
 
 script:
