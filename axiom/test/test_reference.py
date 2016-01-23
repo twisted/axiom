@@ -202,7 +202,7 @@ class BadReferenceTestCase(TestCase):
     def test_dummyItemReferenceInUpgrade(self):
         """
         Setting the value of a reference attribute to a legacy item during an
-        upgrade does not lose the value.
+        upgrade results in the same value being set on the upgraded item.
         """
         store = Store()
         def tx():
