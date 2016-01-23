@@ -256,21 +256,7 @@ class StartTests(TestCase):
         self.assertTrue(store.getItemByID(recorder.storeID).started)
 
 
-    def test_reactorSelection(self):
-        """
-        L{AxiomaticStart} optionally takes the name of a reactor and
-        installs it instead of the default reactor.
-        """
-        # Since this process is already hopelessly distant from the state in
-        # which I{axiomatic start} operates, it would make no sense to try a
-        # functional test of this behavior in this process.  Since the
-        # behavior being tested involves lots of subtle interactions between
-        # lots of different pieces of code (the reactor might get installed
-        # at the end of a ten-deep chain of imports going through as many
-        # different projects), it also makes no sense to try to make this a
-        # unit test.  So, start a child process and try to use the alternate
-        # reactor functionality there.
-
+    def _getAxiomaticScript(self):
         here = FilePath(__file__)
         # Try to find it relative to the source of this test.
         bin = here.parent().parent().parent().child("bin")
@@ -289,6 +275,25 @@ class StartTests(TestCase):
                 raise SkipTest(
                     "Could not find axiomatic script on path or at %s" % (
                         axiomatic.path,))
+        return axiomatic
+
+
+    def test_reactorSelection(self):
+        """
+        L{AxiomaticStart} optionally takes the name of a reactor in the form
+        --reactor [shortName] and installs it instead of the default reactor.
+        """
+        # Since this process is already hopelessly distant from the state in
+        # which I{axiomatic start} operates, it would make no sense to try a
+        # functional test of this behavior in this process.  Since the
+        # behavior being tested involves lots of subtle interactions between
+        # lots of different pieces of code (the reactor might get installed
+        # at the end of a ten-deep chain of imports going through as many
+        # different projects), it also makes no sense to try to make this a
+        # unit test.  So, start a child process and try to use the alternate
+        # reactor functionality there.
+
+        axiomatic = self._getAxiomaticScript()
 
         # Create a store for the child process to use and put an item in it.
         # This will force an import of the module that defines that item's
@@ -307,6 +312,41 @@ class StartTests(TestCase):
             sys.executable,
             axiomatic, "-d", storePath,
             "start", "--reactor", "select", "-n"]
+        expected = [
+            "reactor class: twisted.internet.selectreactor.SelectReactor.",
+            "reactor class: <class 'twisted.internet.selectreactor.SelectReactor'>"]
+        proto, complete = AxiomaticStartProcessProtocol.protocolAndDeferred(expected)
+
+        environ = os.environ.copy()
+        reactor.spawnProcess(proto, sys.executable, argv, env=environ)
+        return complete
+
+
+    def test_reactorSelectionLongOptionStyle(self):
+        """
+        L{AxiomaticStart} optionally takes the name of a reactor in the form
+        --reactor=[shortName] and installs it instead of the default reactor.
+        """
+
+        axiomatic = self._getAxiomaticScript()
+
+        # Create a store for the child process to use and put an item in it.
+        # This will force an import of the module that defines that item's
+        # class when the child process starts.  The module imports the default
+        # reactor at the top-level, making this the worst-case for the reactor
+        # selection code.
+        storePath = self.mktemp()
+        store = Store(storePath)
+        SomeItem(store=store)
+        store.close()
+
+        # Install select reactor because it available on all platforms, and
+        # it is still an error to try to install the select reactor even if
+        # the already installed reactor was the select reactor.
+        argv = [
+            sys.executable,
+            axiomatic, "-d", storePath,
+            "start", "--reactor=select", "-n"]
         expected = [
             "reactor class: twisted.internet.selectreactor.SelectReactor.",
             "reactor class: <class 'twisted.internet.selectreactor.SelectReactor'>"]
