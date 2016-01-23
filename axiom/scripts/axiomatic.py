@@ -121,11 +121,15 @@ class Start(twistd.ServerOptions):
             # If a reactor is being selected, it must be done before the store
             # is opened, since that may execute arbitrary application code
             # which may in turn install the default reactor.
-            if "--reactor" in args:
-                reactorIndex = args.index("--reactor")
-                shortName = args[reactorIndex + 1]
-                del args[reactorIndex:reactorIndex + 2]
-                self.opt_reactor(shortName)
+            for index, arg in enumerate(args):
+                if arg.startswith("--reactor"):
+                    if "=" in arg:
+                        shortName = arg.split("=")[1]
+                        del args[index]
+                    else:
+                        shortName = args[index + 1]
+                        del args[index:index + 2]
+                    self.opt_reactor(shortName)
             sys.argv[1:] = self.getArguments(self.parent.getStore(), args)
             self.run()
 
