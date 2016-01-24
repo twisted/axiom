@@ -311,7 +311,7 @@ class StartTests(TestCase):
         SomeItem(store=store)
         store.close()
 
-        # Install select reactor because it available on all platforms, and
+        # Install select reactor because it is available on all platforms, and
         # it is still an error to try to install the select reactor even if
         # the already installed reactor was the select reactor.
         argv = [
@@ -346,7 +346,7 @@ class StartTests(TestCase):
         SomeItem(store=store)
         store.close()
 
-        # Install select reactor because it available on all platforms, and
+        # Install select reactor because it is available on all platforms, and
         # it is still an error to try to install the select reactor even if
         # the already installed reactor was the select reactor.
         argv = [
@@ -381,7 +381,7 @@ class StartTests(TestCase):
         SomeItem(store=store)
         store.close()
 
-        # Install select reactor because it available on all platforms, and
+        # Install select reactor because it is available on all platforms, and
         # it is still an error to try to install the select reactor even if
         # the already installed reactor was the select reactor.
         argv = [
