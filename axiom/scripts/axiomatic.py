@@ -104,11 +104,23 @@ class Start(twistd.ServerOptions):
     def getArguments(self, store, args):
         run = store.dbdir.child("run")
         logs = run.child("logs")
-        if "--logfile" not in args and "-l" not in args and "--nodaemon" not in args and "-n" not in args:
+        handleLogfile = True
+        handlePidfile = True
+
+        for index, arg in enumerate(args):
+            if arg.startswith("--logfile=") or arg in (
+                "-l", "--logfile", "-n", "--nodaemon"
+            ):
+                handleLogfile = False
+            elif arg.startswith("--pidfile=") or arg == "--pidfile":
+                handlePidfile = False
+
+        if handleLogfile:
             if not logs.exists():
                 logs.makedirs()
             args.extend(["--logfile", logs.child("axiomatic.log").path])
-        if not platform.isWindows() and "--pidfile" not in args:
+
+        if not platform.isWindows() and handlePidfile:
             args.extend(["--pidfile", run.child("axiomatic.pid").path])
         args.extend(["axiomatic-start", "--dbdir", store.dbdir.path])
         return args
@@ -122,14 +134,16 @@ class Start(twistd.ServerOptions):
             # is opened, since that may execute arbitrary application code
             # which may in turn install the default reactor.
             for index, arg in enumerate(args):
-                if arg.startswith("--reactor"):
-                    if "=" in arg:
-                        shortName = arg.split("=")[1]
-                        del args[index]
-                    else:
-                        shortName = args[index + 1]
-                        del args[index:index + 2]
+                if arg in ("--reactor", "-r"):
+                    shortName = args[index + 1]
+                    del args[index:index + 2]
                     self.opt_reactor(shortName)
+                    break
+                elif arg.startswith("--reactor="):
+                    shortName = arg.split("=")[1]
+                    del args[index]
+                    self.opt_reactor(shortName)
+                    break
             sys.argv[1:] = self.getArguments(self.parent.getStore(), args)
             self.run()
 

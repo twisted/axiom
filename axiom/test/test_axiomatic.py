@@ -117,6 +117,10 @@ class StartTests(TestCase):
             start.getArguments(store, []),
             logfileArg + pidfileArg + restArg)
         self.assertEqual(
+            start.getArguments(store, ["--logfile=foo"]),
+            ["--logfile=foo"] + pidfileArg + restArg
+        )
+        self.assertEqual(
             start.getArguments(store, ["--logfile", "foo"]),
             ["--logfile", "foo"] + pidfileArg + restArg)
         self.assertEqual(
@@ -128,6 +132,9 @@ class StartTests(TestCase):
         self.assertEqual(
             start.getArguments(store, ["-n"]),
             ["-n"] + pidfileArg + restArg)
+        self.assertEqual(
+            start.getArguments(store, ["--pidfile=foo"]),
+            ["--pidfile=foo"] + logfileArg + restArg)
         self.assertEqual(
             start.getArguments(store, ["--pidfile", "foo"]),
             ["--pidfile", "foo"] + logfileArg + restArg)
@@ -347,6 +354,41 @@ class StartTests(TestCase):
             sys.executable,
             axiomatic, "-d", storePath,
             "start", "--reactor=select", "-n"]
+        expected = [
+            "reactor class: twisted.internet.selectreactor.SelectReactor.",
+            "reactor class: <class 'twisted.internet.selectreactor.SelectReactor'>"]
+        proto, complete = AxiomaticStartProcessProtocol.protocolAndDeferred(expected)
+
+        environ = os.environ.copy()
+        reactor.spawnProcess(proto, sys.executable, argv, env=environ)
+        return complete
+
+
+    def test_reactorSelectionShortOptionStyle(self):
+        """
+        L{AxiomaticStart} optionally takes the name of a reactor in the form
+        -r [shortName] and installs it instead of the default reactor.
+        """
+
+        axiomatic = self._getAxiomaticScript()
+
+        # Create a store for the child process to use and put an item in it.
+        # This will force an import of the module that defines that item's
+        # class when the child process starts.  The module imports the default
+        # reactor at the top-level, making this the worst-case for the reactor
+        # selection code.
+        storePath = self.mktemp()
+        store = Store(storePath)
+        SomeItem(store=store)
+        store.close()
+
+        # Install select reactor because it available on all platforms, and
+        # it is still an error to try to install the select reactor even if
+        # the already installed reactor was the select reactor.
+        argv = [
+            sys.executable,
+            axiomatic, "-d", storePath,
+            "start", "-r", "select", "-n"]
         expected = [
             "reactor class: twisted.internet.selectreactor.SelectReactor.",
             "reactor class: <class 'twisted.internet.selectreactor.SelectReactor'>"]
