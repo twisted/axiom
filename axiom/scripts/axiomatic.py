@@ -107,7 +107,7 @@ class Start(twistd.ServerOptions):
         handleLogfile = True
         handlePidfile = True
 
-        for index, arg in enumerate(args):
+        for arg in args:
             if arg.startswith("--logfile=") or arg in (
                 "-l", "--logfile", "-n", "--nodaemon"
             ):

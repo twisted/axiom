@@ -118,8 +118,7 @@ class StartTests(TestCase):
             logfileArg + pidfileArg + restArg)
         self.assertEqual(
             start.getArguments(store, ["--logfile=foo"]),
-            ["--logfile=foo"] + pidfileArg + restArg
-        )
+            ["--logfile=foo"] + pidfileArg + restArg)
         self.assertEqual(
             start.getArguments(store, ["--logfile", "foo"]),
             ["--logfile", "foo"] + pidfileArg + restArg)
