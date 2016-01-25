@@ -1251,17 +1251,17 @@ class WildcardQueries(QueryingTestCase):
 
     def testStartsEndsWith(self):
         self.assertQuery(
-            D.one.startswith('foo'),
-            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            D.four.startswith(u'foo'),
+            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
             ['foo%'])
         self.assertQuery(
-            D.one.endswith('foo'),
-            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            D.four.endswith(u'foo'),
+            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
             ['%foo'])
         self.assertEquals(
-            self.query(D, D.one.startswith('d1')), [self.d1])
+            self.query(D, D.four.startswith(u'd1')), [self.d1])
         self.assertEquals(
-            self.query(D, D.one.endswith('3.one')), [self.d3])
+            self.query(D, D.four.endswith(u'3.four')), [self.d3])
 
 
     def testStartsEndsWithColumn(self):
