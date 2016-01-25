@@ -1264,16 +1264,6 @@ class WildcardQueries(QueryingTestCase):
             self.query(D, D.four.endswith(u'3.four')), [self.d3])
 
 
-    def testStartsEndsWithColumn(self):
-        self.assertQuery(
-            D.one.startswith(D.two),
-            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
-                                     D.two.getColumnName(self.store)),
-            ['%'])
-        self.assertEquals(
-            self.query(D, D.one.startswith(D.two)), [])
-
-
     def testStartsEndsWithText(self):
         self.assertEquals(
             self.query(D, D.four.startswith(u'd1')),
@@ -1282,20 +1272,6 @@ class WildcardQueries(QueryingTestCase):
             self.query(D, D.four.endswith(u'2.four')),
             [self.d2])
 
-
-    def testOtherTable(self):
-        self.assertQuery(
-            D.one.startswith(A.type),
-            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
-                                     A.type.getColumnName(self.store)),
-            ['%'])
-
-        C(store=self.store, name=u'd1.')
-        C(store=self.store, name=u'2.one')
-        self.assertEquals(
-            self.query(D, D.one.startswith(C.name)), [self.d1])
-        self.assertEquals(
-            self.query(D, D.one.endswith(C.name)), [self.d2])
 
 
 class UniqueTest(TestCase):
