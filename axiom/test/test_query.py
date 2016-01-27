@@ -1218,8 +1218,8 @@ class WildcardQueries(QueryingTestCase):
             D.one.notLike('foobar%'),
             '(%s NOT LIKE (?))' % (D.one.getColumnName(self.store),),
             ['foobar%'])
-        self.assertEquals(self.query(D, D.one.like('d1.one')), [self.d1])
-        self.assertEquals(self.query(D, D.one.notLike('d%.one')), [])
+        self.assertEquals(self.query(D, D.four.like(u'd1.four')), [self.d1])
+        self.assertEquals(self.query(D, D.four.notLike(u'd%.four')), [])
 
     def testOneColumn(self):
         self.assertQuery(
@@ -1230,11 +1230,11 @@ class WildcardQueries(QueryingTestCase):
 
     def testOneColumnAndStrings(self):
         self.assertQuery(
-            D.one.like('%', D.id, '%one'),
-            '(%s LIKE (? || %s || ?))' % (D.one.getColumnName(self.store),
+            D.four.like(u'%', D.id, u'%four'),
+            '(%s LIKE (? || %s || ?))' % (D.four.getColumnName(self.store),
                                           D.id.getColumnName(self.store)),
-            ['%', '%one'])
-        q = self.query(D, D.one.like('%', D.id, '%one'))
+            [u'%', u'%four'])
+        q = self.query(D, D.four.like(u'%', D.id, u'%four'))
         e = [self.d1, self.d2, self.d3]
         self.assertEquals(sorted(q), sorted(e))
 
