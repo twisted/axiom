@@ -1772,3 +1772,44 @@ class PlaceholderTestCase(TestCase):
         expectedSQL = "placeholder_0.oid, placeholder_0.[attr], placeholder_0.[characters], placeholder_0.[other]"
 
         self.assertEquals(query._queryTarget, expectedSQL)
+
+
+
+class BytesDeprecatedLikeTests(TestCase):
+    """
+    Deprecated tests for LIKE queries on L{axiom.attributes.bytes}.
+    """
+    def test_startsWith(self):
+        s = Store()
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.startswith was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.startswith('string'))
+
+
+    def test_endsWith(self):
+        s = Store()
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.endswith was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.endswith('string'))
+
+
+    def test_like(self):
+        s = Store()
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.like was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.like('string'))
+
+
+    def test_notLike(self):
+        s = Store()
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.notLike was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.notLike('string'))
