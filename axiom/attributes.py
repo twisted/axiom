@@ -925,6 +925,16 @@ class bytes(SQLAttribute):
 
 
     @deprecated(Version("Axiom", 0, 7, 5))
+    def like(self, *others):
+        return super(SQLAttribute, self).like(*others)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def notLike(self, *others):
+        return super(SQLAttribute, self).notLike(*others)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
     def startswith(self, other):
         return super(SQLAttribute, self).startswith(other)
 
