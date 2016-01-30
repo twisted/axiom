@@ -10,7 +10,9 @@ hotfix.require('twisted', 'filepath_copyTo')
 from zope.interface import implements
 
 from twisted.python import filepath
+from twisted.python.deprecate import deprecated
 from twisted.python.components import registerAdapter
+from twisted.python.versions import Version
 
 from epsilon.extime import Time
 
@@ -915,10 +917,33 @@ class bytes(SQLAttribute):
             raise ConstraintError(self, "str or other byte buffer", pyval)
         return buffer(pyval)
 
+
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
         return str(dbval)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def like(self, *others):
+        return super(SQLAttribute, self).like(*others)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def notLike(self, *others):
+        return super(SQLAttribute, self).notLike(*others)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def startswith(self, other):
+        return super(SQLAttribute, self).startswith(other)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def endswith(self, other):
+        return super(SQLAttribute, self).endswith(other)
+
+
 
 class InvalidPathError(ValueError):
     """
