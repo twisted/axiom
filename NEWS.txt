@@ -1,3 +1,25 @@
+0.7.5 (2015-02-04):
+ Major:
+
+ - Python 2.6 is now unsupported, due to Twisted dropping 2.6 support.
+ - Fix an issue where the value of a reference pointing at a legacy item (ie.
+   created in an upgrader) could be lost once the upgrade completed in some
+   circumstances.
+ - All `attributes.bytes` comparisons based on the `LIKE` SQL operator (`like`,
+   `notLike`, `startswith`, and `endswith`) are deprecated. If SQLite was
+   compiled with the `SQLITE_LIKE_DOESNT_MATCH_BLOBS` option (such as the
+   Debian package does from version 3.10.0-1), these comparisons are always
+   false; and even when this option is not active, the behaviour of the `LIKE`
+   operator with `BLOB` values is unexpected (the operands are cast to `TEXT`
+   before the comparison is done).
+
+ Minor:
+
+ - `axiomatic start` needs to handle some `twistd` arguments specially;
+   fix an issue where arguments in the `--arg=value` form were not detected
+   correctly (the `-a value` and `--arg value` forms were always detected
+   correctly, so you can use these with older versions, if necessary).
+
 0.7.4 (2015-08-12):
  Major:
 
