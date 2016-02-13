@@ -10,15 +10,14 @@ from epsilon.extime import Time
 from twisted.trial.unittest import TestCase
 from twisted.python.reflect import qual
 
-from hypothesis import given, strategies as st, settings
-from hypothesis.extra.datetime import datetimes
+from hypothesis import given, strategies as st
 
 from axiom.store import Store
 from axiom.item import Item, normalize, Placeholder
 from axiom.attributes import (
     Comparable, SQLAttribute, integer, timestamp, textlist, ConstraintError,
-    ieee754_double, point1decimal, money, text, LARGEST_NEGATIVE,
-    LARGEST_POSITIVE)
+    ieee754_double, point1decimal, money, text)
+from axiom.test.strategies import axiom_text, axiom_integers, timestamps
 
 class Number(Item):
     typeName = 'test_number'
@@ -477,34 +476,6 @@ class KitchenSink(Item):
     d = ieee754_double()
     p1d = point1decimal()
     m = money()
-
-
-
-def axiom_text(*a, **kw):
-    """
-    Strategy for generating Axiom-compatible text values.
-    """
-    return st.text(
-        alphabet=st.characters(
-            blacklist_categories={'Cs'},
-            blacklist_characters={u'\x00'}),
-        *a, **kw)
-
-
-
-def axiom_integers():
-    """
-    Strategy for generating Axiom-compatible integers.
-    """
-    return st.integers(min_value=LARGEST_NEGATIVE, max_value=LARGEST_POSITIVE)
-
-
-
-def timestamps():
-    """
-    Strategy for generating L{epsilon.extime.Time} objects.
-    """
-    return st.builds(Time.fromDatetime, datetimes(timezones=[]))
 
 
 
