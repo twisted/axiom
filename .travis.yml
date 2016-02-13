@@ -19,13 +19,13 @@ env:
 
 install:
   - pip install -U pip setuptools wheel
-  - pip install tox coveralls
+  - pip install tox codecov
 
 script:
   - tox -e $TOX_ENV
 
 after_success:
-  - coveralls
+  - codecov
 
 notifications:
   email: false
