@@ -6,3 +6,4 @@ apidocs/
 *~
 *.egg-info/
 .coverage
+.hypothesis/
