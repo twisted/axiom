@@ -539,7 +539,6 @@ class GeneratedDataTests(TestCase):
 
 
     @given(st.builds(Store), timestamps() | st.none())
-    @settings(strict=True, max_examples=100000000, max_iterations=10000000)
     def test_timestampRoundtrip(self, store, value):
         """
         A L{timestamp} column roundtrips through the database.
