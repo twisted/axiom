@@ -894,6 +894,37 @@ class MassInsertDeleteTests(unittest.TestCase):
         self.assertEqual(DeleteFromStoreTrackingItem.deletedTimes, 1)
 
 
+    def test_batchDeleteOrder(self):
+        """
+        C{deleteFromStore} on a query with an order specified disregards the
+        order.
+        """
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+        self.store.query(
+            AttributefulItem,
+            sort=AttributefulItem.withoutDefault.asc).deleteFromStore()
+        self.assertEqual(list(self.store.query(AttributefulItem)), [])
+
+
+    def test_batchDeleteOrderLimit(self):
+        """
+        C{deleteFromStore} on a query with an order and limit specified does
+        not disregard the order.
+        """
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+        self.store.query(
+            AttributefulItem,
+            sort=AttributefulItem.withoutDefault.desc,
+            limit=5).deleteFromStore()
+        items = list(self.store.query(
+            AttributefulItem, sort=AttributefulItem.withoutDefault.asc))
+        self.assertEqual(len(items), 5)
+        self.assertEqual(items[-1].withoutDefault, 4)
+
+
+
 # Item types we will use to change the underlying database schema (by creating
 # them).
 class ConcurrentItemA(item.Item):
