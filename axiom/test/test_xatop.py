@@ -912,6 +912,11 @@ class MassInsertDeleteTests(unittest.TestCase):
         C{deleteFromStore} on a query with an order and limit specified does
         not disregard the order.
         """
+        options = self.store.querySQL('PRAGMA compile_options;')
+        if (u'ENABLE_UPDATE_DELETE_LIMIT',) not in options:
+            raise unittest.SkipTest(
+                'SQLite compiled without SQLITE_ENABLE_UPDATE_DELETE_LIMIT')
+
         for i in xrange(10):
             AttributefulItem(store=self.store, withoutDefault=i)
         self.store.query(
