@@ -208,12 +208,14 @@ class BaseQuery:
     _cloneAttributes = 'store tableClass comparison limit offset sort'.split()
 
     # IQuery
-    def cloneQuery(self, limit=_noItem):
+    def cloneQuery(self, limit=_noItem, sort=_noItem):
         clonekw = {}
         for attr in self._cloneAttributes:
             clonekw[attr] = getattr(self, attr)
         if limit is not _noItem:
             clonekw['limit'] = limit
+        if sort is not _noItem:
+            clonekw['sort'] = sort
         return self.__class__(**clonekw)
 
 
@@ -627,6 +629,11 @@ class ItemQuery(BaseQuery):
         """
         Delete all the Items which are found by this query.
         """
+        if (self.limit is None and
+            not isinstance(self.sort, attributes.UnspecifiedOrdering)):
+            # The ORDER BY is pointless here, and SQLite complains about it.
+            return self.cloneQuery(sort=None).deleteFromStore()
+
         #We can do this the fast way or the slow way.
 
         # If there's a 'deleted' callback on the Item type or 'deleteFromStore'
@@ -795,12 +802,12 @@ class _DistinctQuery(object):
         self.limit = query.limit
 
 
-    def cloneQuery(self, limit=_noItem):
+    def cloneQuery(self, limit=_noItem, sort=_noItem):
         """
         Clone the original query which this distinct query wraps, and return a new
         wrapper around that clone.
         """
-        newq = self.query.cloneQuery(limit=limit)
+        newq = self.query.cloneQuery(limit=limit, sort=sort)
         return self.__class__(newq)
 
 
