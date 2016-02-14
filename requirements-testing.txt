@@ -1,2 +1,0 @@
-# Requirements for running the test suite using tox
-coverage
