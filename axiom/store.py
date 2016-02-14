@@ -208,12 +208,14 @@ class BaseQuery:
     _cloneAttributes = 'store tableClass comparison limit offset sort'.split()
 
     # IQuery
-    def cloneQuery(self, limit=_noItem):
+    def cloneQuery(self, limit=_noItem, sort=_noItem):
         clonekw = {}
         for attr in self._cloneAttributes:
             clonekw[attr] = getattr(self, attr)
         if limit is not _noItem:
             clonekw['limit'] = limit
+        if sort is not _noItem:
+            clonekw['sort'] = sort
         return self.__class__(**clonekw)
 
 
@@ -627,6 +629,11 @@ class ItemQuery(BaseQuery):
         """
         Delete all the Items which are found by this query.
         """
+        if (self.limit is None and
+            not isinstance(self.sort, attributes.UnspecifiedOrdering)):
+            # The ORDER BY is pointless here, and SQLite complains about it.
+            return self.cloneQuery(sort=None).deleteFromStore()
+
         #We can do this the fast way or the slow way.
 
         # If there's a 'deleted' callback on the Item type or 'deleteFromStore'
@@ -795,12 +802,12 @@ class _DistinctQuery(object):
         self.limit = query.limit
 
 
-    def cloneQuery(self, limit=_noItem):
+    def cloneQuery(self, limit=_noItem, sort=_noItem):
         """
         Clone the original query which this distinct query wraps, and return a new
         wrapper around that clone.
         """
-        newq = self.query.cloneQuery(limit=limit)
+        newq = self.query.cloneQuery(limit=limit, sort=sort)
         return self.__class__(newq)
 
 
@@ -997,6 +1004,33 @@ def _schedulerServiceSpecialCase(empowered, pups):
             empowered._schedulerService = sched
         return empowered._schedulerService
     return None
+
+
+
+def _diffSchema(diskSchema, memorySchema):
+    """
+    Format a schema mismatch for human consumption.
+
+    @param diskSchema: The on-disk schema.
+
+    @param memorySchema: The in-memory schema.
+
+    @rtype: L{bytes}
+    @return: A description of the schema differences.
+    """
+    diskSchema = set(diskSchema)
+    memorySchema = set(memorySchema)
+    diskOnly = diskSchema - memorySchema
+    memoryOnly = memorySchema - diskSchema
+    diff = []
+    if diskOnly:
+        diff.append('Only on disk:')
+        diff.extend(map(repr, diskOnly))
+    if memoryOnly:
+        diff.append('Only in memory:')
+        diff.extend(map(repr, memoryOnly))
+    return '\n'.join(diff)
+
 
 
 class Store(Empowered):
@@ -1517,9 +1551,9 @@ class Store(Empowered):
                            for storedAttribute in onDiskSchema[key]]
         if inMemorySchema != persistedSchema:
             raise RuntimeError(
-                "Schema mismatch on already-loaded %r <%r> object version %d: %r != %r" %
+                "Schema mismatch on already-loaded %r <%r> object version %d:\n%s" %
                 (actualType, actualType.typeName, actualType.schemaVersion,
-                 onDiskSchema, inMemorySchema))
+                 _diffSchema(persistedSchema, inMemorySchema)))
 
         if actualType.__legacy__:
             return

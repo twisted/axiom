@@ -174,33 +174,56 @@ class StoreTests(unittest.TestCase):
         """
         s = store.Store()
 
-        schema = [
-            (name, attr.sqltype, attr.indexed, attr, attr.doc)
-            for (name, attr) in TestItem.getSchema()]
+        schema = sorted(
+            [(name, attr.sqltype, attr.indexed, attr, attr.doc)
+             for (name, attr) in TestItem.getSchema()],
+            key=lambda a: a[0])
 
         # Test a missing attribute
-        self.assertRaises(
+        e1 = self.assertRaises(
             RuntimeError,
             s._checkTypeSchemaConsistency,
             TestItem,
             {(TestItem.typeName, TestItem.schemaVersion): schema[:-1]})
+        self.assertEqual(
+            e1[0],
+            "Schema mismatch on already-loaded "
+            "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
+            "version 1:\n"
+            "Only in memory:\n"
+            "('other', 'INTEGER')")
 
         # And an extra attribute
-        self.assertRaises(
+        e2 = self.assertRaises(
             RuntimeError,
             s._checkTypeSchemaConsistency,
             TestItem,
             {(TestItem.typeName, TestItem.schemaVersion):
-                 schema + [schema[0]]})
+             schema + [('extra', 'INTEGER')]})
+        self.assertEqual(
+            e2[0],
+            "Schema mismatch on already-loaded "
+            "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
+            "version 1:\n"
+            "Only on disk:\n"
+            "('extra', 'INTEGER')")
 
         # And the wrong type for one of the attributes
-        self.assertRaises(
+        e3 = self.assertRaises(
             RuntimeError,
             s._checkTypeSchemaConsistency,
             TestItem,
             {(TestItem.typeName, TestItem.schemaVersion):
-                 [(schema[0], 'VARCHAR(64) (this is made up)',
-                   schema[2], schema[3], schema[4])] + schema[1:]})
+             [(schema[0][0], 'VARCHAR(64) (this is made up)')] + schema[1:]})
+        self.assertEqual(
+            e3[0],
+            "Schema mismatch on already-loaded "
+            "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
+            "version 1:\n"
+            "Only on disk:\n"
+            "('bar', 'VARCHAR(64) (this is made up)')\n"
+            "Only in memory:\n"
+            "('bar', 'TEXT COLLATE NOCASE')")
 
 
     def test_checkOutdatedTypeSchema(self):
@@ -892,6 +915,42 @@ class MassInsertDeleteTests(unittest.TestCase):
         DeleteFromStoreTrackingItem(store=self.store)
         self.store.query(DeleteFromStoreTrackingItem).deleteFromStore()
         self.assertEqual(DeleteFromStoreTrackingItem.deletedTimes, 1)
+
+
+    def test_batchDeleteOrder(self):
+        """
+        C{deleteFromStore} on a query with an order specified disregards the
+        order.
+        """
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+        self.store.query(
+            AttributefulItem,
+            sort=AttributefulItem.withoutDefault.asc).deleteFromStore()
+        self.assertEqual(list(self.store.query(AttributefulItem)), [])
+
+
+    def test_batchDeleteOrderLimit(self):
+        """
+        C{deleteFromStore} on a query with an order and limit specified does
+        not disregard the order.
+        """
+        options = self.store.querySQL('PRAGMA compile_options;')
+        if (u'ENABLE_UPDATE_DELETE_LIMIT',) not in options:
+            raise unittest.SkipTest(
+                'SQLite compiled without SQLITE_ENABLE_UPDATE_DELETE_LIMIT')
+
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+        self.store.query(
+            AttributefulItem,
+            sort=AttributefulItem.withoutDefault.desc,
+            limit=5).deleteFromStore()
+        items = list(self.store.query(
+            AttributefulItem, sort=AttributefulItem.withoutDefault.asc))
+        self.assertEqual(len(items), 5)
+        self.assertEqual(items[-1].withoutDefault, 4)
+
 
 
 # Item types we will use to change the underlying database schema (by creating
