@@ -1006,6 +1006,33 @@ def _schedulerServiceSpecialCase(empowered, pups):
     return None
 
 
+
+def _diffSchema(diskSchema, memorySchema):
+    """
+    Format a schema mismatch for human consumption.
+
+    @param diskSchema: The on-disk schema.
+
+    @param memorySchema: The in-memory schema.
+
+    @rtype: L{bytes}
+    @return: A description of the schema differences.
+    """
+    diskSchema = set(diskSchema)
+    memorySchema = set(memorySchema)
+    diskOnly = diskSchema - memorySchema
+    memoryOnly = memorySchema - diskSchema
+    diff = []
+    if diskOnly:
+        diff.append('Only on disk:')
+        diff.extend(map(repr, diskOnly))
+    if memoryOnly:
+        diff.append('Only in memory:')
+        diff.extend(map(repr, memoryOnly))
+    return '\n'.join(diff)
+
+
+
 class Store(Empowered):
     """
     I am a database that Axiom Items can be stored in.
@@ -1524,9 +1551,9 @@ class Store(Empowered):
                            for storedAttribute in onDiskSchema[key]]
         if inMemorySchema != persistedSchema:
             raise RuntimeError(
-                "Schema mismatch on already-loaded %r <%r> object version %d: %r != %r" %
+                "Schema mismatch on already-loaded %r <%r> object version %d:\n%s" %
                 (actualType, actualType.typeName, actualType.schemaVersion,
-                 onDiskSchema, inMemorySchema))
+                 _diffSchema(persistedSchema, inMemorySchema)))
 
         if actualType.__legacy__:
             return
