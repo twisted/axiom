@@ -1,6 +1,8 @@
+.. image:: https://travis-ci.org/twisted/axiom.svg?branch=master
+  :target: https://travis-ci.org/twisted/axiom
 
-Divmod Axiom
-============
+.. image:: https://codecov.io/github/twisted/axiom/coverage.svg?branch=master
+  :target: https://codecov.io/github/twisted/axiom?branch=master
 
 Divmod Axiom is an object database, or alternatively, an object-relational
 mapper, implemented on top of Python.
@@ -20,4 +22,3 @@ upgraders, robust failure handling, and Twisted integration.
 Axiom is tightly integrated with Twisted, and can store, start, and stop
 Twisted services directly from the database using the included 'axiomatic'
 command-line tool.
-
