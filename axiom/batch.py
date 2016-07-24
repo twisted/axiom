@@ -1095,7 +1095,7 @@ class BatchProcessingProtocol(JuiceChild):
 
         try:
             paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
-        except eaxiom.SQLError, e:
+        except eaxiom.SQLError as e:
             # Generally, database is locked.
             log.msg("SubStore query failed with SQLError: %r" % (e,))
         except:
@@ -1111,7 +1111,7 @@ class BatchProcessingProtocol(JuiceChild):
             for added in paths - set(self.subStores):
                 try:
                     s = store.Store(added, debug=False)
-                except eaxiom.SQLError, e:
+                except eaxiom.SQLError as e:
                     # Generally, database is locked.
                     log.msg("Opening sub-Store failed with SQLError: %r" % (e,))
                 except:
@@ -1187,7 +1187,7 @@ class BatchProcessingService(service.Service):
                     log.msg("Stepping processor %r (suspended is %r)" % (item, self.suspended))
                 try:
                     itemHasMore = item.store.transact(item.step, style=self.style, skip=self.suspended)
-                except _ProcessingFailure, e:
+                except _ProcessingFailure as e:
                     log.msg("%r failed while processing %r:" % (e.reliableListener, e.workUnit))
                     log.err(e.failure)
                     e.mark()

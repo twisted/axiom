@@ -584,7 +584,7 @@ class ItemTests(unittest.TestCase):
 
         try:
             self.store.transact(brokenFunction)
-        except RevertException, exc:
+        except RevertException as exc:
             [storeID] = exc.args
 
             self.assertRaises(KeyError, self.store.getItemByID, storeID)

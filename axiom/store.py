@@ -1317,7 +1317,7 @@ class Store(Empowered):
             if typename not in _typeNameToMostRecentClass:
                 try:
                     namedAny(module)
-                except ValueError, err:
+                except ValueError as err:
                     raise ImportError('cannot find module ' + module, str(err))
             self.typenameAndVersionToID[typename, version] = oid
 
