@@ -72,7 +72,7 @@ class Upgrade(axiomatic.AxiomaticCommand):
         try:
             self.upgradeStore(store)
             print 'Upgrade complete'
-        except errors.ItemUpgradeError, e:
+        except errors.ItemUpgradeError as e:
             print 'Upgrader error:'
             e.originalFailure.printTraceback(file=sys.stdout)
             print self.errorMessageFormat % (

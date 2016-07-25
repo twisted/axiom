@@ -72,7 +72,7 @@ class PIDMixin:
     def signalServer(self, signal):
         try:
             return self._sendSignal(signal)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             if e.errno in (errno.ENOENT, errno.ESRCH):
                 raise usage.UsageError('There is no server running from the Axiom database %r.' % (self.parent.getStoreDirectory(),))
             else:
@@ -211,5 +211,5 @@ def main(argv=None):
     o = Options()
     try:
         o.parseOptions(argv)
-    except usage.UsageError, e:
+    except usage.UsageError as e:
         raise SystemExit(str(e))
