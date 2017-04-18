@@ -14,7 +14,8 @@ from twisted.python.util import mergeFunctionMetadata
 from twisted.application.service import IService, IServiceCollection, MultiService
 
 from axiom import slotmachine, _schema, iaxiom
-from axiom.errors import ChangeRejected, DeletionDisallowed
+from axiom.errors import (
+    ChangeRejected, DeletionDisallowed, ReferenceTypeMismatch)
 from axiom.iaxiom import IColumn, IPowerupIndirector
 
 from axiom.attributes import (
@@ -595,6 +596,14 @@ class Item(Empowered, slotmachine._Strict):
                     kw[name] = attr.computeDefault()
 
         for k, v in kw.iteritems():
+            # Is the attribute type a reference with a reftype and does the
+            # value being stored match the reftype?
+            attributeType = dict(self.getSchema()).get(k, None)
+            if isinstance(attributeType, reference) and attributeType.reftype:
+                if v and not isinstance(v, attributeType.reftype):
+                    raise ReferenceTypeMismatch(
+                        'Attribute "{0}" is of type: {1}. Expected {2}'.format(
+                            k, type(v), attributeType.reftype))
             setattr(self, k, v)
 
         if tostore != None:

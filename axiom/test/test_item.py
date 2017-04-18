@@ -10,9 +10,9 @@ from twisted.python import log, filepath
 from axiom import store, item
 from axiom.store import Store
 from axiom.item import Item, declareLegacyItem
-from axiom.errors import ChangeRejected
+from axiom.errors import ChangeRejected, ReferenceTypeMismatch
 from axiom.test import itemtest, itemtestmain
-from axiom.attributes import integer, text, inmemory
+from axiom.attributes import integer, text, inmemory, reference
 
 class ProcessFailed(Exception):
     pass
@@ -375,6 +375,29 @@ class ItemTestCase(unittest.TestCase):
         del X
         class X(Item):
             dummy = integer()
+
+
+    def test_reftypeMismatch(self):
+        """
+        L{ReferenceTypeMismatch} is raised if L{attributes.reference.reftype}
+        doesn't match the reference value's type.
+        """
+        class Reftype(Item):
+            ref = reference(reftype=ItemWithDefault)
+
+        s = store.Store()
+        item = TestItem(store=s)
+        self.assertRaises(ReferenceTypeMismatch, Reftype, store=s, ref=item)
+
+
+    def test_reftypeNone(self):
+        """
+        A L{attributes.reference} with a C{reftype} can be L{None}.
+        """
+        class Reftype(Item):
+            ref = reference(reftype=ItemWithDefault)
+
+        Reftype(store=store.Store(), ref=None)
 
 
 
