@@ -3,7 +3,6 @@ Hypothesis strategies for generating Axiom-related data.
 """
 from epsilon.extime import Time
 from hypothesis import strategies as st
-from hypothesis.extra.datetime import datetimes
 
 from axiom.attributes import LARGEST_NEGATIVE, LARGEST_POSITIVE
 
@@ -51,7 +50,7 @@ def timestamps(*a, **kw):
     """
     Strategy for generating L{epsilon.extime.Time} objects.
     """
-    return st.builds(Time.fromDatetime, datetimes(timezones=[], *a, **kw))
+    return st.builds(Time.fromDatetime, st.datetimes(*a, **kw))
 
 
 
