@@ -595,6 +595,32 @@ class ItemTests(unittest.TestCase):
             self.fail("Transaction should have raised an exception")
 
 
+    def test_deleteAndVacuum(self):
+        """
+        VACUUMing the store after deleting an item does not corrupt it.
+        """
+        sid = []
+
+        @self.store.transact
+        def txn1():
+            sid.append(
+                AttributefulItem(store=self.store, withDefault=0).storeID)
+            i = AttributefulItem(store=self.store, withDefault=1)
+            sid.append(i.storeID)
+            sid.append(
+                AttributefulItem(store=self.store, withDefault=2).storeID)
+            i.deleteFromStore()
+
+        self.store.executeSQL('VACUUM')
+
+        @self.store.transact
+        def txn2():
+            self.assertEqual(self.store.getItemByID(sid[0]).withDefault, 0)
+            self.assertRaises(
+                errors.ItemNotFound, self.store.getItemByID, sid[1])
+            self.assertEqual(self.store.getItemByID(sid[2]).withDefault, 2)
+
+
 
 class AttributefulItem(item.Item):
     schemaVersion = 1
