@@ -44,3 +44,16 @@ class StoreIDTransitionTest(StubbedTest):
         """
         self.store.executeSQL('VACUUM')
         self.test_transition()
+
+
+    def test_objects(self):
+        """
+        Test that axiom_objects survives vacuuming.
+        """
+        self.store.query(Dummy, Dummy.attribute == u'one').deleteFromStore()
+        self.store.executeSQL('VACUUM')
+        i = self.store.findUnique(Dummy, Dummy.attribute == u'two')
+        self.assertEquals(i.storeID, 2)
+        i2 = self.store.getItemByID(4)
+        self.assertEquals(i2.attribute, u'four')
+        self.assertIsInstance(i2, Dummy2)
