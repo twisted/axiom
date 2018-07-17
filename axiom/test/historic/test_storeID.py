@@ -1,3 +1,5 @@
+import gc
+
 from axiom.test.historic.stubloader import StubbedTest
 from axiom.errors import ItemNotFound
 from axiom.item import Item
@@ -17,9 +19,12 @@ registerAttributeCopyingUpgrader(Dummy, 1, 2)
 
 class Dummy2(Item):
     typeName = 'axiom_storeid_dummy2'
-    schemaVersion = 1
+    schemaVersion = 2
 
     attribute = text(doc='text', allowNone=False)
+
+
+registerAttributeCopyingUpgrader(Dummy2, 1, 2)
 
 
 
@@ -28,6 +33,9 @@ class StoreIDTransitionTest(StubbedTest):
         """
         Test that the items survived the transition to explicit oids.
         """
+        # Make sure we push the upgraded items out of cache
+        gc.collect()
+
         self.assertEquals(self.store.getItemByID(1).attribute, u'one')
         i = self.store.findUnique(Dummy, Dummy.attribute == u'two')
         self.assertEquals(i.storeID, 2)
@@ -42,18 +50,7 @@ class StoreIDTransitionTest(StubbedTest):
         """
         Test that the items survive vacuuming.
         """
+        # Make sure we push the upgraded items out of cache
+        gc.collect()
         self.store.executeSQL('VACUUM')
         self.test_transition()
-
-
-    def test_objects(self):
-        """
-        Test that axiom_objects survives vacuuming.
-        """
-        self.store.query(Dummy, Dummy.attribute == u'one').deleteFromStore()
-        self.store.executeSQL('VACUUM')
-        i = self.store.findUnique(Dummy, Dummy.attribute == u'two')
-        self.assertEquals(i.storeID, 2)
-        i2 = self.store.getItemByID(4)
-        self.assertEquals(i2.attribute, u'four')
-        self.assertIsInstance(i2, Dummy2)
