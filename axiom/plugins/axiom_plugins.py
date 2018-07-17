@@ -27,6 +27,7 @@ from axiom.scripts import axiomatic
 from axiom.listversions import ListVersions
 from axiom import version
 from axiom.iaxiom import IVersion
+from axiom.upgrade import upgradeExplicitOid
 
 directlyProvides(version, IPlugin, IVersion)
 
@@ -57,6 +58,7 @@ class Upgrade(axiomatic.AxiomaticCommand):
         Recursively upgrade C{store}.
         """
         self.upgradeEverything(store)
+        upgradeExplicitOid(store)
 
         for substore in store.query(SubStore):
             self.upgradeStore(substore.open())

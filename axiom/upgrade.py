@@ -3,7 +3,6 @@
 """
 Axiom Item/schema upgrade support.
 """
-
 from twisted.python.failure import Failure
 from twisted.python.log import msg
 from twisted.python.reflect import qual
@@ -11,6 +10,8 @@ from twisted.python.reflect import qual
 from axiom.errors import NoUpgradePathAvailable, UpgraderRecursion
 from axiom.errors import ItemUpgradeError
 from axiom.item import _legacyTypes, _typeNameToMostRecentClass
+from axiom._schema import (
+    CREATE_OBJECTS, CREATE_OBJECTS_IDX, CREATE_TYPES, LATEST_TYPES)
 
 
 _upgradeRegistry = {}
@@ -251,6 +252,80 @@ def upgradeAllTheWay(o):
                 # Object was explicitly destroyed during upgrading.
                 break
     return o
+
+
+
+def _hasExplicitOid(store, table):
+    """
+    Does the given table have an explicit oid column?
+    """
+    return any(info[1] == 'oid' for info
+               in store.querySchemaSQL(
+                   'PRAGMA *DATABASE*.table_info({})'.format(table)))
+
+
+
+def _upgradeTableOid(store, table, createTable, postCreate=lambda: None):
+    """
+    Upgrade a table to have an explicit oid.
+
+    Must be called in a transaction to avoid corrupting the database.
+    """
+    if _hasExplicitOid(store, table):
+        return
+    store.executeSchemaSQL(
+        'ALTER TABLE *DATABASE*.{0} RENAME TO {0}_temp'.format(table))
+    createTable()
+    store.executeSchemaSQL(
+        'INSERT INTO *DATABASE*.{0} '
+        'SELECT oid, * FROM *DATABASE*.{0}_temp'.format(table))
+    store.executeSchemaSQL('DROP TABLE *DATABASE*.{0}_temp'.format(table))
+    postCreate()
+
+
+
+def upgradeSystemOid(store):
+    """
+    Upgrade the system tables to use explicit oid columns.
+    """
+    store.transact(
+        _upgradeTableOid, store, 'axiom_types',
+        lambda: store.executeSchemaSQL(CREATE_TYPES))
+    store.transact(
+        _upgradeTableOid, store, 'axiom_objects',
+        lambda: store.executeSchemaSQL(CREATE_OBJECTS),
+        lambda: store.executeSchemaSQL(CREATE_OBJECTS_IDX))
+
+
+
+def upgradeExplicitOid(store):
+    """
+    Upgrade a store to use explicit oid columns.
+
+    This requires copying all of axiom_objects and axiom_types, as well as all
+    item tables that have not yet been upgraded.
+    """
+    upgradeSystemOid(store)
+    for typename, version in store.querySchemaSQL(LATEST_TYPES):
+        cls = _typeNameToMostRecentClass[typename]
+        if cls.schemaVersion != version:
+            [[remaining]] = store.querySQL(
+                'SELECT COUNT(*) FROM {} LIMIT 1'.format(
+                    store._tableNameFor(typename, version)))
+            if remaining == 0:
+                # Nothing to upgrade
+                continue
+            else:
+                raise RuntimeError(
+                    '{}:{} not fully upgraded to {}'.format(
+                        typename, version, cls.schemaVersion))
+        store.transact(
+            _upgradeTableOid,
+            store,
+            store._tableNameOnlyFor(typename, version),
+            lambda: store._justCreateTable(cls),
+            lambda: store._createIndexesFor(cls, []))
+
 
 
 __all__ = [

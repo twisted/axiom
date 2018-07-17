@@ -1984,8 +1984,13 @@ class Store(Empowered):
                                        '_'.join(attrname))
 
 
+    def _tableNameOnlyFor(self, typename, version):
+        return 'item_{}_v{:d}'.format(typename, version)
+
+
     def _tableNameFor(self, typename, version):
-        return "%s.item_%s_v%d" % (self.databaseName, typename, version)
+        return '.'.join([self.databaseName,
+                         self._tableNameOnlyFor(typename, version)])
 
 
     def getTableName(self, tableClass):
@@ -2069,6 +2074,29 @@ class Store(Empowered):
         return self.transact(self._maybeCreateTable, tableClass, key)
 
 
+    def _justCreateTable(self, tableClass):
+        """
+        Just create the table for an Item subclass.
+        """
+        sqlstr = []
+        sqlarg = []
+
+        # needs to be calculated including version
+        tableName = self._tableNameFor(tableClass.typeName,
+                                       tableClass.schemaVersion)
+
+        sqlstr.append("CREATE TABLE %s (" % tableName)
+
+        sqlarg.append("oid INTEGER PRIMARY KEY")
+        for nam, atr in tableClass.getSchema():
+            sqlarg.append("\n%s %s" %
+                          (atr.getShortColumnName(self), atr.sqltype))
+
+        sqlstr.append(', '.join(sqlarg))
+        sqlstr.append(')')
+        self.createSQL(''.join(sqlstr))
+
+
     def _maybeCreateTable(self, tableClass, key):
         """
         A type ID has been requested for an Item subclass whose table was not
@@ -2087,26 +2115,8 @@ class Store(Empowered):
         existing one if the table was created by another Store object
         referencing this database.
         """
-        sqlstr = []
-        sqlarg = []
-
-        # needs to be calculated including version
-        tableName = self._tableNameFor(tableClass.typeName,
-                                       tableClass.schemaVersion)
-
-        sqlstr.append("CREATE TABLE %s (" % tableName)
-
-        sqlarg.append("oid INTEGER PRIMARY KEY")
-        for nam, atr in tableClass.getSchema():
-            # it's a stored attribute
-            sqlarg.append("\n%s %s" %
-                          (atr.getShortColumnName(self), atr.sqltype))
-
-        sqlstr.append(', '.join(sqlarg))
-        sqlstr.append(')')
-
         try:
-            self.createSQL(''.join(sqlstr))
+            self._justCreateTable(tableClass)
         except errors.TableAlreadyExists:
             # Although we don't have a memory of this table from the last time
             # we called "_startup()", another process has updated the schema
