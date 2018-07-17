@@ -29,13 +29,13 @@ class StoreIDTransitionTest(StubbedTest):
         Test that the items survived the transition to explicit oids.
         """
         self.assertEquals(self.store.getItemByID(1).attribute, u'one')
-        self.assertEquals(
-            self.store.findUnique(Dummy, Dummy.attribute == u'two').storeID,
-            2)
+        i = self.store.findUnique(Dummy, Dummy.attribute == u'two')
+        self.assertEquals(i.storeID, 2)
         self.assertRaises(ItemNotFound, self.store.getItemByID, 3)
-        i = self.store.getItemByID(4)
-        self.assertEquals(i.attribute, u'four')
-        self.assertIsInstance(i, Dummy2)
+        i.deleteFromStore()
+        i2 = self.store.getItemByID(4)
+        self.assertEquals(i2.attribute, u'four')
+        self.assertIsInstance(i2, Dummy2)
 
 
     def test_vacuum(self):
