@@ -29,6 +29,8 @@ def createDatabase(s):
     Dummy(store=s, attribute=u'two')
     i = Dummy(store=s, attribute=u'three')
     Dummy2(store=s, attribute=u'four')
+    # Work around https://github.com/twisted/axiom/issues/86
+    i.checkpoint()
     i.deleteFromStore()
 
 
