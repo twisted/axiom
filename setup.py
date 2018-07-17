@@ -39,7 +39,7 @@ setup(
         "Epsilon>=0.7.0"
     ],
     extras_require={
-        'test': ['hypothesis>=3.11.0,<4.0.0'],
+        'test': ['hypothesis[datetime]>=2.0.0,<3.0.0'],
         },
     packages=find_packages() + ['twisted.plugins'],
     scripts=['bin/axiomatic'],
