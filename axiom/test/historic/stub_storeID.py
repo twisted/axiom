@@ -9,7 +9,15 @@ class Dummy(Item):
     typeName = 'axiom_storeid_dummy'
     schemaVersion = 1
 
-    attribute = text(doc='text', allowNone=True)
+    attribute = text(doc='text', allowNone=False)
+
+
+
+class Dummy2(Item):
+    typeName = 'axiom_storeid_dummy2'
+    schemaVersion = 1
+
+    attribute = text(doc='text', allowNone=False)
 
 
 
@@ -20,7 +28,7 @@ def createDatabase(s):
     Dummy(store=s, attribute=u'one')
     Dummy(store=s, attribute=u'two')
     i = Dummy(store=s, attribute=u'three')
-    Dummy(store=s, attribute=u'four')
+    Dummy2(store=s, attribute=u'four')
     i.deleteFromStore()
 
 
