@@ -1162,11 +1162,6 @@ class Store(Empowered):
 
         self.objectCache = _fincache.FinalizingCache()
 
-        self.tableQueries = {}  # map typename: query string w/ storeID
-                                # parameter.  a typename is a persistent
-                                # database handle for what we'll call a 'FQPN',
-                                # i.e. arg to namedAny.
-
         self.typenameAndVersionToID = {} # map database-persistent typename and
                                          # version to an oid in the types table
 
@@ -2101,14 +2096,11 @@ class Store(Empowered):
 
         sqlstr.append("CREATE TABLE %s (" % tableName)
 
+        sqlarg.append("oid INTEGER PRIMARY KEY")
         for nam, atr in tableClass.getSchema():
             # it's a stored attribute
             sqlarg.append("\n%s %s" %
                           (atr.getShortColumnName(self), atr.sqltype))
-
-        if len(sqlarg) == 0:
-            # XXX should be raised way earlier, in the class definition or something
-            raise NoEmptyItems("%r did not define any attributes" % (tableClass,))
 
         sqlstr.append(', '.join(sqlarg))
         sqlstr.append(')')
@@ -2201,14 +2193,6 @@ class Store(Empowered):
             self.createSQL(csql)
 
 
-    def getTableQuery(self, typename, version):
-        if (typename, version) not in self.tableQueries:
-            query = 'SELECT * FROM %s WHERE oid = ?' % (
-                self._tableNameFor(typename, version), )
-            self.tableQueries[typename, version] = query
-        return self.tableQueries[typename, version]
-
-
     def getItemByID(self, storeID, default=_noItem, autoUpgrade=True):
         """
         Retrieve an item by its storeID, and return it.
@@ -2255,14 +2239,6 @@ class Store(Empowered):
             "Database panic: more than one result for TYPEOF!"
         if results:
             typename, module, version = results[0]
-            # for the moment we're going to assume no inheritance
-            attrs = self.querySQL(self.getTableQuery(typename, version),
-                                  [storeID])
-            if len(attrs) != 1:
-                if default is _noItem:
-                    raise errors.ItemNotFound("No results for known-to-be-good object")
-                return default
-            attrs = attrs[0]
             useMostRecent = False
             moreRecentAvailable = False
 
@@ -2298,6 +2274,14 @@ class Store(Empowered):
                 T = mostRecent
             else:
                 T = self.getOldVersionOf(typename, version)
+
+            # for the moment we're going to assume no inheritance
+            attrs = self.querySQL(T._baseSelectSQL(self), [storeID])
+            if len(attrs) != 1:
+                if default is _noItem:
+                    raise errors.ItemNotFound("No results for known-to-be-good object")
+                return default
+            attrs = attrs[0]
             x = T.existingInStore(self, storeID, attrs)
             if moreRecentAvailable and (not useMostRecent) and autoUpgrade:
                 # upgradeVersion will do caching as necessary, we don't have to

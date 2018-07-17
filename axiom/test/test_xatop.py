@@ -69,19 +69,6 @@ class StoreTests(unittest.TestCase):
                           filepath.FilePath(self.mktemp()), filesdir=filepath.FilePath(self.mktemp()))
 
 
-    def testTableQueryCaching(self):
-        """
-        Ensure that the identity of the string returned by the
-        mostly-private getTableQuery method is the same when it is invoked
-        for the same type and version, rather than a newly constructed
-        string.
-        """
-        s = store.Store()
-        self.assertIdentical(
-            s.getTableQuery(TestItem.typeName, 1),
-            s.getTableQuery(TestItem.typeName, 1))
-
-
     def testTypeToDatabaseNames(self):
         # The real purpose of this test is to have the new get*Name
         # methods explicitely called somewhere in the test suite. The

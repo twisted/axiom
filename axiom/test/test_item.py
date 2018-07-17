@@ -274,9 +274,13 @@ class ItemTestCase(unittest.TestCase):
         self.assertEqual(pi.persistentValues(), {'plain': None})
 
 
-    def testCreateItemWithNoAttrs(self):
+    def test_createItemWithNoAttrs(self):
+        """
+        Creating an item with no attributes succeeds.
+        """
         st = store.Store()
-        self.assertRaises(store.NoEmptyItems, NoAttrsItem, store=st)
+        NoAttrsItem(store=st)
+
 
     def testCreatePlainItem(self):
         st = store.Store()

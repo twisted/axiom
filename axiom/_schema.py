@@ -6,6 +6,7 @@ CREATE_TYPE = 'INSERT INTO *DATABASE*.axiom_types (typename, module, version) VA
 
 BASE_SCHEMA = ["""
 CREATE TABLE *DATABASE*.axiom_objects (
+    oid INTEGER PRIMARY KEY AUTOINCREMENT,
     type_id INTEGER NOT NULL
         CONSTRAINT fk_type_id REFERENCES axiom_types(oid)
 )
@@ -18,6 +19,7 @@ CREATE INDEX *DATABASE*.axiom_objects_type_idx
 
 """
 CREATE TABLE *DATABASE*.axiom_types (
+    oid INTEGER PRIMARY KEY AUTOINCREMENT,
     typename VARCHAR,
     module VARCHAR,
     version INTEGER
