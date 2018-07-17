@@ -2293,7 +2293,7 @@ class Store(Empowered):
                 self.objectCache.cache(storeID, x)
             return x
         if default is _noItem:
-            raise KeyError(storeID)
+            raise errors.ItemNotFound(storeID)
         return default
 
 
