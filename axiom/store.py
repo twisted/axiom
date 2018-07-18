@@ -2033,6 +2033,8 @@ class Store(Empowered):
         that this method is used during table creation.
         """
         if isinstance(attribute, _StoreIDComparer):
+            # The column is named "oid" instead of "storeID" for backwards
+            # compatibility with the implicit oid/rowid column in old Stores.
             return 'oid'
         return '[' + attribute.attrname + ']'
 
@@ -2076,7 +2078,12 @@ class Store(Empowered):
 
     def _justCreateTable(self, tableClass):
         """
-        Just create the table for an Item subclass.
+        Execute the table creation DDL for an Item subclass.
+
+        Indexes are *not* created.
+
+        @type tableClass: type
+        @param tableClass: an Item subclass
         """
         sqlstr = []
         sqlarg = []
@@ -2087,6 +2094,8 @@ class Store(Empowered):
 
         sqlstr.append("CREATE TABLE %s (" % tableName)
 
+        # The column is named "oid" instead of "storeID" for backwards
+        # compatibility with the implicit oid/rowid column in old Stores.
         sqlarg.append("oid INTEGER PRIMARY KEY")
         for nam, atr in tableClass.getSchema():
             sqlarg.append("\n%s %s" %
@@ -2228,7 +2237,7 @@ class Store(Empowered):
         upgraded a database to a new schema and then attempt to open it with a
         previous version of the code.)
 
-        @raise KeyError: if no item corresponded to the given storeID.
+        @raise errors.ItemNotFound: if no item existed with the given storeID.
 
         @return: an Item, or the given default, if it was passed and no row
         corresponding to the given storeID can be located in the database.
@@ -2287,10 +2296,14 @@ class Store(Empowered):
 
             # for the moment we're going to assume no inheritance
             attrs = self.querySQL(T._baseSelectSQL(self), [storeID])
-            if len(attrs) != 1:
+            if len(attrs) == 0:
                 if default is _noItem:
-                    raise errors.ItemNotFound("No results for known-to-be-good object")
+                    raise errors.ItemNotFound(
+                        'No results for known-to-be-good object')
                 return default
+            elif len(attrs) > 1:
+                raise errors.DataIntegrityError(
+                    'Too many results for {:d}'.format(storeID))
             attrs = attrs[0]
             x = T.existingInStore(self, storeID, attrs)
             if moreRecentAvailable and (not useMostRecent) and autoUpgrade:

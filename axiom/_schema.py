@@ -6,7 +6,12 @@ CREATE_TYPE = 'INSERT INTO *DATABASE*.axiom_types (typename, module, version) VA
 GET_TABLE_INFO = 'PRAGMA *DATABASE*.table_info(?)'
 
 
-# AUTOINCREMENT so that oids are never reused
+# The storeID for an object must be unique over the lifetime of the store.
+# Since the storeID is allocated by inserting into axiom_objects, we use
+# AUTOINCREMENT so that oids/rowids and thus storeIDs are never reused.
+
+# The column is named "oid" instead of "storeID" for backwards compatibility
+# with the implicit oid/rowid column in old Stores.
 CREATE_OBJECTS = """
 CREATE TABLE *DATABASE*.axiom_objects (
     oid INTEGER PRIMARY KEY AUTOINCREMENT,

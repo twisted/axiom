@@ -303,7 +303,8 @@ def upgradeExplicitOid(store):
     Upgrade a store to use explicit oid columns.
 
     This requires copying all of axiom_objects and axiom_types, as well as all
-    item tables that have not yet been upgraded.
+    item tables that have not yet been upgraded.  Consider VACUUMing the
+    database afterwards to reclaim space.
     """
     upgradeSystemOid(store)
     for typename, version in store.querySchemaSQL(LATEST_TYPES):
@@ -330,4 +331,4 @@ def upgradeExplicitOid(store):
 
 __all__ = [
     'registerUpgrader', 'registerAttributeCopyingUpgrader',
-    'registerDeletionUpgrader']
+    'registerDeletionUpgrader', 'upgradeExplicitOid']
