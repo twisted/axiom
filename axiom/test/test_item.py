@@ -1,15 +1,16 @@
-
 import sys, os
 
+from zope.interface import Interface
+
 from twisted.trial import unittest
-from twisted.trial.unittest import TestCase
+from twisted.trial.unittest import TestCase, SynchronousTestCase
 from twisted.internet import error, protocol, defer, reactor
 from twisted.protocols import policies
 from twisted.python import log, filepath
 
 from axiom import store, item
 from axiom.store import Store
-from axiom.item import Item, declareLegacyItem
+from axiom.item import Item, declareLegacyItem, empowerment
 from axiom.errors import ChangeRejected
 from axiom.test import itemtest, itemtestmain
 from axiom.attributes import integer, text, inmemory
@@ -584,3 +585,68 @@ class CheckpointTestCase(TestCase):
             list(store.query(TestItem))
             self.assertEquals(self.checkpointed, [item])
         store.transact(txn)
+
+
+
+class TestInterface(Interface):
+    """
+    Testing interface.
+    """
+
+
+
+class TestInterface2(Interface):
+    """
+    Testing interface.
+    """
+
+
+
+class EmpowermentTests(SynchronousTestCase):
+    """
+    Tests for the C{@empowerment} class decorator.
+    """
+    def test_oneDecorator(self):
+        """
+        Decorating an item with C{@empowerment} declares it as empowering and
+        implementing that interface.
+        """
+        @empowerment(TestInterface)
+        class TI(Item):
+            pass
+
+        self.assertEqual(TI()._getPowerupInterfaces(), [(TestInterface, 0)])
+        self.assertTrue(TestInterface.implementedBy(TI))
+
+
+    def test_twoDecorators(self):
+        """
+        Decorating an item twice adds the powerup interfaces in the order of
+        invocation.
+        """
+        @empowerment(TestInterface2, 20)
+        @empowerment(TestInterface)
+        class TI2(Item):
+            pass
+
+        self.assertEqual(
+            TI2()._getPowerupInterfaces(),
+            [(TestInterface, 0),
+             (TestInterface2, 20)])
+        self.assertTrue(TestInterface.implementedBy(TI2))
+
+
+    def test_decoratorAndAttribute(self):
+        """
+        Decorating an item with an existing C{powerupInterfaces} attribute adds
+        the powerup interface to the end.
+        """
+        @empowerment(TestInterface)
+        class TI3(Item):
+            powerupInterfaces = [(TestInterface2, 20)]
+
+        self.assertEqual(
+            TI3()._getPowerupInterfaces(),
+            [(TestInterface2, 20),
+             (TestInterface, 0)])
+        self.assertTrue(TestInterface.implementedBy(TI3))
