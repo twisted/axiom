@@ -1,6 +1,6 @@
 import sys, os
 
-from zope.interface import Interface
+from zope.interface import Interface, implementer
 
 from twisted.trial import unittest
 from twisted.trial.unittest import TestCase, SynchronousTestCase
@@ -634,6 +634,7 @@ class EmpowermentTests(SynchronousTestCase):
             [(TestInterface, 0),
              (TestInterface2, 20)])
         self.assertTrue(TestInterface.implementedBy(TI2))
+        self.assertTrue(TestInterface2.implementedBy(TI2))
 
 
     def test_decoratorAndAttribute(self):
@@ -642,6 +643,7 @@ class EmpowermentTests(SynchronousTestCase):
         the powerup interface to the end.
         """
         @empowerment(TestInterface)
+        @implementer(TestInterface2)
         class TI3(Item):
             powerupInterfaces = [(TestInterface2, 20)]
 
