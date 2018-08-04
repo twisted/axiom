@@ -434,6 +434,30 @@ s.close()
         self.assertTrue(cursor.closed, 'Cursor should be closed')
 
 
+    def test_journalMode(self):
+        """
+        Passing a journalling mode sets that mode on open.
+        """
+        dbdir = filepath.FilePath(self.mktemp())
+        s = store.Store(dbdir, journalMode=u'MEMORY')
+        self.assertEquals(
+            s.querySchemaSQL('PRAGMA *DATABASE*.journal_mode'),
+            [(u'memory',)])
+
+
+    def test_journalModeNone(self):
+        """
+        Passing a journalling mode of C{None} sets no mode.
+        """
+        dbdir = filepath.FilePath(self.mktemp())
+        s = store.Store(dbdir, journalMode=u'WAL')
+        s.close()
+        s = store.Store(dbdir, journalMode=None)
+        self.assertEquals(
+            s.querySchemaSQL('PRAGMA *DATABASE*.journal_mode'),
+            [(u'wal',)])
+
+
 
 class FailurePathTests(unittest.TestCase):
 
