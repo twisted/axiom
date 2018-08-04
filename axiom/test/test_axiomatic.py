@@ -74,6 +74,7 @@ class StartTests(TestCase):
     """
     Test the axiomatic start sub-command.
     """
+    maxDiff = None
     def setUp(self):
         """
         Work around Twisted #3178 by tricking trial into thinking something
@@ -95,10 +96,10 @@ class StartTests(TestCase):
         L{Start.getArguments} adds a I{--pidfile} argument if one is not
         present and a I{--logfile} argument if one is not present and
         daemonization is enabled and adds a I{--dbdir} argument pointing at the
-        store it is passed.
+        store it is passed. It also adds I{--journal-mode} if this is passed.
         """
         dbdir = FilePath(self.mktemp())
-        store = Store(dbdir)
+        store = Store(dbdir, journalMode=u'WAL')
         run = self._getRunDir(dbdir)
         logs = self._getLogDir(dbdir)
         start = axiomatic.Start()
@@ -111,7 +112,8 @@ class StartTests(TestCase):
             pidfileArg = []
         else:
             pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
-        restArg = ["axiomatic-start", "--dbdir", dbdir.path]
+        restArg = [
+            "axiomatic-start", "--dbdir", dbdir.path, "--journal-mode", "WAL"]
 
         self.assertEqual(
             start.getArguments(store, []),
@@ -221,7 +223,8 @@ class StartTests(TestCase):
         """
         dbdir = self.mktemp()
         store = Store(dbdir)
-        service = AxiomaticStart.makeService({'dbdir': dbdir, 'debug': False})
+        service = AxiomaticStart.makeService(
+            {'dbdir': dbdir, 'debug': False, 'journal-mode': None})
         self.assertEqual(store.query(SystemVersion).count(), 0)
         service.startService()
         self.assertEqual(store.query(SystemVersion).count(), 1)
@@ -230,16 +233,19 @@ class StartTests(TestCase):
 
     def test_axiomOptions(self):
         """
-        L{AxiomaticStart.options} takes database location and debug setting
-        parameters.
+        L{AxiomaticStart.options} takes database location, debug, and
+        journal mode setting parameters.
         """
         options = AxiomaticStart.options()
         options.parseOptions([])
         self.assertEqual(options['dbdir'], None)
         self.assertFalse(options['debug'])
-        options.parseOptions(["--dbdir", "foo", "--debug"])
+        self.assertEqual(options['journal-mode'], None)
+        options.parseOptions(
+            ["--dbdir", "foo", "--debug", "--journal-mode", "WAL"])
         self.assertEqual(options['dbdir'], 'foo')
         self.assertTrue(options['debug'])
+        self.assertEqual(options['journal-mode'], 'WAL')
 
 
     def test_makeService(self):
@@ -254,7 +260,8 @@ class StartTests(TestCase):
         store.powerUp(recorder, IService)
         store.close()
 
-        service = AxiomaticStart.makeService({"dbdir": dbdir, "debug": False})
+        service = AxiomaticStart.makeService(
+            {'dbdir': dbdir, 'debug': False, 'journal-mode': None})
         service.startService()
         service.stopService()
 
@@ -489,3 +496,19 @@ class TestMisc(TestCase):
 
         self.failUnless(IAxiomaticCommand.providedBy(_TestSubClass), 'IAxiomaticCommand not provided')
         self.failUnless(IPlugin.providedBy(_TestSubClass), 'IPlugin not provided')
+
+
+
+class AxiomaticTests(TestCase):
+    """
+    Test things relating to the I{axiomatic} command itself.
+    """
+    def test_journalMode(self):
+        """
+        I{axiomatic} sets the journal mode of the store according to
+        I{--journal-mode}.
+        """
+        options = axiomatic.Options()
+        options['dbdir'] = self.mktemp()
+        options['journal-mode'] = 'WAL'
+        self.assertEqual(options.getStore().journalMode, u'WAL')
