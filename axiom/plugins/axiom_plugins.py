@@ -57,6 +57,7 @@ class Upgrade(axiomatic.AxiomaticCommand):
         """
         Recursively upgrade C{store}.
         """
+        print 'Upgrading: {!r}'.format(store)
         self.upgradeEverything(store)
         upgradeExplicitOid(store)
 
