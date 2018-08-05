@@ -310,10 +310,10 @@ def upgradeExplicitOid(store):
     for typename, version in store.querySchemaSQL(LATEST_TYPES):
         cls = _typeNameToMostRecentClass[typename]
         if cls.schemaVersion != version:
-            [[remaining]] = store.querySQL(
-                'SELECT COUNT(*) FROM {} LIMIT 1'.format(
+            remaining = store.querySQL(
+                'SELECT oid FROM {} LIMIT 1'.format(
                     store._tableNameFor(typename, version)))
-            if remaining == 0:
+            if len(remaining) == 0:
                 # Nothing to upgrade
                 continue
             else:
