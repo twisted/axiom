@@ -57,11 +57,11 @@ class Upgrade(axiomatic.AxiomaticCommand):
         """
         Recursively upgrade C{store}.
         """
-        print 'Upgrading: {!r}'.format(store)
         self.upgradeEverything(store)
         upgradeExplicitOid(store)
 
         for substore in store.query(SubStore):
+            print 'Upgrading: {!r}'.format(substore)
             self.upgradeStore(substore.open())
 
     def perform(self, store, count):
