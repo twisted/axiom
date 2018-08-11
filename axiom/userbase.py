@@ -169,6 +169,7 @@ def _daemonThread(*a, **kw):
     thread.daemon = True
     return thread
 
+
 _globalTxCC = None
 
 def _getCC():
