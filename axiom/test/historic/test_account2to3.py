@@ -16,7 +16,7 @@ class AccountUpgradeTest(stubloader.StubbedTest):
     def test_upgrade(self):
         """
         After the upgrade, logging in with the correct password succeeds, while
-        logging in with the correct password fails.
+        logging in with an incorrect password fails.
         """
         ls = IRealm(self.store)
         ls._txCryptContext, perform = getTestContext()
