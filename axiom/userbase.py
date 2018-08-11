@@ -168,6 +168,7 @@ def _daemonThread(*a, **kw):
     thread.daemon = True
     return thread
 
+
 _globalTxCC = None
 
 def _getCC():
@@ -677,5 +678,3 @@ def getDomainNames(store):
             AND(LoginMethod.internal == True,
                 LoginMethod.domain != None)).getColumn("domain").distinct())
     return sorted(domains)
-
-
