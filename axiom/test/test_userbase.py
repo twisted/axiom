@@ -180,7 +180,7 @@ class CommandTestCase(unittest.TestCase):
             ss = avatar.avatars.open()
             self.assertEquals(list(userbase.getAccountNames(ss)),
                               [(u'alice', u'localhost')])
-            self.assertEquals(avatar.password, SECRET)
+            self.assertNotEquals(avatar.passwordHash, None)
             logout()
 
         d = self._login('alice@localhost', SECRET)
