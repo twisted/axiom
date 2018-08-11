@@ -37,7 +37,7 @@ setup(
     install_requires=[
         "argon2_cffi",
         "epsilon>=0.7.0"
-        "twisted>=13.2.0",
+        "twisted>=15.4.0",
         "txpasslib",
     ],
     extras_require={
