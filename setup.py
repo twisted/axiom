@@ -35,8 +35,10 @@ setup(
     maintainer_email="support@divmod.org",
 
     install_requires=[
-        "Twisted>=13.2.0",
-        "Epsilon>=0.7.0"
+        "argon2_cffi",
+        "epsilon>=0.7.0"
+        "twisted>=15.4.0",
+        "txpasslib",
     ],
     extras_require={
         'test': ['hypothesis[datetime]>=2.0.0,<3.0.0'],

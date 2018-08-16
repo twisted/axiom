@@ -31,6 +31,7 @@ aware that a user's database contains only their own data.
 """
 
 import warnings
+from threading import Thread
 
 from zope.interface import implements, Interface
 
@@ -38,11 +39,17 @@ from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
 from twisted.python import log
+from twisted._threads import pool, createMemoryWorker
+
+from passlib.context import CryptContext
+from txpasslib.context import TxCryptContext
+from txpasslib.test.doubles import SynchronousReactorThreads
 
 from axiom.store import Store
-from axiom.item import Item
+from axiom.item import Item, declareLegacyItem
 from axiom.substore import SubStore
-from axiom.attributes import text, integer, reference, boolean, AND, OR
+from axiom.attributes import (
+    text, integer, reference, boolean, AND, OR, inmemory)
 from axiom.errors import (
     BadCredentials, NoSuchUser, DuplicateUser, MissingDomainPart)
 from axiom.scheduler import IScheduler
@@ -149,6 +156,50 @@ def upgradeLoginMethod1To2(old):
 
 upgrade.registerUpgrader(upgradeLoginMethod1To2, 'login_method', 1, 2)
 
+
+_globalCC = CryptContext(schemes=['argon2'])
+
+
+def _daemonThread(*a, **kw):
+    """
+    Create a L{threading.Thread}, but always set C{daemon}.
+    """
+    thread = Thread(*a, **kw)
+    thread.daemon = True
+    return thread
+
+
+_globalTxCC = None
+
+def _getCC():
+    """
+    Lazily initialize a global C{TxCryptContext}.
+    """
+    global _globalTxCC
+    if _globalTxCC is None:
+        from twisted.internet import reactor
+        _globalTxCC = TxCryptContext(
+            context=_globalCC,
+            reactor=reactor,
+            worker=pool(lambda: 10, _daemonThread))
+    return _globalTxCC
+
+
+def getTestContext():
+    """
+    Construct a C{TxCryptContext} suited for unit tests.
+
+    @rtype: C{Tuple[TxCryptContext, Callable[[], None]]}
+    @return: The context, and a callable that will cause one operation to be
+        done.
+    """
+    worker, perform = createMemoryWorker()
+    reactor = SynchronousReactorThreads()
+    ctx = TxCryptContext(context=_globalCC, reactor=reactor, worker=worker)
+    return (ctx, perform)
+
+
+
 class LoginAccount(Item):
     """
     I am an entry in a LoginBase.
@@ -163,9 +214,9 @@ class LoginAccount(Item):
 
     """
     typeName = 'login'
-    schemaVersion = 2
+    schemaVersion = 3
 
-    password = text()
+    passwordHash = text()
     avatars = reference()       # reference to a thing which can be adapted to
                                 # implementations for application-level
                                 # protocols.  In general this is a reference to
@@ -222,7 +273,7 @@ class LoginAccount(Item):
         Return the copied LoginAccount.
         """
         la = LoginAccount(store=newStore,
-                          password=self.password,
+                          passwordHash=self.passwordHash,
                           avatars=avatars,
                           disabled=self.disabled)
         for siteMethod in self.store.query(LoginMethod,
@@ -391,14 +442,37 @@ def upgradeLoginAccount1To2(oldAccount):
     ss = newAccount.avatars.open()
     # create account in substore to represent the user's own record of their
     # password; moves with them during migrations, etc.
-    subacc = LoginAccount(store=ss,
-                          password=newAccount.password,
-                          avatars=ss,
-                          disabled=newAccount.disabled)
+    subacc = loginAccountv2(
+        store=ss,
+        password=newAccount.password,
+        avatars=ss,
+        disabled=newAccount.disabled)
     make(ss, subacc)
 
-from axiom import upgrade
 upgrade.registerUpgrader(upgradeLoginAccount1To2, 'login', 1, 2)
+
+
+loginAccountv2 = declareLegacyItem(
+    typeName='login',
+    schemaVersion=2,
+    attributes=dict(
+        avatars=reference(),
+        disabled=integer(),
+        password=text()))
+
+def upgradeLoginAccount2To3(oldAccount):
+    if oldAccount.password is None:
+        passwordHash = None
+    else:
+        passwordHash = _globalCC.hash(oldAccount.password).decode('ascii')
+    return oldAccount.upgradeVersion(
+        'login', 2, 3,
+        passwordHash=passwordHash,
+        avatars=oldAccount.avatars,
+        disabled=oldAccount.disabled)
+
+upgrade.registerUpgrader(upgradeLoginAccount2To3, 'login', 2, 3)
+
 
 
 class SubStoreLoginMixin:
@@ -412,9 +486,17 @@ class LoginBase:
     """
     implements(IRealm, ICredentialsChecker)
 
-    credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword)
+    credentialInterfaces = (IUsernamePassword,)
 
     powerupInterfaces = (IRealm, ICredentialsChecker)
+
+
+    def _getCC(self):
+        try:
+            return self._txCryptContext
+        except AttributeError:
+            return _getCC()
+
 
     def accountByAddress(self, username, domain):
         """
@@ -464,8 +546,11 @@ class LoginBase:
             username = unicode(username)
         if domain is not None:
             domain = unicode(domain)
-        if password is not None:
+        if password is None:
+            passwordHash = None
+        else:
             password = unicode(password)
+            passwordHash = _globalCC.hash(password).decode('ascii')
 
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)
@@ -478,14 +563,14 @@ class LoginBase:
         # within a transaction, so if something goes wrong in the substore
         # transaction this item's creation will be reverted...
         la = LoginAccount(store=self.store,
-                          password=password,
+                          passwordHash=passwordHash,
                           avatars=avatars,
                           disabled=disabled)
 
         def createSubStoreAccountObjects():
 
             LoginAccount(store=subStore,
-                         password=password,
+                         passwordHash=passwordHash,
                          disabled=disabled,
                          avatars=subStore)
 
@@ -516,6 +601,13 @@ class LoginBase:
         raise NotImplementedError()
 
     def requestAvatarId(self, credentials):
+        def verified(result):
+            if result:
+                return acct.storeID
+            else:
+                self.failedLogins += 1
+                raise BadCredentials()
+
         try:
             username, domain = credentials.username.split('@', 1)
         except ValueError:
@@ -527,12 +619,14 @@ class LoginBase:
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:
-            password = acct.password
-            if credentials.checkPassword(password):
+            # Awful hack
+            if isinstance(credentials, Preauthenticated):
                 return acct.storeID
             else:
-                self.failedLogins += 1
-                raise BadCredentials()
+                return (
+                    self._getCC()
+                    .verify(credentials.password, acct.passwordHash)
+                    .addCallback(verified))
 
         self.failedLogins += 1
         raise NoSuchUser(credentials.username)
@@ -544,6 +638,7 @@ class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
 
     loginCount = integer(default=0)
     failedLogins = integer(default=0)
+    _txCryptContext = inmemory()
 
 
 def getLoginMethods(store, protocol=None):
@@ -583,5 +678,3 @@ def getDomainNames(store):
             AND(LoginMethod.internal == True,
                 LoginMethod.domain != None)).getColumn("domain").distinct())
     return sorted(domains)
-
-
