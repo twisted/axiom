@@ -39,7 +39,9 @@ class AxiomaticStart(object):
 
     class options(Options):
         optParameters = [
-            ('dbdir', 'd', None, 'Path containing Axiom database to start')]
+            ('dbdir', 'd', None, 'Path containing Axiom database to start'),
+            ('journal-mode', None, None, 'SQLite journal mode to set'),
+            ]
 
         optFlags = [('debug', 'b', 'Enable Axiom-level debug logging')]
 
@@ -50,7 +52,10 @@ class AxiomaticStart(object):
         configuration.
         """
         from axiom.store import Store
-        store = Store(options['dbdir'], debug=options['debug'])
+        jm = options['journal-mode']
+        if jm is not None:
+            jm = jm.decode('ascii')
+        store = Store(options['dbdir'], debug=options['debug'], journalMode=jm)
         service = IService(store)
         _CheckSystemVersion(store).setServiceParent(service)
         return service

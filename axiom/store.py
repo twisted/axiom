@@ -1116,7 +1116,8 @@ class Store(Empowered):
     storeID = STORE_SELF_ID
 
 
-    def __init__(self, dbdir=None, filesdir=None, debug=False, parent=None, idInParent=None):
+    def __init__(self, dbdir=None, filesdir=None, debug=False, parent=None,
+                 idInParent=None, journalMode=None):
         """
         Create a store.
 
@@ -1147,6 +1148,7 @@ class Store(Empowered):
         self.idInParent = idInParent
         self.debug = debug
         self.autocommit = True
+        self.journalMode = journalMode
         self.queryTimes = []
         self.execTimes = []
 
@@ -1373,6 +1375,9 @@ class Store(Empowered):
     def _initdb(self, dbfname):
         self.connection = Connection.fromDatabaseName(dbfname)
         self.cursor = self.connection.cursor()
+        if self.journalMode is not None:
+            self.querySchemaSQL(
+                'PRAGMA *DATABASE*.journal_mode = {}'.format(self.journalMode))
 
 
     def __repr__(self):
