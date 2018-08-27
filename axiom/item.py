@@ -3,7 +3,7 @@
 __metaclass__ = type
 
 import gc
-from zope.interface import implements, Interface
+from zope.interface import implements, implementer, Interface
 
 from inspect import getabsfile
 from weakref import WeakValueDictionary
@@ -11,7 +11,8 @@ from weakref import WeakValueDictionary
 from twisted.python import log
 from twisted.python.reflect import qual, namedAny
 from twisted.python.util import mergeFunctionMetadata
-from twisted.application.service import IService, IServiceCollection, MultiService
+from twisted.application.service import (
+    IService, IServiceCollection, MultiService)
 
 from axiom import slotmachine, _schema, iaxiom
 from axiom.errors import ChangeRejected, DeletionDisallowed
@@ -396,6 +397,7 @@ class Empowered(object):
                 raise ValueError("return value from %r.__getPowerupInterfaces__"
                                  " not an iterable of 2-tuples" % (self,))
         return pifs
+
 
 
 def transacted(func):
@@ -1139,3 +1141,25 @@ class _PowerupConnector(Item):
 
 POWERUP_BEFORE = 1              # Priority for 'high' priority powerups.
 POWERUP_AFTER = -1              # Priority for 'low' priority powerups.
+
+
+
+def empowerment(iface, priority=0):
+    """
+    Class decorator for indicating a powerup's powerup interfaces.
+
+    The class will also be declared as implementing the interface.
+
+    @type iface: L{zope.interface.Interface}
+    @param iface: The powerup interface.
+
+    @type priority: int
+    @param priority: The priority the powerup will be installed at.
+    """
+    def _deco(cls):
+        cls.powerupInterfaces = (
+            tuple(getattr(cls, 'powerupInterfaces', ())) +
+            ((iface, priority),))
+        implementer(iface)(cls)
+        return cls
+    return _deco
