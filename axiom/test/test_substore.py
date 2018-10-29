@@ -142,6 +142,18 @@ class SubStoreTest(unittest.TestCase):
             e.args[0], "Received 'notasequence' instead of a sequence")
 
 
+    def test_inheritParentConfiguration(self):
+        """
+        Substores use the debug and journal configuration of the parent store.
+        """
+        filesdir = filepath.FilePath(self.mktemp())
+        s = Store(filesdir=filesdir, debug=True, journalMode=u'MEMORY')
+        ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
+        s2 = ss.open()
+        self.assertEqual(s2.debug, True)
+        self.assertEqual(s2.journalMode, u'MEMORY')
+
+
 
 class SubStoreStartupSemantics(unittest.TestCase):
     """

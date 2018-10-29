@@ -123,6 +123,8 @@ class Start(twistd.ServerOptions):
         if not platform.isWindows() and handlePidfile:
             args.extend(["--pidfile", run.child("axiomatic.pid").path])
         args.extend(["axiomatic-start", "--dbdir", store.dbdir.path])
+        if store.journalMode is not None:
+            args.extend(['--journal-mode', store.journalMode.encode('ascii')])
         return args
 
 
@@ -168,6 +170,7 @@ class Options(usage.Options):
 
     optParameters = [
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
+        ('journal-mode', None, None, 'SQLite journal mode to set'),
         ]
 
     optFlags = [
@@ -197,8 +200,12 @@ class Options(usage.Options):
 
     def getStore(self):
         from axiom.store import Store
+        jm = self['journal-mode']
+        if jm is not None:
+            jm = jm.decode('ascii')
         if self.store is None:
-            self.store = Store(self.getStoreDirectory(), debug=self['debug'])
+            self.store = Store(
+                self.getStoreDirectory(), debug=self['debug'], journalMode=jm)
         return self.store
 
 
