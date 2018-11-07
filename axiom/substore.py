@@ -47,17 +47,19 @@ class SubStore(Item):
         del self.substore
 
 
-    def open(self, debug=False):
+    def open(self, debug=None):
         if hasattr(self, 'substore'):
             return self.substore
         else:
-            s = self.substore = self.createStore(debug)
+            if debug is None:
+                debug = self.store.debug
+            s = self.substore = self.createStore(debug, self.store.journalMode)
             s._openSubStore = self # don't fall out of cache as long as the
                                    # store is alive!
             return s
 
 
-    def createStore(self, debug):
+    def createStore(self, debug, journalMode=None):
         """
         Create the actual Store this Substore represents.
         """
@@ -72,12 +74,14 @@ class SubStore(Item):
             return Store(parent=self.store,
                          filesdir=filesdir,
                          idInParent=self.storeID,
-                         debug=debug)
+                         debug=debug,
+                         journalMode=journalMode)
         else:
             return Store(self.storepath.path,
                          parent=self.store,
                          idInParent=self.storeID,
-                         debug=debug)
+                         debug=debug,
+                         journalMode=journalMode)
 
 
     def __conform__(self, interface):
