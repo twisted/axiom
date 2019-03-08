@@ -283,7 +283,7 @@ class LoginAccount(Item):
 
         @return: A deferred firing when the password has been changed.
         """
-        self.password = unicode(newPassword)
+        self.password = None if newPassword is None else unicode(newPassword)
         return succeed(None)
 
 
