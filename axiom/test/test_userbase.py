@@ -14,8 +14,9 @@ from twisted.internet.defer import maybeDeferred
 from twisted.cred.portal import Portal, IRealm
 from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred.error import UnauthorizedLogin
-from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
-from twisted.cred.credentials import UsernamePassword
+from twisted.cred.credentials import (
+    IUsernamePassword, IUsernameHashedPassword, UsernamePassword,
+    UsernameHashedPassword)
 
 from twisted.python.filepath import FilePath
 
@@ -587,6 +588,22 @@ class RealmTestCase(unittest.TestCase):
         return d
 
 
+    def test_usernameHashedPasswordDeprecated(self):
+        """
+        Authenticating with L{twisted.cred.credentials.IUsernameHashedPassword}
+        credentials emits a deprecation warning.
+        """
+        account = self.realm.addAccount(
+            self.localpart, self.domain, self.password)
+        username = u'%s@%s' % (self.localpart, self.domain)
+        aid = self.successResultOf(
+            self._requestAvatarId(
+                UsernameHashedPassword(username, self.password)))
+        self.assertEquals(aid, account.storeID)
+        ws = self.flushWarnings()
+        self.assertEquals(ws[0]['category'], DeprecationWarning)
+
+
     def test_usernamepasswordInvalid(self):
         """
         L{LoginSystem.requestAvatarId} fails with L{UnauthorizedLogin} if
@@ -600,6 +617,7 @@ class RealmTestCase(unittest.TestCase):
         self.assertFailure(d, UnauthorizedLogin)
         return d
 
+
     def test_preauthenticated(self):
         """
         L{LoginSystem.requestAvatarId} returns the store identifier of the
@@ -612,6 +630,59 @@ class RealmTestCase(unittest.TestCase):
         d = self._requestAvatarId(userbase.Preauthenticated(username))
         d.addCallback(self.assertEqual, account.storeID)
         return d
+
+
+    def test_setPassword(self):
+        """
+        L{LoginAccount.setPassword} allows for logging in with the new password
+        and not the old.
+        """
+        account = self.realm.addAccount(
+            self.localpart, self.domain, self.password)
+        username = u'%s@%s' % (self.localpart, self.domain)
+        self.successResultOf(account.setPassword(u'blahblah'))
+        self.assertEquals(
+            self.successResultOf(
+                self._requestAvatarId(
+                    UsernamePassword(username, u'blahblah'))),
+            account.storeID)
+        self.failureResultOf(
+            self._requestAvatarId(
+                UsernamePassword(username, self.password)),
+            UnauthorizedLogin)
+
+
+    def test_replacePasswordWrong(self):
+        """
+        L{LoginAccount.replacePassword} fails with L{BadCredentials} if an
+        incorrect current password is supplied.
+        """
+        account = self.realm.addAccount(
+            self.localpart, self.domain, self.password)
+        self.failureResultOf(
+            account.replacePassword(u'blahblah', u'blah'),
+            errors.BadCredentials)
+
+
+    def test_replacePasswordCorrect(self):
+        """
+        L{LoginAccount.replacePassword} allows for logging in with the new
+        password and not the old if the correct current password is supplied.
+        """
+        account = self.realm.addAccount(
+            self.localpart, self.domain, self.password)
+        username = u'%s@%s' % (self.localpart, self.domain)
+        self.successResultOf(
+            account.replacePassword(self.password, u'blahblah'))
+        self.assertEquals(
+            self.successResultOf(
+                self._requestAvatarId(
+                    UsernamePassword(username, u'blahblah'))),
+            account.storeID)
+        self.failureResultOf(
+            self._requestAvatarId(
+                UsernamePassword(username, self.password)),
+            UnauthorizedLogin)
 
 
 
@@ -655,5 +726,3 @@ class PreauthenticatedTests(unittest.TestCase):
         self.assertTrue(
             creds.checkPassword('arbitrary bytes'),
             "Preauthenticated did not accept an arbitrary password.")
-
-
