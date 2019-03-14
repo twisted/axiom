@@ -69,19 +69,6 @@ class StoreTests(unittest.TestCase):
                           filepath.FilePath(self.mktemp()), filesdir=filepath.FilePath(self.mktemp()))
 
 
-    def testTableQueryCaching(self):
-        """
-        Ensure that the identity of the string returned by the
-        mostly-private getTableQuery method is the same when it is invoked
-        for the same type and version, rather than a newly constructed
-        string.
-        """
-        s = store.Store()
-        self.assertIdentical(
-            s.getTableQuery(TestItem.typeName, 1),
-            s.getTableQuery(TestItem.typeName, 1))
-
-
     def testTypeToDatabaseNames(self):
         # The real purpose of this test is to have the new get*Name
         # methods explicitely called somewhere in the test suite. The
@@ -617,6 +604,32 @@ class ItemTests(unittest.TestCase):
             self.assertEquals(item1.baz.asISO8601TimeAndDate(), '2004-10-05T10:12:14.1234+00:00')
         else:
             self.fail("Transaction should have raised an exception")
+
+
+    def test_deleteAndVacuum(self):
+        """
+        VACUUMing the store after deleting an item does not corrupt it.
+        """
+        sid = []
+
+        @self.store.transact
+        def txn1():
+            sid.append(
+                AttributefulItem(store=self.store, withDefault=0).storeID)
+            i = AttributefulItem(store=self.store, withDefault=1)
+            sid.append(i.storeID)
+            sid.append(
+                AttributefulItem(store=self.store, withDefault=2).storeID)
+            i.deleteFromStore()
+
+        self.store.executeSQL('VACUUM')
+
+        @self.store.transact
+        def txn2():
+            self.assertEqual(self.store.getItemByID(sid[0]).withDefault, 0)
+            self.assertRaises(
+                errors.ItemNotFound, self.store.getItemByID, sid[1])
+            self.assertEqual(self.store.getItemByID(sid[2]).withDefault, 2)
 
 
 

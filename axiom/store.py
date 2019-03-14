@@ -1164,11 +1164,6 @@ class Store(Empowered):
 
         self.objectCache = _fincache.FinalizingCache()
 
-        self.tableQueries = {}  # map typename: query string w/ storeID
-                                # parameter.  a typename is a persistent
-                                # database handle for what we'll call a 'FQPN',
-                                # i.e. arg to namedAny.
-
         self.typenameAndVersionToID = {} # map database-persistent typename and
                                          # version to an oid in the types table
 
@@ -1994,8 +1989,13 @@ class Store(Empowered):
                                        '_'.join(attrname))
 
 
+    def _tableNameOnlyFor(self, typename, version):
+        return 'item_{}_v{:d}'.format(typename, version)
+
+
     def _tableNameFor(self, typename, version):
-        return "%s.item_%s_v%d" % (self.databaseName, typename, version)
+        return '.'.join([self.databaseName,
+                         self._tableNameOnlyFor(typename, version)])
 
 
     def getTableName(self, tableClass):
@@ -2038,6 +2038,8 @@ class Store(Empowered):
         that this method is used during table creation.
         """
         if isinstance(attribute, _StoreIDComparer):
+            # The column is named "oid" instead of "storeID" for backwards
+            # compatibility with the implicit oid/rowid column in old Stores.
             return 'oid'
         return '[' + attribute.attrname + ']'
 
@@ -2079,6 +2081,36 @@ class Store(Empowered):
         return self.transact(self._maybeCreateTable, tableClass, key)
 
 
+    def _justCreateTable(self, tableClass):
+        """
+        Execute the table creation DDL for an Item subclass.
+
+        Indexes are *not* created.
+
+        @type tableClass: type
+        @param tableClass: an Item subclass
+        """
+        sqlstr = []
+        sqlarg = []
+
+        # needs to be calculated including version
+        tableName = self._tableNameFor(tableClass.typeName,
+                                       tableClass.schemaVersion)
+
+        sqlstr.append("CREATE TABLE %s (" % tableName)
+
+        # The column is named "oid" instead of "storeID" for backwards
+        # compatibility with the implicit oid/rowid column in old Stores.
+        sqlarg.append("oid INTEGER PRIMARY KEY")
+        for nam, atr in tableClass.getSchema():
+            sqlarg.append("\n%s %s" %
+                          (atr.getShortColumnName(self), atr.sqltype))
+
+        sqlstr.append(', '.join(sqlarg))
+        sqlstr.append(')')
+        self.createSQL(''.join(sqlstr))
+
+
     def _maybeCreateTable(self, tableClass, key):
         """
         A type ID has been requested for an Item subclass whose table was not
@@ -2097,29 +2129,8 @@ class Store(Empowered):
         existing one if the table was created by another Store object
         referencing this database.
         """
-        sqlstr = []
-        sqlarg = []
-
-        # needs to be calculated including version
-        tableName = self._tableNameFor(tableClass.typeName,
-                                       tableClass.schemaVersion)
-
-        sqlstr.append("CREATE TABLE %s (" % tableName)
-
-        for nam, atr in tableClass.getSchema():
-            # it's a stored attribute
-            sqlarg.append("\n%s %s" %
-                          (atr.getShortColumnName(self), atr.sqltype))
-
-        if len(sqlarg) == 0:
-            # XXX should be raised way earlier, in the class definition or something
-            raise NoEmptyItems("%r did not define any attributes" % (tableClass,))
-
-        sqlstr.append(', '.join(sqlarg))
-        sqlstr.append(')')
-
         try:
-            self.createSQL(''.join(sqlstr))
+            self._justCreateTable(tableClass)
         except errors.TableAlreadyExists:
             # Although we don't have a memory of this table from the last time
             # we called "_startup()", another process has updated the schema
@@ -2206,14 +2217,6 @@ class Store(Empowered):
             self.createSQL(csql)
 
 
-    def getTableQuery(self, typename, version):
-        if (typename, version) not in self.tableQueries:
-            query = 'SELECT * FROM %s WHERE oid = ?' % (
-                self._tableNameFor(typename, version), )
-            self.tableQueries[typename, version] = query
-        return self.tableQueries[typename, version]
-
-
     def getItemByID(self, storeID, default=_noItem, autoUpgrade=True):
         """
         Retrieve an item by its storeID, and return it.
@@ -2239,7 +2242,7 @@ class Store(Empowered):
         upgraded a database to a new schema and then attempt to open it with a
         previous version of the code.)
 
-        @raise KeyError: if no item corresponded to the given storeID.
+        @raise errors.ItemNotFound: if no item existed with the given storeID.
 
         @return: an Item, or the given default, if it was passed and no row
         corresponding to the given storeID can be located in the database.
@@ -2260,14 +2263,6 @@ class Store(Empowered):
             "Database panic: more than one result for TYPEOF!"
         if results:
             typename, module, version = results[0]
-            # for the moment we're going to assume no inheritance
-            attrs = self.querySQL(self.getTableQuery(typename, version),
-                                  [storeID])
-            if len(attrs) != 1:
-                if default is _noItem:
-                    raise errors.ItemNotFound("No results for known-to-be-good object")
-                return default
-            attrs = attrs[0]
             useMostRecent = False
             moreRecentAvailable = False
 
@@ -2303,6 +2298,18 @@ class Store(Empowered):
                 T = mostRecent
             else:
                 T = self.getOldVersionOf(typename, version)
+
+            # for the moment we're going to assume no inheritance
+            attrs = self.querySQL(T._baseSelectSQL(self), [storeID])
+            if len(attrs) == 0:
+                if default is _noItem:
+                    raise errors.ItemNotFound(
+                        'No results for known-to-be-good object')
+                return default
+            elif len(attrs) > 1:
+                raise errors.DataIntegrityError(
+                    'Too many results for {:d}'.format(storeID))
+            attrs = attrs[0]
             x = T.existingInStore(self, storeID, attrs)
             if moreRecentAvailable and (not useMostRecent) and autoUpgrade:
                 # upgradeVersion will do caching as necessary, we don't have to
@@ -2314,7 +2321,7 @@ class Store(Empowered):
                 self.objectCache.cache(storeID, x)
             return x
         if default is _noItem:
-            raise KeyError(storeID)
+            raise errors.ItemNotFound(storeID)
         return default
 
 

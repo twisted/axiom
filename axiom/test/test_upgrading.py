@@ -903,7 +903,7 @@ class AxiomaticUpgradeTest(unittest.TestCase):
 
 class StoreUpgradeTests(unittest.TestCase):
     """
-    Tests for L{upgrade._StoreUgprade}.
+    Tests for L{upgrade._StoreUpgrade}.
     """
     def setUp(self):
         self.store = Store()

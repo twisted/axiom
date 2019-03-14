@@ -879,12 +879,16 @@ class Item(Empowered, slotmachine._Strict):
 
     def _baseSelectSQL(cls, st):
         if cls not in st.typeToSelectSQLCache:
-            st.typeToSelectSQLCache[cls] = ' '.join(['SELECT * FROM',
-                                                     st.getTableName(cls),
-                                                     'WHERE',
-                                                     st.getShortColumnName(cls.storeID),
-                                                     '= ?'
-                                                     ])
+            attrs = list(cls.getSchema())
+            st.typeToSelectSQLCache[cls] = ' '.join(
+                ['SELECT',
+                 ', '.join(
+                     [st.getShortColumnName(a[1]) for a in attrs]),
+                 'FROM',
+                 st.getTableName(cls),
+                 'WHERE',
+                 st.getShortColumnName(cls.storeID),
+                 '= ?'])
         return st.typeToSelectSQLCache[cls]
 
     _baseSelectSQL = classmethod(_baseSelectSQL)
