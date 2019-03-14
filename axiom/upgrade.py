@@ -301,6 +301,8 @@ def upgradeSystemOid(store):
 def upgradeExplicitOid(store):
     """
     Upgrade a store to use explicit oid columns.
+    
+    This allows VACUUMing the database without corrupting it.
 
     This requires copying all of axiom_objects and axiom_types, as well as all
     item tables that have not yet been upgraded.  Consider VACUUMing the
