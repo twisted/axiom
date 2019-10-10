@@ -14,9 +14,7 @@ from twisted.internet.defer import maybeDeferred
 from twisted.cred.portal import Portal, IRealm
 from twisted.cred.checkers import ICredentialsChecker
 from twisted.cred.error import UnauthorizedLogin
-from twisted.cred.credentials import (
-    IUsernamePassword, IUsernameHashedPassword, UsernamePassword,
-    UsernameHashedPassword)
+from twisted.cred.credentials import IUsernamePassword, UsernamePassword
 
 from twisted.python.filepath import FilePath
 
@@ -32,6 +30,7 @@ from axiom.attributes import integer
 from axiom.scripts import axiomatic
 from axiom import errors
 from axiom import dependency
+from axiom.userbase import getTestContext
 
 class IGarbage(Interface):
     pass
@@ -588,22 +587,6 @@ class RealmTestCase(unittest.TestCase):
         return d
 
 
-    def test_usernameHashedPasswordDeprecated(self):
-        """
-        Authenticating with L{twisted.cred.credentials.IUsernameHashedPassword}
-        credentials emits a deprecation warning.
-        """
-        account = self.realm.addAccount(
-            self.localpart, self.domain, self.password)
-        username = u'%s@%s' % (self.localpart, self.domain)
-        aid = self.successResultOf(
-            self._requestAvatarId(
-                UsernameHashedPassword(username, self.password)))
-        self.assertEquals(aid, account.storeID)
-        ws = self.flushWarnings()
-        self.assertEquals(ws[0]['category'], DeprecationWarning)
-
-
     def test_usernamepasswordInvalid(self):
         """
         L{LoginSystem.requestAvatarId} fails with L{UnauthorizedLogin} if
@@ -637,19 +620,19 @@ class RealmTestCase(unittest.TestCase):
         L{LoginAccount.setPassword} allows for logging in with the new password
         and not the old.
         """
+        self.realm._txCryptContext, perform = getTestContext()
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
         username = u'%s@%s' % (self.localpart, self.domain)
-        self.successResultOf(account.setPassword(u'blahblah'))
-        self.assertEquals(
-            self.successResultOf(
-                self._requestAvatarId(
-                    UsernamePassword(username, u'blahblah'))),
-            account.storeID)
-        self.failureResultOf(
-            self._requestAvatarId(
-                UsernamePassword(username, self.password)),
-            UnauthorizedLogin)
+        d = account.setPassword(u'blahblah')
+        perform()
+        self.successResultOf(d)
+        d = self._requestAvatarId(UsernamePassword(username, u'blahblah'))
+        perform()
+        self.assertEquals(self.successResultOf(d), account.storeID)
+        d = self._requestAvatarId(UsernamePassword(username, self.password))
+        perform()
+        self.failureResultOf(d, UnauthorizedLogin)
 
 
     def test_replacePasswordWrong(self):
@@ -657,11 +640,13 @@ class RealmTestCase(unittest.TestCase):
         L{LoginAccount.replacePassword} fails with L{BadCredentials} if an
         incorrect current password is supplied.
         """
+        self.realm._txCryptContext, perform = getTestContext()
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
-        self.failureResultOf(
-            account.replacePassword(u'blahblah', u'blah'),
-            errors.BadCredentials)
+        d = account.replacePassword(u'blahblah', u'blah')
+        perform()
+        perform()
+        self.failureResultOf(d, errors.BadCredentials)
 
 
     def test_replacePasswordCorrect(self):
@@ -669,20 +654,20 @@ class RealmTestCase(unittest.TestCase):
         L{LoginAccount.replacePassword} allows for logging in with the new
         password and not the old if the correct current password is supplied.
         """
+        self.realm._txCryptContext, perform = getTestContext()
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
         username = u'%s@%s' % (self.localpart, self.domain)
-        self.successResultOf(
-            account.replacePassword(self.password, u'blahblah'))
-        self.assertEquals(
-            self.successResultOf(
-                self._requestAvatarId(
-                    UsernamePassword(username, u'blahblah'))),
-            account.storeID)
-        self.failureResultOf(
-            self._requestAvatarId(
-                UsernamePassword(username, self.password)),
-            UnauthorizedLogin)
+        d = account.replacePassword(self.password, u'blahblah')
+        perform()
+        perform()
+        self.successResultOf(d)
+        d = self._requestAvatarId(UsernamePassword(username, u'blahblah'))
+        perform()
+        self.assertEquals(self.successResultOf(d), account.storeID)
+        d = self._requestAvatarId(UsernamePassword(username, self.password))
+        perform()
+        self.failureResultOf(d, UnauthorizedLogin)
 
 
 
@@ -711,18 +696,4 @@ class PreauthenticatedTests(unittest.TestCase):
             "Preauthenticated does not implement IUsernamePassword")
         self.assertTrue(
             creds.checkPassword('random string'),
-            "Preauthenticated did not accept an arbitrary password.")
-
-
-    def test_usernamehashedpassword(self):
-        """
-        L{Preauthenticated} implements L{IUsernameHashedPassword} and succeeds
-        all authentication checks.
-        """
-        creds = userbase.Preauthenticated(u'foo@bar')
-        self.assertTrue(
-            verifyObject(IUsernameHashedPassword, creds),
-            "Preauthenticated does not implement IUsernameHashedPassword")
-        self.assertTrue(
-            creds.checkPassword('arbitrary bytes'),
             "Preauthenticated did not accept an arbitrary password.")

@@ -36,7 +36,7 @@ from threading import Thread
 from zope.interface import implements, Interface
 
 from twisted.cred.portal import IRealm
-from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
+from twisted.cred.credentials import IUsernamePassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
 from twisted.python import log
 from twisted.internet.defer import succeed, fail
@@ -101,7 +101,7 @@ class Preauthenticated(object):
     Credentials interfaces methods are implemented to behave as if the correct
     credentials had been supplied.
     """
-    implements(IUsernamePassword, IUsernameHashedPassword)
+    implements(IUsernamePassword)
 
     def __init__(self, username):
         self.username = username
@@ -334,8 +334,12 @@ class LoginAccount(Item):
 
         @return: A deferred firing when the password has been changed.
         """
-        self.password = None if newPassword is None else unicode(newPassword)
-        return succeed(None)
+        realm = self.store.findUnique(LoginSystem)
+
+        def _hashed(hash):
+            self.passwordHash = hash.decode('ascii')
+
+        return realm._getCC().hash(newPassword).addCallback(_hashed)
 
 
     def replacePassword(self, currentPassword, newPassword):
@@ -348,10 +352,19 @@ class LoginAccount(Item):
         @return: A deferred firing when the password has been changed.
         @raise BadCredentials: If the current password did not match.
         """
-        if unicode(currentPassword) != self.password:
-            return fail(BadCredentials())
-        return self.setPassword(newPassword)
 
+        def _verified(correct):
+            if correct:
+                return self.setPassword(newPassword)
+            else:
+                return fail(BadCredentials())
+
+        realm = self.store.findUnique(LoginSystem)
+        return (
+            realm._getCC()
+                .verify(currentPassword, self.passwordHash)
+                .addCallback(_verified)
+        )
 
 
 def insertUserStore(siteStore, userStorePath):
@@ -659,16 +672,6 @@ class LoginBase:
             # Awful hack
             if isinstance(credentials, Preauthenticated):
                 return acct.storeID
-            elif IUsernameHashedPassword.providedBy(credentials):
-                warnings.warn(
-                    'Authenticating IUsernameHashedPassword credentials with '
-                    'axiom.userbase is deprecated; use IUsernamePassword '
-                    'instead', DeprecationWarning)
-                if credentials.checkPassword(acct.password):
-                    return acct.storeID
-                else:
-                    self.failedLogins += 1
-                    raise BadCredentials()
             else:
                 return (
                     self._getCC()
