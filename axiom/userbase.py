@@ -39,7 +39,7 @@ from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
 from twisted.python import log
-from twisted.internet.defer import succeed, fail
+from twisted.internet.defer import fail
 from twisted._threads import pool, createMemoryWorker
 
 from passlib.context import CryptContext
