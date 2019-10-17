@@ -6,7 +6,7 @@ from twisted.cred.credentials import UsernamePassword
 from axiom.test.test_userbase import IGarbage
 from axiom.test.historic import stubloader
 from axiom.errors import BadCredentials
-from axiom.userbase import getTestContext
+from axiom.userbase import getTestContext, LoginAccount
 
 SECRET = 'asdf'
 SECRET2 = 'ghjk'
@@ -34,3 +34,11 @@ class AccountUpgradeTest(stubloader.StubbedTest):
 
         # Have to let the substore upgrade complete
         return av.store.whenFullyUpgraded()
+
+
+    def test_password(self):
+        """
+        After the upgrade, the password attribute is cleared.
+        """
+        acct = self.store.findUnique(LoginAccount)
+        self.assertIdentical(acct.password, None)
