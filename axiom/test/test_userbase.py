@@ -633,6 +633,9 @@ class RealmTestCase(unittest.TestCase):
         d = self._requestAvatarId(UsernamePassword(username, self.password))
         perform()
         self.failureResultOf(d, UnauthorizedLogin)
+        d = self._requestAvatarId(UsernamePassword(username, account.passwordHash))
+        perform()
+        self.failureResultOf(d, UnauthorizedLogin)
 
 
     def test_replacePasswordWrong(self):
