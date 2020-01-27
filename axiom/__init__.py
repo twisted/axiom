@@ -3,6 +3,6 @@ from axiom._version import __version__
 from twisted.python import versions
 
 def asTwistedVersion(packageName, versionString):
-    return versions.Version(packageName, *map(int, versionString.split(".")))
+    return versions.Version(packageName, *map(int, versionString.split(".")[:3]))
 
 version = asTwistedVersion("axiom", __version__)
