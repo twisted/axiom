@@ -19,6 +19,9 @@ setup(
     scripts=['bin/axiomatic'],
     include_package_data=True,
 
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
+
     license="MIT",
     platforms=["any"],
 
@@ -29,7 +32,6 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python",
         "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 2 :: Only",
         "Topic :: Database"])
