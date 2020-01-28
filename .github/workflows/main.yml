@@ -14,9 +14,13 @@ jobs:
     strategy:
       matrix:
         python: [2.7, pypy2]
-        twisted: [twtrunk, twlatest, tw150]
+        twisted: [twtrunk, twlatest, twlowest]
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: Fetch tags
+        run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Setup Python
         uses: actions/setup-python@v1
         with:
@@ -29,3 +33,4 @@ jobs:
         uses: codecov/codecov-action@v1.0.5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          name: gh-${{ matrix.python }}-${{ matrix.twisted }}
