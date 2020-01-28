@@ -8,6 +8,8 @@ setup(
     maintainer="Divmod, Inc.",
     maintainer_email="support@divmod.org",
 
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     install_requires=[
         "Twisted>=13.2.0",
         "Epsilon>=0.7.0"
