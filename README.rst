@@ -1,5 +1,5 @@
-.. image:: https://travis-ci.org/twisted/axiom.svg?branch=master
-  :target: https://travis-ci.org/twisted/axiom
+.. image:: https://github.com/twisted/axiom/workflows/Python%20package/badge.svg?branch=master&event=push
+  :target: https://github.com/twisted/axiom/actions?query=event%3Apush+branch%3Amaster+workflow%3A%22Python+package%22
 
 .. image:: https://codecov.io/github/twisted/axiom/coverage.svg?branch=master
   :target: https://codecov.io/github/twisted/axiom?branch=master
