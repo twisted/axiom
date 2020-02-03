@@ -1,3 +1,127 @@
+0.8.0 (2020-01-28):
+ Major:
+
+ - (#87) Axiom now creates tables with an explicit `INTEGER PRIMARY KEY`
+   column, which means that `VACUUM` will no longer corrupt the database.
+   `axiomatic upgrade` will migrate the existing tables in a store; as every
+   table must be copied, this may take a while on large stores.
+ - (#91) `axiom.userbase.LoginAccount` now has `setPassword` and
+   `replacePassword` methods. In a future version plaintext passwords will no
+   longer be stored at all, so applications must be migrated away from direct
+   `LoginAccount.password` use.
+ - (#89) `axiom.store.Store` takes a new parameter `journalMode`, and
+   `axiomatic` a corresponding `--journal-mode` argument. The SQLite journal
+   mode will be set to this value when the store is opened, and substores will
+   inherit the setting. The current default is `None` which sets no mode at
+   all, but this will change to `u'WAL'` in a future version.
+
+
+ Minor:
+
+ - (#69) The exception raised when a store's persisted schema does not match the
+   in-memory schema now shows the differences.
+ - (#68) ORDER BY is now suppressed for deleteFromStore with no LIMIT.
+ - (#88) There is a new @empowerment decorator for bestowing
+   `powerupInterfaces` on an `Item`.
+
+0.7.5 (2015-02-04):
+ Major:
+
+ - Python 2.6 is now unsupported, due to Twisted dropping 2.6 support.
+ - Fix an issue where the value of a reference pointing at a legacy item (ie.
+   created in an upgrader) could be lost once the upgrade completed in some
+   circumstances.
+ - All `attributes.bytes` comparisons based on the `LIKE` SQL operator (`like`,
+   `notLike`, `startswith`, and `endswith`) are deprecated. If SQLite was
+   compiled with the `SQLITE_LIKE_DOESNT_MATCH_BLOBS` option (such as the
+   Debian package does from version 3.10.0-1), these comparisons are always
+   false; and even when this option is not active, the behaviour of the `LIKE`
+   operator with `BLOB` values is unexpected (the operands are cast to `TEXT`
+   before the comparison is done).
+
+ Minor:
+
+ - `axiomatic start` needs to handle some `twistd` arguments specially;
+   fix an issue where arguments in the `--arg=value` form were not detected
+   correctly (the `-a value` and `--arg value` forms were always detected
+   correctly, so you can use these with older versions, if necessary).
+
+0.7.4 (2015-08-12):
+ Major:
+
+ - Fix an issue preventing compatibility with Twisted 15.3.0.
+
+0.7.3 (2015-02-08):
+ Major:
+
+ - Fix another major issue involving a bad interaction between legacy items
+   (mainly in upgraders), and object lifetimes. This is another very important
+   fix for PyPy users.
+
+
+0.7.2 (2015-01-08):
+  Major:
+
+  - Fix a major issue involving a bad interaction between weakref semantics and
+    the item cache. This is a very important fix for PyPy users.
+
+
+0.7.1 (2014-03-22):
+  Major:
+
+  - Fix some packaging issues that led to some important files being missing
+    from the 0.7.0 release.
+
+  Minor:
+
+  - Uses of the deprecated unsignedID and isWinNT Twisted APIs have been
+    removed.
+
+
+0.7.0 (2014-01-11):
+  Major:
+
+  - Only Python 2.6 and 2.7 are supported now. 2.4, 2.5 is deprecated.
+  - setup.py now uses setuptools, and stores its dependencies. This
+    means you no longer need to manually install dependencies.
+  - setup.py no longer requires Epsilon for egg_info, making it easier
+    to install Axiom using pip.
+  - Significant improvements to PyPy support. PyPy is now a supported
+    platform, with CI support.
+  - Axiom now uses the stdlib sqlite3 if pysqlite2 is not available.
+    Since all supported versions have this, installing pysqlite2 is
+    now no longer necessary, and is only an (optional) performance
+    improvement on CPython. This is a huge improvement for PyPy, where
+    the stdlib version is reportedly much faster.
+
+  Minor:
+
+  - Passing a string to SubStore.createNew now raises an exception
+    instead of silently almost certainly doing the wrong thing.
+  - Setting an integer value that is too negative will now raise an
+    exception.
+  - __conform__ (interface adaptation) now also works for items that
+    are not in a store.
+  - Starting the store service now automatically activates the
+    scheduler service as well.
+  - Batch processing can now be triggered by adding remote work.
+  - Startup performance for stores with many legacy type declarations
+    is improved.
+  - Several benchmarks were added.
+  - Many internal cleanups.
+
+0.6.0 (2009-11-25):
+  - Speed up creation, insertion, and various other operations on Item by
+    optimizing Item.getSchema.
+  - Improve error reporting from the batch upgrade system.
+  - Speed up setting attributes on Item instances.
+  - Remove the batch process manhole service.
+  - Improve the reliability of some unit tests.
+  - Fix `axiomatic --reactor ...`.
+  - Remove invalid SQL normalization code which would occassionally corrupt
+    certain obscure but valid SQL statements.
+  - Add an in-memory `IScheduler` powerup for stores and substores.
+
 0.5.31 (2008-12-09):
   - An IStatEvent is now logged when a store is opened.
   - Different schema versions of the same item type now no longer
@@ -79,11 +203,11 @@
     a query's result-gathering work into multiple "pages" so that we can deal
     with extremely large result sets.
   - A dependency management system for Items has been added in
-    axiom.dependency. InstallableMixin has been removed; 
+    axiom.dependency. InstallableMixin has been removed;
     axiom.dependency.installOn is now used to install Items and connect powerups.
     Items can declare their dependence on another item by declaring attributes
     with axiom.dependency.dependsOn. When items are installed, their dependencies
-    will be created and installed as well. Installation is no longer tracked by 
+    will be created and installed as well. Installation is no longer tracked by
     'installedOn' attributes but by _DependencyConnector items.
   - A bug preventing 'axiomatic userbase list' from working on a fresh
     mantissa database has been fixed.
@@ -171,7 +295,7 @@
 0.5.1 (2006-06-16):
   - axiom.slotmachine._structlike removed in favor of the implementation in
     Epsilon, epsilon.structlike.record.
-  - The batch process has been adjusted to do more work per iteration. 
+  - The batch process has been adjusted to do more work per iteration.
 
 0.5.0 (2006-06-12):
   Highlights:

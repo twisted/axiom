@@ -1,0 +1,47 @@
+#!/usr/bin/python
+
+# Benchmark of Axiom Item integer attribute modification.  Accepts no
+# parameters. Reports one statistic, the number of seconds it takes to
+# change the value of an attribute.
+
+
+import sys, time
+
+from axiom.store import Store
+from axiom.attributes import integer
+
+import benchlib
+
+
+def benchmark():
+    numAttributes = 5
+    SomeItem = benchlib.itemTypeWithSomeAttributes([integer] * 5)
+
+    counter = range(10000)
+    store = Store()
+    items = []
+    for i in counter:
+        items.append(SomeItem(store=store))
+
+    before = time.time()
+    def _():
+        for i in items:
+            i.attr_0 = 1
+            i.attr_1 = 2
+            i.attr_2 = 3
+            i.attr_3 = 4
+            i.attr_4 = 5
+    store.transact(_)
+    after = time.time()
+
+    return (after - before) / (len(counter) * numAttributes)
+
+
+def main(argv):
+    if len(argv) != 1:
+        raise SystemExit("Usage: %s <number of attributes>")
+    print benchmark()
+
+
+if __name__ == '__main__':
+    main(sys.argv)

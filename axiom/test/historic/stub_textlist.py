@@ -1,4 +1,4 @@
-# -*- test-case-name: axiom.test.historic.test_catalog1to2 -*-
+# -*- test-case-name: axiom.test.historic.test_textlist -*-
 
 
 from axiom.item import Item

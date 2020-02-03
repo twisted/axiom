@@ -38,6 +38,7 @@ from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
 from twisted.cred.checkers import ICredentialsChecker, ANONYMOUS
 from twisted.python import log
+from twisted.internet.defer import succeed, fail
 
 from axiom.store import Store
 from axiom.item import Item
@@ -165,7 +166,9 @@ class LoginAccount(Item):
     typeName = 'login'
     schemaVersion = 2
 
+    # DEPRECATED: Do not use directly; see setPassword etc.
     password = text()
+
     avatars = reference()       # reference to a thing which can be adapted to
                                 # implementations for application-level
                                 # protocols.  In general this is a reference to
@@ -182,6 +185,7 @@ class LoginAccount(Item):
         ifa = interface(self.avatars, None)
         return ifa
 
+
     def migrateDown(self):
         """
         Assuming that self.avatars is a SubStore which should contain *only*
@@ -196,10 +200,9 @@ class LoginAccount(Item):
             for x in list(oldAccounts) + list(oldMethods):
                 x.deleteFromStore()
             self.cloneInto(ss, ss)
-            sched = IScheduler(ss, None)
-            if sched is not None:
-                sched.migrateDown()
+            IScheduler(ss).migrateDown()
         ss.transact(_)
+
 
     def migrateUp(self):
         """
@@ -214,10 +217,9 @@ class LoginAccount(Item):
             # you're making a mistake. -glyph
             siteStoreSubRef = siteStore.getItemByID(self.store.idInParent)
             self.cloneInto(siteStore, siteStoreSubRef)
-            sched = IScheduler(self.store, None)
-            if sched is not None:
-                sched.migrateUp()
+            IScheduler(self.store).migrateUp()
         siteStore.transact(_)
+
 
     def cloneInto(self, newStore, avatars):
         """
@@ -239,6 +241,7 @@ class LoginAccount(Item):
                         verified=siteMethod.verified,
                         account=la)
         return la
+
 
     def deleteLoginMethods(self):
         self.store.query(LoginMethod, LoginMethod.account == self).deleteFromStore()
@@ -270,6 +273,33 @@ class LoginAccount(Item):
                                protocol=protocol,
                                verified=verified,
                                internal=internal)
+
+
+    def setPassword(self, newPassword):
+        """
+        Set this account's password unconditionally.
+
+        @param newPassword: The new password.
+
+        @return: A deferred firing when the password has been changed.
+        """
+        self.password = None if newPassword is None else unicode(newPassword)
+        return succeed(None)
+
+
+    def replacePassword(self, currentPassword, newPassword):
+        """
+        Set this account's password if the current password matches.
+
+        @param currentPassword: The password to match against the current one.
+        @param newPassword: The new password.
+
+        @return: A deferred firing when the password has been changed.
+        @raise BadCredentials: If the current password did not match.
+        """
+        if unicode(currentPassword) != self.password:
+            return fail(BadCredentials())
+        return self.setPassword(newPassword)
 
 
 
@@ -401,7 +431,6 @@ def upgradeLoginAccount1To2(oldAccount):
                           disabled=newAccount.disabled)
     make(ss, subacc)
 
-from axiom import upgrade
 upgrade.registerUpgrader(upgradeLoginAccount1To2, 'login', 1, 2)
 
 
@@ -431,6 +460,7 @@ class LoginBase:
                                          LoginAccount.disabled == 0,
                                          LoginMethod.account == LoginAccount.storeID)):
             return account
+
 
     def addAccount(self, username, domain, password, avatars=None,
                    protocol=u'email', disabled=0, internal=False,
@@ -502,8 +532,10 @@ class LoginBase:
         subStore.transact(createSubStoreAccountObjects)
         return la
 
+
     def logoutFactory(self, obj):
         return getattr(obj, 'logout', lambda: None)
+
 
     def requestAvatar(self, avatarId, mind, *interfaces):
         if avatarId is ANONYMOUS:
@@ -531,15 +563,29 @@ class LoginBase:
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:
-            password = acct.password
-            if credentials.checkPassword(password):
+            # Awful hack
+            if isinstance(credentials, Preauthenticated):
                 return acct.storeID
+            elif IUsernameHashedPassword.providedBy(credentials):
+                warnings.warn(
+                    'Authenticating IUsernameHashedPassword credentials with '
+                    'axiom.userbase is deprecated; use IUsernamePassword '
+                    'instead', DeprecationWarning)
+                if credentials.checkPassword(acct.password):
+                    return acct.storeID
+                else:
+                    self.failedLogins += 1
+                    raise BadCredentials()
             else:
-                self.failedLogins += 1
-                raise BadCredentials()
+                if unicode(credentials.password) == acct.password:
+                    return succeed(acct.storeID)
+                else:
+                    self.failedLogins += 1
+                    return fail(BadCredentials())
 
         self.failedLogins += 1
         raise NoSuchUser(credentials.username)
+
 
 
 class LoginSystem(Item, LoginBase, SubStoreLoginMixin):
@@ -561,6 +607,7 @@ def getLoginMethods(store, protocol=None):
     else:
         comp = None
     return store.query(LoginMethod, comp)
+
 
 def getAccountNames(store, protocol=None):
     """
@@ -587,5 +634,3 @@ def getDomainNames(store):
             AND(LoginMethod.internal == True,
                 LoginMethod.domain != None)).getColumn("domain").distinct())
     return sorted(domains)
-
-

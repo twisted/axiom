@@ -12,7 +12,7 @@ from epsilon import extime
 from axiom import attributes, item, store, errors
 from axiom.iaxiom import IStatEvent
 
-from pysqlite2.dbapi2 import sqlite_version_info
+from axiom._pysqlite2 import sqlite_version_info
 
 
 class RevertException(Exception):
@@ -67,19 +67,6 @@ class StoreTests(unittest.TestCase):
         """
         self.assertRaises(ValueError, store.Store,
                           filepath.FilePath(self.mktemp()), filesdir=filepath.FilePath(self.mktemp()))
-
-
-    def testTableQueryCaching(self):
-        """
-        Ensure that the identity of the string returned by the
-        mostly-private getTableQuery method is the same when it is invoked
-        for the same type and version, rather than a newly constructed
-        string.
-        """
-        s = store.Store()
-        self.assertIdentical(
-            s.getTableQuery(TestItem.typeName, 1),
-            s.getTableQuery(TestItem.typeName, 1))
 
 
     def testTypeToDatabaseNames(self):
@@ -174,67 +161,56 @@ class StoreTests(unittest.TestCase):
         """
         s = store.Store()
 
-        schema = [
-            (name, attr.sqltype, attr.indexed, attr, attr.doc)
-            for (name, attr) in TestItem.getSchema()]
+        schema = sorted(
+            [(name, attr.sqltype, attr.indexed, attr, attr.doc)
+             for (name, attr) in TestItem.getSchema()],
+            key=lambda a: a[0])
 
         # Test a missing attribute
-        self.assertRaises(
+        e1 = self.assertRaises(
             RuntimeError,
             s._checkTypeSchemaConsistency,
             TestItem,
             {(TestItem.typeName, TestItem.schemaVersion): schema[:-1]})
+        self.assertEqual(
+            e1[0],
+            "Schema mismatch on already-loaded "
+            "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
+            "version 1:\n"
+            "Only in memory:\n"
+            "('other', 'INTEGER')")
 
         # And an extra attribute
-        self.assertRaises(
+        e2 = self.assertRaises(
             RuntimeError,
             s._checkTypeSchemaConsistency,
             TestItem,
             {(TestItem.typeName, TestItem.schemaVersion):
-                 schema + [schema[0]]})
+             schema + [('extra', 'INTEGER')]})
+        self.assertEqual(
+            e2[0],
+            "Schema mismatch on already-loaded "
+            "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
+            "version 1:\n"
+            "Only on disk:\n"
+            "('extra', 'INTEGER')")
 
         # And the wrong type for one of the attributes
-        self.assertRaises(
+        e3 = self.assertRaises(
             RuntimeError,
             s._checkTypeSchemaConsistency,
             TestItem,
             {(TestItem.typeName, TestItem.schemaVersion):
-                 [(schema[0], 'VARCHAR(64) (this is made up)',
-                   schema[2], schema[3], schema[4])] + schema[1:]})
-
-
-    def test_inMemorySchemaCacheReset(self):
-        """
-        The global in-memory table schema cache should not change the behavior
-        of consistency checking with respect to the redefinition of in-memory
-        schemas.
-
-        This test is verifying the behavior which is granted by the use of a
-        WeakKeyDictionary for _inMemorySchemaCache.  If that cache kept strong
-        references to item types or used a (typeName, schemaVersion) key,
-        either the second C{SoonToChange} class definition in this method would
-        fail or the schema defined by the first C{SoonToChange} class would be
-        used, even after it should have been replaced by the second definition.
-        """
-        class SoonToChange(item.Item):
-            attribute = attributes.integer()
-
-        dbpath = self.mktemp()
-        s = store.Store(dbpath)
-        SoonToChange(store=s)
-        s.close()
-
-        # This causes a Store._checkTypeSchemaConsistency to cache
-        # SoonToChange.
-        s = store.Store(dbpath)
-        s.close()
-
-        del SoonToChange, s
-
-        class SoonToChange(item.Item):
-            attribute = attributes.boolean()
-
-        self.assertRaises(RuntimeError, store.Store, dbpath)
+             [(schema[0][0], 'VARCHAR(64) (this is made up)')] + schema[1:]})
+        self.assertEqual(
+            e3[0],
+            "Schema mismatch on already-loaded "
+            "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
+            "version 1:\n"
+            "Only on disk:\n"
+            "('bar', 'VARCHAR(64) (this is made up)')\n"
+            "Only in memory:\n"
+            "('bar', 'TEXT COLLATE NOCASE')")
 
 
     def test_checkOutdatedTypeSchema(self):
@@ -270,11 +246,10 @@ class StoreTests(unittest.TestCase):
         SoonToChange(store=s)
         s.close()
 
-        # Get rid of both the type and the store so that we can define a new
-        # incompatible version.  It might be nice if closed stores didn't keep
-        # references to types, but whatever.  This kind of behavior isn't
-        # really supported, only the unit tests need to do it for now.
-        del SoonToChange, s
+        # Get rid of the cached information about this type
+        from axiom.item import _typeNameToMostRecentClass
+        del _typeNameToMostRecentClass[SoonToChange.typeName]
+        del SoonToChange
 
         class SoonToChange(item.Item):
             attribute = attributes.boolean()
@@ -351,48 +326,6 @@ class StoreTests(unittest.TestCase):
                  secondary._indexNameOf(TestItem, ['other']),
                  secondary._indexNameOf(TestItem, ['myStore']),
                  secondary._indexNameOf(TestItem, ['bar', 'baz'])]))
-
-
-    def test_inMemoryIndexCacheReset(self):
-        """
-        The global in-memory index schema cache should not change the behavior
-        of index creation with respect to the redefinition of in-memory
-        schemas.
-
-        This test is verifying the behavior which is granted by the use of a
-        WeakKeyDictionary for _requiredTableIndexes.  If that cache kept strong
-        references to item types or used a (typeName, schemaVersion) key,
-        either the second C{SoonToChange} class definition in this method would
-        fail or the indexes on the schema defined by the first C{SoonToChange}
-        class would be used, even after it should have been replaced by the
-        second definition.
-        """
-        class SoonToChange(item.Item):
-            attribute = attributes.integer()
-
-        dbpath = self.mktemp()
-        s = store.Store(dbpath)
-
-        before = s._loadExistingIndexes()
-        SoonToChange(store=s)
-        after = s._loadExistingIndexes()
-
-        # Sanity check - this version of SoonToChange has no indexes.
-        self.assertEqual(before, after)
-
-        s.close()
-        del SoonToChange, s
-
-        class SoonToChange(item.Item):
-            attribute = attributes.boolean(indexed=True)
-
-        s = store.Store()
-        before = s._loadExistingIndexes()
-        SoonToChange(store=s)
-        after = s._loadExistingIndexes()
-        self.assertEqual(
-            after - before,
-            set([s._indexNameOf(SoonToChange, ['attribute'])]))
 
 
     def test_loadPythonModuleHint(self):
@@ -472,6 +405,44 @@ s.close()
             self.assertEqual(
                 s.query(Unloaded,
                         Unloaded.value == magicOffset + counter).count(), 1)
+
+    def test_closing(self):
+        """
+        Closing a store explicitly closes the cursor and connection that were
+        used by the store.
+        """
+        s = store.Store()
+        connection = s.connection
+        cursor = s.cursor
+        self.assertFalse(connection.closed, 'Connection should be open')
+        self.assertFalse(cursor.closed, 'Cursor should be open')
+        s.close()
+        self.assertTrue(connection.closed, 'Connection should be closed')
+        self.assertTrue(cursor.closed, 'Cursor should be closed')
+
+
+    def test_journalMode(self):
+        """
+        Passing a journalling mode sets that mode on open.
+        """
+        dbdir = filepath.FilePath(self.mktemp())
+        s = store.Store(dbdir, journalMode=u'MEMORY')
+        self.assertEquals(
+            s.querySchemaSQL('PRAGMA *DATABASE*.journal_mode'),
+            [(u'memory',)])
+
+
+    def test_journalModeNone(self):
+        """
+        Passing a journalling mode of C{None} sets no mode.
+        """
+        dbdir = filepath.FilePath(self.mktemp())
+        s = store.Store(dbdir, journalMode=u'WAL')
+        s.close()
+        s = store.Store(dbdir, journalMode=None)
+        self.assertEquals(
+            s.querySchemaSQL('PRAGMA *DATABASE*.journal_mode'),
+            [(u'wal',)])
 
 
 
@@ -624,7 +595,7 @@ class ItemTests(unittest.TestCase):
 
         try:
             self.store.transact(brokenFunction)
-        except RevertException, exc:
+        except RevertException as exc:
             [storeID] = exc.args
 
             self.assertRaises(KeyError, self.store.getItemByID, storeID)
@@ -633,6 +604,32 @@ class ItemTests(unittest.TestCase):
             self.assertEquals(item1.baz.asISO8601TimeAndDate(), '2004-10-05T10:12:14.1234+00:00')
         else:
             self.fail("Transaction should have raised an exception")
+
+
+    def test_deleteAndVacuum(self):
+        """
+        VACUUMing the store after deleting an item does not corrupt it.
+        """
+        sid = []
+
+        @self.store.transact
+        def txn1():
+            sid.append(
+                AttributefulItem(store=self.store, withDefault=0).storeID)
+            i = AttributefulItem(store=self.store, withDefault=1)
+            sid.append(i.storeID)
+            sid.append(
+                AttributefulItem(store=self.store, withDefault=2).storeID)
+            i.deleteFromStore()
+
+        self.store.executeSQL('VACUUM')
+
+        @self.store.transact
+        def txn2():
+            self.assertEqual(self.store.getItemByID(sid[0]).withDefault, 0)
+            self.assertRaises(
+                errors.ItemNotFound, self.store.getItemByID, sid[1])
+            self.assertEqual(self.store.getItemByID(sid[2]).withDefault, 2)
 
 
 
@@ -955,6 +952,42 @@ class MassInsertDeleteTests(unittest.TestCase):
         DeleteFromStoreTrackingItem(store=self.store)
         self.store.query(DeleteFromStoreTrackingItem).deleteFromStore()
         self.assertEqual(DeleteFromStoreTrackingItem.deletedTimes, 1)
+
+
+    def test_batchDeleteOrder(self):
+        """
+        C{deleteFromStore} on a query with an order specified disregards the
+        order.
+        """
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+        self.store.query(
+            AttributefulItem,
+            sort=AttributefulItem.withoutDefault.asc).deleteFromStore()
+        self.assertEqual(list(self.store.query(AttributefulItem)), [])
+
+
+    def test_batchDeleteOrderLimit(self):
+        """
+        C{deleteFromStore} on a query with an order and limit specified does
+        not disregard the order.
+        """
+        options = self.store.querySQL('PRAGMA compile_options;')
+        if (u'ENABLE_UPDATE_DELETE_LIMIT',) not in options:
+            raise unittest.SkipTest(
+                'SQLite compiled without SQLITE_ENABLE_UPDATE_DELETE_LIMIT')
+
+        for i in xrange(10):
+            AttributefulItem(store=self.store, withoutDefault=i)
+        self.store.query(
+            AttributefulItem,
+            sort=AttributefulItem.withoutDefault.desc,
+            limit=5).deleteFromStore()
+        items = list(self.store.query(
+            AttributefulItem, sort=AttributefulItem.withoutDefault.asc))
+        self.assertEqual(len(items), 5)
+        self.assertEqual(items[-1].withoutDefault, 4)
+
 
 
 # Item types we will use to change the underlying database schema (by creating

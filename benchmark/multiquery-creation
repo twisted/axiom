@@ -9,6 +9,7 @@
 import sys, time
 
 from axiom.store import Store
+from axiom.attributes import integer
 
 import benchlib
 
@@ -16,7 +17,7 @@ import benchlib
 def benchmark(numItemTypes, numAttributes):
     store = Store()
     itemTypes = tuple([
-        benchlib.itemTypeWithSomeAttributes(numAttributes)
+        benchlib.itemTypeWithSomeAttributes([integer] * numAttributes)
         for i in range(numItemTypes)])
 
     counter = range(10000)

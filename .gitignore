@@ -1,0 +1,11 @@
+*.pyc
+*.cache
+_trial_temp/
+apidocs/
+.tox/
+*~
+*.egg-info/
+.coverage
+.hypothesis/
+/axiom/_version.py
+/coverage.xml

@@ -3,16 +3,16 @@
 __metaclass__ = type
 
 import gc
-from zope.interface import implements, Interface
+from zope.interface import implements, implementer, Interface
 
 from inspect import getabsfile
 from weakref import WeakValueDictionary
 
 from twisted.python import log
 from twisted.python.reflect import qual, namedAny
-from twisted.python.util import unsignedID
 from twisted.python.util import mergeFunctionMetadata
-from twisted.application.service import IService, IServiceCollection, MultiService
+from twisted.application.service import (
+    IService, IServiceCollection, MultiService)
 
 from axiom import slotmachine, _schema, iaxiom
 from axiom.errors import ChangeRejected, DeletionDisallowed
@@ -62,7 +62,7 @@ class MetaItem(slotmachine.SchemaMetaMachine):
             T.typeName = normalize(qual(T))
         if T.schemaVersion is None:
             T.schemaVersion = 1
-        if T.typeName in _typeNameToMostRecentClass:
+        if not T.__legacy__ and T.typeName in _typeNameToMostRecentClass:
             # Let's try not to gc.collect() every time.
             gc.collect()
         if T.typeName in _typeNameToMostRecentClass:
@@ -193,7 +193,6 @@ class Empowered(object):
         return value is the powerup.  These are used only by the callable
         interface adaption API, not C{powerupsFor}.
     """
-
     aggregateInterfaces = {
         IService: serviceSpecialCase,
         IServiceCollection: serviceSpecialCase}
@@ -314,19 +313,18 @@ class Empowered(object):
         special rules.  The full list of such interfaces is present in the
         'aggregateInterfaces' class attribute.
         """
-        if (self.store is None  # Don't bother doing a *query* if we're not
-                                # even stored in a store yet
-            or interface is IPowerupIndirector): # you can't do a query for
-                                                 # IPowerupIndirector, that
-                                                 # would just start an infinite
-                                                 # loop.
+        if interface is IPowerupIndirector:
+            # This would cause an infinite loop, since powerupsFor will try to
+            # adapt every powerup to IPowerupIndirector, calling this method.
             return
+
         pups = self.powerupsFor(interface)
-        agg = self.aggregateInterfaces
-        if interface in agg:
-            return agg[interface](self, pups)
-        for p in pups:
-            return p
+        aggregator = self.aggregateInterfaces.get(interface, None)
+        if aggregator is not None:
+            return aggregator(self, pups)
+
+        for pup in pups:
+            return pup  # return first one, or None if no powerups
 
 
     def powerupsFor(self, interface):
@@ -341,6 +339,8 @@ class Empowered(object):
         inMemoryPowerup = self._inMemoryPowerups.get(interface, None)
         if inMemoryPowerup is not None:
             yield inMemoryPowerup
+        if self.store is None:
+            return
         name = unicode(qual(interface), 'ascii')
         for cable in self.store.query(
             _PowerupConnector,
@@ -397,6 +397,7 @@ class Empowered(object):
                 raise ValueError("return value from %r.__getPowerupInterfaces__"
                                  " not an iterable of 2-tuples" % (self,))
         return pifs
+
 
 
 def transacted(func):
@@ -561,23 +562,16 @@ class Item(Empowered, slotmachine._Strict):
 
     store = property(*store())
 
+
     def __repr__(self):
         """
         Return a nice string representation of the Item which contains some
         information about each of its attributes.
         """
-
-        L = [self.__name__]
-        L.append('(')
-        A = []
-        for nam, atr in sorted(self.getSchema()):
-            V = atr.reprFor(self)
-            A.append('%s=%s' % (nam, V))
-        A.append('storeID=' + str(self.storeID))
-        L.append(', '.join(A))
-        L.append(')')
-        L.append('@0x%X' % unsignedID(self))
-        return ''.join(L)
+        attrs = ", ".join("{n}={v}".format(n=name, v=attr.reprFor(self))
+                          for name, attr in sorted(self.getSchema()))
+        template = b"{s.__name__}({attrs}, storeID={s.storeID})@{id:#x}"
+        return template.format(s=self, attrs=attrs, id=id(self))
 
 
     def __subinit__(self, **kw):
@@ -743,7 +737,7 @@ class Item(Empowered, slotmachine._Strict):
             self.deleted()
             if not self.__legacy__:
                 self.store.objectCache.uncache(self.storeID, self)
-            self.__store = None
+                self.__store = None
         self.__justCreated = False
 
 
@@ -885,12 +879,16 @@ class Item(Empowered, slotmachine._Strict):
 
     def _baseSelectSQL(cls, st):
         if cls not in st.typeToSelectSQLCache:
-            st.typeToSelectSQLCache[cls] = ' '.join(['SELECT * FROM',
-                                                     st.getTableName(cls),
-                                                     'WHERE',
-                                                     st.getShortColumnName(cls.storeID),
-                                                     '= ?'
-                                                     ])
+            attrs = list(cls.getSchema())
+            st.typeToSelectSQLCache[cls] = ' '.join(
+                ['SELECT',
+                 ', '.join(
+                     [st.getShortColumnName(a[1]) for a in attrs]),
+                 'FROM',
+                 st.getTableName(cls),
+                 'WHERE',
+                 st.getShortColumnName(cls.storeID),
+                 '= ?'])
         return st.typeToSelectSQLCache[cls]
 
     _baseSelectSQL = classmethod(_baseSelectSQL)
@@ -1144,3 +1142,24 @@ class _PowerupConnector(Item):
 POWERUP_BEFORE = 1              # Priority for 'high' priority powerups.
 POWERUP_AFTER = -1              # Priority for 'low' priority powerups.
 
+
+
+def empowerment(iface, priority=0):
+    """
+    Class decorator for indicating a powerup's powerup interfaces.
+
+    The class will also be declared as implementing the interface.
+
+    @type iface: L{zope.interface.Interface}
+    @param iface: The powerup interface.
+
+    @type priority: int
+    @param priority: The priority the powerup will be installed at.
+    """
+    def _deco(cls):
+        cls.powerupInterfaces = (
+            tuple(getattr(cls, 'powerupInterfaces', ())) +
+            ((iface, priority),))
+        implementer(iface)(cls)
+        return cls
+    return _deco

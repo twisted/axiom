@@ -1,5 +1,5 @@
 # -*- test-case-name: axiomatic.test.test_axiomatic -*-
-from zope.interface import directlyProvides
+from zope.interface import alsoProvides, noLongerProvides
 
 import os
 import sys
@@ -7,12 +7,12 @@ import glob
 import errno
 import signal
 
-from twisted import plugin
+from twisted.plugin import IPlugin, getPlugins
 from twisted.python import usage
 from twisted.python.runtime import platform
 from twisted.scripts import twistd
 
-from axiom import iaxiom
+from axiom.iaxiom import IAxiomaticCommand
 
 class AxiomaticSubCommandMixin(object):
     store = property(lambda self: self.parent.getStore())
@@ -23,25 +23,46 @@ class AxiomaticSubCommandMixin(object):
         codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
         return unicode(cmdline, codec)
 
-class _metaASC(type):
+
+
+class _AxiomaticCommandMeta(type):
+    """
+    Metaclass for L{AxiomaticCommand}.
+
+    This serves to make subclasses provide L{IPlugin} and L{IAxiomaticCommand}.
+    """
     def __new__(cls, name, bases, attrs):
         newcls = type.__new__(cls, name, bases, attrs)
-        if not (newcls.__name__ == 'AxiomaticCommand' and newcls.__module__ == _metaASC.__module__):
-            directlyProvides(newcls, plugin.IPlugin, iaxiom.IAxiomaticCommand)
+        alsoProvides(newcls, IPlugin, IAxiomaticCommand)
         return newcls
 
+
+
 class AxiomaticSubCommand(usage.Options, AxiomaticSubCommandMixin):
-    pass
+    """
+    L{twisted.python.usage.Options} subclass for Axiomatic sub commands.
+    """
+
+
 
 class AxiomaticCommand(usage.Options, AxiomaticSubCommandMixin):
-    __metaclass__ = _metaASC
+    """
+    L{twisted.python.usage.Options} subclass for Axiomatic plugin commands.
+
+    Subclass this to have your class automatically provide the necessary
+    interfaces to be picked up by axiomatic.
+    """
+    __metaclass__ = _AxiomaticCommandMeta
+
+noLongerProvides(AxiomaticCommand, IPlugin)
+noLongerProvides(AxiomaticCommand, IAxiomaticCommand)
 
 
 
 class PIDMixin:
 
     def _sendSignal(self, signal):
-        if platform.isWinNT():
+        if platform.isWindows():
             raise usage.UsageError("You can't send signals on Windows (XXX TODO)")
         dbdir = self.parent.getStoreDirectory()
         serverpid = int(file(os.path.join(dbdir, 'run', 'axiomatic.pid')).read())
@@ -51,7 +72,7 @@ class PIDMixin:
     def signalServer(self, signal):
         try:
             return self._sendSignal(signal)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             if e.errno in (errno.ENOENT, errno.ESRCH):
                 raise usage.UsageError('There is no server running from the Axiom database %r.' % (self.parent.getStoreDirectory(),))
             else:
@@ -83,13 +104,27 @@ class Start(twistd.ServerOptions):
     def getArguments(self, store, args):
         run = store.dbdir.child("run")
         logs = run.child("logs")
-        if "--logfile" not in args and "-l" not in args and "--nodaemon" not in args and "-n" not in args:
+        handleLogfile = True
+        handlePidfile = True
+
+        for arg in args:
+            if arg.startswith("--logfile=") or arg in (
+                "-l", "--logfile", "-n", "--nodaemon"
+            ):
+                handleLogfile = False
+            elif arg.startswith("--pidfile=") or arg == "--pidfile":
+                handlePidfile = False
+
+        if handleLogfile:
             if not logs.exists():
                 logs.makedirs()
             args.extend(["--logfile", logs.child("axiomatic.log").path])
-        if "--pidfile" not in args:
+
+        if not platform.isWindows() and handlePidfile:
             args.extend(["--pidfile", run.child("axiomatic.pid").path])
         args.extend(["axiomatic-start", "--dbdir", store.dbdir.path])
+        if store.journalMode is not None:
+            args.extend(['--journal-mode', store.journalMode.encode('ascii')])
         return args
 
 
@@ -97,6 +132,20 @@ class Start(twistd.ServerOptions):
         if "--help" in args:
             self.opt_help()
         else:
+            # If a reactor is being selected, it must be done before the store
+            # is opened, since that may execute arbitrary application code
+            # which may in turn install the default reactor.
+            for index, arg in enumerate(args):
+                if arg in ("--reactor", "-r"):
+                    shortName = args[index + 1]
+                    del args[index:index + 2]
+                    self.opt_reactor(shortName)
+                    break
+                elif arg.startswith("--reactor="):
+                    shortName = arg.split("=")[1]
+                    del args[index]
+                    self.opt_reactor(shortName)
+                    break
             sys.argv[1:] = self.getArguments(self.parent.getStore(), args)
             self.run()
 
@@ -106,12 +155,12 @@ class Options(usage.Options):
     def subCommands():
         def get(self):
             yield ('start', None, Start, 'Launch the given Axiom database')
-            if not platform.isWinNT():
+            if not platform.isWindows():
                 yield ('stop', None, Stop, 'Stop the server running from the given Axiom database')
                 yield ('status', None, Status, 'Report whether a server is running from the given Axiom database')
 
             from axiom import plugins
-            for plg in plugin.getPlugins(iaxiom.IAxiomaticCommand, plugins):
+            for plg in getPlugins(IAxiomaticCommand, plugins):
                 try:
                     yield (plg.name, None, plg, plg.description)
                 except AttributeError:
@@ -121,6 +170,7 @@ class Options(usage.Options):
 
     optParameters = [
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
+        ('journal-mode', None, None, 'SQLite journal mode to set'),
         ]
 
     optFlags = [
@@ -150,8 +200,12 @@ class Options(usage.Options):
 
     def getStore(self):
         from axiom.store import Store
+        jm = self['journal-mode']
+        if jm is not None:
+            jm = jm.decode('ascii')
         if self.store is None:
-            self.store = Store(self.getStoreDirectory(), debug=self['debug'])
+            self.store = Store(
+                self.getStoreDirectory(), debug=self['debug'], journalMode=jm)
         return self.store
 
 
@@ -164,5 +218,5 @@ def main(argv=None):
     o = Options()
     try:
         o.parseOptions(argv)
-    except usage.UsageError, e:
+    except usage.UsageError as e:
         raise SystemExit(str(e))
