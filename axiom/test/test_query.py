@@ -1,12 +1,11 @@
 
 import operator, random
 
-from twisted.trial.unittest import TestCase, SkipTest
+from twisted.trial.unittest import TestCase
 
 from axiom.iaxiom import IComparison, IColumn
 from axiom.store import Store, ItemQuery, MultipleItemQuery
 from axiom.item import Item, Placeholder
-from axiom.test.util import QueryCounter
 
 from axiom import errors
 from axiom.attributes import (
@@ -309,9 +308,9 @@ class BasicQuery(TestCase):
             self.assertEquals(s.query(E).count(), 0)
             self.assertEquals(s.query(E).getColumn("amount").sum(), 0)
 
-            e1 = E(store=s, name=u'widgets', amount=37)
-            e2 = E(store=s, name=u'widgets', amount=63)
-            e3 = E(store=s, name=u'quatloos', amount=99, transaction=u'yes')
+            E(store=s, name=u'widgets', amount=37)
+            E(store=s, name=u'widgets', amount=63)
+            E(store=s, name=u'quatloos', amount=99, transaction=u'yes')
             s.checkpoint()
             q = s.count(E, E.name == u'widgets')
             self.failUnlessEqual(q, 2)
@@ -663,8 +662,8 @@ class MultipleQuery(TestCase):
             for i in range(3):
                 c = C(store=s, name=u"C.%s" % i)
                 b = B(store=s, name=u"B.%s" % i, cref=c)
-                a = A(store=s, type=u"A.%s" % i, reftoc=b)
-                a = A(store=s, type=u"A.%s" % i, reftoc=b)
+                A(store=s, type=u"A.%s" % i, reftoc=b)
+                A(store=s, type=u"A.%s" % i, reftoc=b)
 
             query = s.query( (B, C),
                              AND(B.cref == C.storeID,
@@ -693,8 +692,8 @@ class MultipleQuery(TestCase):
         def entesten():
             pops = B(store=s, name=u"Pops")
             dad = B(store=s, name=u"Dad", cref=pops)
-            bro = B(store=s, name=u"Bro", cref=dad)
-            sis = B(store=s, name=u"Sis", cref=dad)
+            B(store=s, name=u"Bro", cref=dad)
+            B(store=s, name=u"Sis", cref=dad)
 
             Gen1 = Placeholder(B)
             Gen2 = Placeholder(B)
@@ -1019,72 +1018,6 @@ class TableOrder(TestCase):
              store.getTableName(A)])
 
 
-class FirstType(Item):
-    value = text()
-
-
-class SecondType(Item):
-    value = text()
-    ref = reference(reftype=FirstType)
-
-
-class QueryComplexity(TestCase):
-    comparison = AND(FirstType.value == u"foo",
-                     SecondType.ref == FirstType.storeID,
-                     SecondType.value == u"bar")
-
-    def setUp(self):
-        self.store = Store()
-        self.query = self.store.query(FirstType, self.comparison)
-
-        # Make one of each to get any initialization taken care of so it
-        # doesn't pollute our numbers below.
-        FirstType(store=self.store)
-        SecondType(store=self.store)
-
-
-    def test_firstTableOuterLoop(self):
-        """
-        Test that in a two table query, the table which appears first in the
-        result of the getInvolvedTables method of the comparison used is the
-        one which the outer join loop iterates over.
-
-        Test this by inserting rows into the first table and checking that the
-        number of bytecodes executed increased.
-        """
-        counter = QueryCounter(self.store)
-        counts = []
-        for c in range(10):
-            counts.append(counter.measure(list, self.query))
-            FirstType(store=self.store)
-
-        # Make sure they're not all the same
-        self.assertEqual(len(set(counts)), len(counts))
-
-        # Make sure they're increasing
-        self.assertEqual(counts, sorted(counts))
-
-
-    def test_secondTableInnerLoop(self):
-        """
-        Like L{test_firstTableOuterLoop} but for the second table being
-        iterated over by the inner loop.
-
-        This creates more rows in the second table while still performing a
-        query for which no rows in the first table satisfy the WHERE
-        condition.  This should mean that rows from the second table are
-        never examined.
-        """
-        counter = QueryCounter(self.store)
-        count = None
-        for i in range(10):
-            c = counter.measure(list, self.query)
-            if count is None:
-                count = c
-            self.assertEqual(count, c)
-            SecondType(store=self.store)
-
-
 class AndOrQueries(QueryingTestCase):
     def testNoConditions(self):
         self.assertRaises(ValueError, AND)
@@ -1230,7 +1163,7 @@ class SetMembershipQuery(QueryingTestCase):
 
     def testOneOfWithList(self):
         cx = C(store=self.store, name=u'x')
-        cy = C(store=self.store, name=u'y')
+        C(store=self.store, name=u'y')
         cz = C(store=self.store, name=u'z')
 
         query = self.store.query(
@@ -1243,7 +1176,7 @@ class SetMembershipQuery(QueryingTestCase):
         s = Store()
 
         cx = C(store=s, name=u'x')
-        cy = C(store=s, name=u'y')
+        C(store=s, name=u'y')
         cz = C(store=s, name=u'z')
 
         self.assertEquals(list(s.query(C, C.name.oneOf(set([u'x', u'z', u'a'])), sort=C.name.ascending)),
@@ -1285,8 +1218,8 @@ class WildcardQueries(QueryingTestCase):
             D.one.notLike('foobar%'),
             '(%s NOT LIKE (?))' % (D.one.getColumnName(self.store),),
             ['foobar%'])
-        self.assertEquals(self.query(D, D.one.like('d1.one')), [self.d1])
-        self.assertEquals(self.query(D, D.one.notLike('d%.one')), [])
+        self.assertEquals(self.query(D, D.four.like(u'd1.four')), [self.d1])
+        self.assertEquals(self.query(D, D.four.notLike(u'd%.four')), [])
 
     def testOneColumn(self):
         self.assertQuery(
@@ -1297,11 +1230,11 @@ class WildcardQueries(QueryingTestCase):
 
     def testOneColumnAndStrings(self):
         self.assertQuery(
-            D.one.like('%', D.id, '%one'),
-            '(%s LIKE (? || %s || ?))' % (D.one.getColumnName(self.store),
+            D.four.like(u'%', D.id, u'%four'),
+            '(%s LIKE (? || %s || ?))' % (D.four.getColumnName(self.store),
                                           D.id.getColumnName(self.store)),
-            ['%', '%one'])
-        q = self.query(D, D.one.like('%', D.id, '%one'))
+            [u'%', u'%four'])
+        q = self.query(D, D.four.like(u'%', D.id, u'%four'))
         e = [self.d1, self.d2, self.d3]
         self.assertEquals(sorted(q), sorted(e))
 
@@ -1318,27 +1251,17 @@ class WildcardQueries(QueryingTestCase):
 
     def testStartsEndsWith(self):
         self.assertQuery(
-            D.one.startswith('foo'),
-            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            D.four.startswith(u'foo'),
+            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
             ['foo%'])
         self.assertQuery(
-            D.one.endswith('foo'),
-            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            D.four.endswith(u'foo'),
+            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
             ['%foo'])
         self.assertEquals(
-            self.query(D, D.one.startswith('d1')), [self.d1])
+            self.query(D, D.four.startswith(u'd1')), [self.d1])
         self.assertEquals(
-            self.query(D, D.one.endswith('3.one')), [self.d3])
-
-
-    def testStartsEndsWithColumn(self):
-        self.assertQuery(
-            D.one.startswith(D.two),
-            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
-                                     D.two.getColumnName(self.store)),
-            ['%'])
-        self.assertEquals(
-            self.query(D, D.one.startswith(D.two)), [])
+            self.query(D, D.four.endswith(u'3.four')), [self.d3])
 
 
     def testStartsEndsWithText(self):
@@ -1349,20 +1272,6 @@ class WildcardQueries(QueryingTestCase):
             self.query(D, D.four.endswith(u'2.four')),
             [self.d2])
 
-
-    def testOtherTable(self):
-        self.assertQuery(
-            D.one.startswith(A.type),
-            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
-                                     A.type.getColumnName(self.store)),
-            ['%'])
-
-        C(store=self.store, name=u'd1.')
-        C(store=self.store, name=u'2.one')
-        self.assertEquals(
-            self.query(D, D.one.startswith(C.name)), [self.d1])
-        self.assertEquals(
-            self.query(D, D.one.endswith(C.name)), [self.d2])
 
 
 class UniqueTest(TestCase):
@@ -1433,7 +1342,6 @@ class PlaceholderTestCase(TestCase):
         """
         Test that a column from a placeholder provides L{IColumn}.
         """
-        value = 0
         p = Placeholder(PlaceholderTestItem)
         a = p.attr
         self.failUnless(IColumn.providedBy(a))
@@ -1458,7 +1366,6 @@ class PlaceholderTestCase(TestCase):
         underlying Item class and comparing it to another column returns an
         L{IComparison} provider.
         """
-        value = 0
         p = Placeholder(PlaceholderTestItem)
         for op in COMPARISON_OPS:
             self.failUnless(IComparison.providedBy(op(p.attr, PlaceholderTestItem.attr)))
@@ -1865,3 +1772,40 @@ class PlaceholderTestCase(TestCase):
         expectedSQL = "placeholder_0.oid, placeholder_0.[attr], placeholder_0.[characters], placeholder_0.[other]"
 
         self.assertEquals(query._queryTarget, expectedSQL)
+
+
+
+class BytesDeprecatedLikeTests(TestCase):
+    """
+    Deprecated tests for LIKE queries on L{axiom.attributes.bytes}.
+    """
+    def test_startsWith(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.startswith was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.startswith('string'))
+
+
+    def test_endsWith(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.endswith was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.endswith('string'))
+
+
+    def test_like(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.like was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.like('string'))
+
+
+    def test_notLike(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.notLike was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.notLike('string'))

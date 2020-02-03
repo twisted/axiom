@@ -10,7 +10,9 @@ hotfix.require('twisted', 'filepath_copyTo')
 from zope.interface import implements
 
 from twisted.python import filepath
+from twisted.python.deprecate import deprecated
 from twisted.python.components import registerAdapter
+from twisted.python.versions import Version
 
 from epsilon.extime import Time
 
@@ -857,7 +859,10 @@ class boolean(SQLAttribute):
                 "must have a database value of 1 or 0; not %r" %
                 (self.classname, self.attrname, dbval))
 
-TOO_BIG = (2 ** 63)-1
+
+
+LARGEST_POSITIVE = (2 ** 63)-1
+LARGEST_NEGATIVE = -(2 ** 63)
 
 class ConstraintError(TypeError):
     """A type constraint was violated.
@@ -879,13 +884,17 @@ class ConstraintError(TypeError):
                             requiredTypes,
                             type(providedValue).__name__))
 
+
+
 def requireType(attributeObj, value, typerepr, *types):
     if not isinstance(value, types):
         raise ConstraintError(attributeObj,
                               typerepr,
                               value)
 
-inttyperepr = "integer less than %r" % (TOO_BIG,)
+
+
+inttyperepr = "integer between %r and %r" % (LARGEST_NEGATIVE, LARGEST_POSITIVE)
 
 class integer(SQLAttribute):
     sqltype = 'INTEGER'
@@ -893,10 +902,12 @@ class integer(SQLAttribute):
         if pyval is None:
             return None
         requireType(self, pyval, inttyperepr, int, long)
-        if pyval > TOO_BIG:
+        if not LARGEST_NEGATIVE <= pyval <= LARGEST_POSITIVE:
             raise ConstraintError(
                 self, inttyperepr, pyval)
         return pyval
+
+
 
 class bytes(SQLAttribute):
     """
@@ -913,10 +924,33 @@ class bytes(SQLAttribute):
             raise ConstraintError(self, "str or other byte buffer", pyval)
         return buffer(pyval)
 
+
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
         return str(dbval)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def like(self, *others):
+        return super(SQLAttribute, self).like(*others)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def notLike(self, *others):
+        return super(SQLAttribute, self).notLike(*others)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def startswith(self, other):
+        return super(SQLAttribute, self).startswith(other)
+
+
+    @deprecated(Version("Axiom", 0, 7, 5))
+    def endswith(self, other):
+        return super(SQLAttribute, self).endswith(other)
+
+
 
 class InvalidPathError(ValueError):
     """
@@ -1121,7 +1155,12 @@ class reference(integer):
             assert self.whenDeleted is reference.NULLIFY, (
                 "not sure what to do if not...")
             return None
-        if rv.__legacy__:
+        # If the current cached value is a legacy item, we discard it in order
+        # to force another fetch from the database. However, if *this item* is
+        # also a legacy item, then the item referred to may have been created
+        # in an upgrader and not have been stored yet, so we shouldn't discard
+        # it.
+        if rv.__legacy__ and not oself.__legacy__:
             delattr(oself, self.underlying)
             return super(reference, self).__get__(oself, cls)
         return rv
@@ -1175,12 +1214,12 @@ class reference(integer):
 
 class ieee754_double(SQLAttribute):
     """
-    From the SQLite documentation:
+    From the SQLite documentation::
 
-        'Each value stored in an SQLite database (or manipulated by the
+        Each value stored in an SQLite database (or manipulated by the
         database engine) has one of the following storage classes: (...)
         REAL. The value is a floating point value, stored as an 8-byte IEEE
-        floating point number.'
+        floating point number.
 
     This attribute type implements IEEE754 double-precision binary
     floating-point storage.  Some people call this 'float', and think it is
@@ -1217,24 +1256,21 @@ class AbstractFixedPointDecimal(integer):
     Attribute representing a number with a specified number of decimal
     places.
 
-    This is stored in SQLite as a binary integer multiplied by (10**N) where N
-    is the number of decimal places required by Python.  Therefore, in-database
-    multiplication, division, or queries which compare to integers or
-    fixedpointdecimals with a different number of decimal places, will not
-    work.  Also, you cannot store, or sum to, fixed point decimals greater than
-    (2**63)/(10**N).
+    This is stored in SQLite as a binary integer multiplied by M{10**N}
+    where C{N} is the number of decimal places required by Python. 
+    Therefore, in-database multiplication, division, or queries which
+    compare to integers or fixedpointdecimals with a different number of
+    decimal places, will not work.  Also, you cannot store, or sum to, fixed
+    point decimals greater than M{(2**63)/(10**N)}.
 
     While L{ieee754_double} is handy for representing various floating-point
     numbers, such as scientific measurements, this class (and the associated
     Python decimal class) is more appropriate for arithmetic on sums of money.
 
-    For more information on Python's Decimal class:
-
-        http://www.python.org/doc/current/lib/module-decimal.html
-
-    and on general computerized Decimal math in general:
-
-        http://www2.hursley.ibm.com/decimal/decarith.html
+    For more information on Python's U{Decimal
+    class<http://www.python.org/doc/current/lib/module-decimal.html>} and on
+    general U{computerized Decimal math in
+    general<http://www2.hursley.ibm.com/decimal/decarith.html>}.
 
     This is currently a private helper superclass because we cannot store
     additional metadata about column types; maybe we should fix that.

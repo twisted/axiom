@@ -26,6 +26,9 @@ class SubStore(Item):
         """
         Create a new SubStore, allocating a new file space for it.
         """
+        if isinstance(pathSegments, basestring):
+            raise ValueError(
+                'Received %r instead of a sequence' % (pathSegments,))
         if store.dbdir is None:
             self = cls(store=store, storepath=None)
         else:
@@ -37,21 +40,26 @@ class SubStore(Item):
 
     createNew = classmethod(createNew)
 
+
     def close(self):
         self.substore.close()
         del self.substore._openSubStore
         del self.substore
 
-    def open(self, debug=False):
+
+    def open(self, debug=None):
         if hasattr(self, 'substore'):
             return self.substore
         else:
-            s = self.substore = self.createStore(debug)
+            if debug is None:
+                debug = self.store.debug
+            s = self.substore = self.createStore(debug, self.store.journalMode)
             s._openSubStore = self # don't fall out of cache as long as the
                                    # store is alive!
             return s
 
-    def createStore(self, debug):
+
+    def createStore(self, debug, journalMode=None):
         """
         Create the actual Store this Substore represents.
         """
@@ -66,12 +74,15 @@ class SubStore(Item):
             return Store(parent=self.store,
                          filesdir=filesdir,
                          idInParent=self.storeID,
-                         debug=debug)
+                         debug=debug,
+                         journalMode=journalMode)
         else:
             return Store(self.storepath.path,
                          parent=self.store,
                          idInParent=self.storeID,
-                         debug=debug)
+                         debug=debug,
+                         journalMode=journalMode)
+
 
     def __conform__(self, interface):
         """
@@ -84,6 +95,7 @@ class SubStore(Item):
         ifa = interface(self.open(debug=self.store.debug), None)
         return ifa
 
+
     def indirect(self, interface):
         """
         Like __conform__, I adapt my store to whatever interface I am asked to
@@ -92,6 +104,7 @@ class SubStore(Item):
         additional item type for each interface that we might wish to adapt to.
         """
         return interface(self)
+
 
 
 class SubStoreStartupService(Item, service.Service):

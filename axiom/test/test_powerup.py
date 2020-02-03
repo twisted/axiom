@@ -1,5 +1,6 @@
 
 from twisted.trial import unittest
+from twisted.python.components import registerAdapter
 
 from axiom.item import Item
 from axiom.store import Store
@@ -285,18 +286,33 @@ class SpecialCaseTest(unittest.TestCase):
 
 
 
+class ItemWithAdapter(Item):
+    """
+    An item which will have an adapter registered for its type.
+    """
+    attribute = integer()
+
+registerAdapter(lambda o: 42, ItemWithAdapter, ISumProducer)
+
+
+
 class InMemoryPowerupTests(unittest.TestCase):
     """
     Tests for the behavior of powerups which are not database-resident.
     """
+    def _createEmpowered(self, withStore=True):
+        powerup = object()
+        item = SumContributor(store=Store() if withStore else None)
+        item.inMemoryPowerUp(powerup, ISumProducer)
+        return powerup, item
+
+
     def test_powerupsFor(self):
         """
         L{Item.powerupsFor} returns a list the first element of which is the
         object previously passed to L{Item.inMemoryPowerUp}.
         """
-        powerup = object()
-        item = SumContributor(store=Store())
-        item.inMemoryPowerUp(powerup, ISumProducer)
+        powerup, item = self._createEmpowered()
         self.assertEqual(list(item.powerupsFor(ISumProducer)), [powerup])
 
 
@@ -306,8 +322,35 @@ class InMemoryPowerupTests(unittest.TestCase):
         that item for that interface even if there are database-resident
         powerups on that item for that interface.
         """
-        powerup = object()
-        item = SumContributor(store=Store())
-        item.inMemoryPowerUp(powerup, ISumProducer)
+        powerup, item = self._createEmpowered()
         item.powerUp(item, ISumProducer)
         self.assertIdentical(ISumProducer(item), powerup)
+
+
+    def test_conformWithoutStore(self):
+        """
+        Adaptation (through L{Item.__conform__}) should be allowed even if the
+        object is not stored, as long as it has an in-memory powerup.
+        """
+        powerup, item = self._createEmpowered(withStore=False)
+        self.assertIdentical(ISumProducer(item), powerup)
+
+
+    def test_noPowerups(self):
+        """
+        L{Item.powerupsFor} returns no powerups for a storeless item with no
+        powerups for the given interface, and adaption to the interface fails
+        with L{TypeError}.
+        """
+        item = SumContributor()
+        self.assertEquals(list(item.powerupsFor(ISumProducer)), [])
+        self.assertRaises(TypeError, ISumProducer, item)
+
+
+    def test_adapterNoPowerups(self):
+        """
+        Adapting an item to an interface for which no powerups are installed
+        will allow adaption to proceed via a registered adapter.
+        """
+        item = ItemWithAdapter()
+        self.assertEquals(ISumProducer(item), 42)

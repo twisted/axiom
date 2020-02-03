@@ -4,7 +4,7 @@
 from axiom.item import Item
 from axiom.attributes import text, integer, reference, inmemory
 
-from axiom.upgrade import registerUpgrader
+from axiom.upgrade import registerUpgrader, registerAttributeCopyingUpgrader
 
 class ActivateHelper:
     activated = 0
@@ -13,7 +13,7 @@ class ActivateHelper:
 
 class Adventurer(ActivateHelper, Item):
     typeName = 'test_app_player'
-    schemaVersion = 2
+    schemaVersion = 3
 
     name = text()
     activated = inmemory()
@@ -64,6 +64,15 @@ registerUpgrader(sword2to3, 'test_app_sword', 2, 3)
 # declare legacy class.
 
 from axiom.item import declareLegacyItem
+
+
+declareLegacyItem(
+    typeName='test_app_player',
+    schemaVersion=2,
+    attributes=dict(
+        name=text(allowNone=True)))
+
+registerAttributeCopyingUpgrader(Adventurer, 2, 3)
 
 declareLegacyItem(typeName = 'test_app_sword',
                   schemaVersion = 2,

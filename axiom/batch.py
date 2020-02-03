@@ -265,14 +265,6 @@ class _ReliableListener(item.Item):
 
 class _BatchProcessorMixin:
 
-    def installed(self):
-        # XXX This is kind of suboptimal because it circumvents the usual
-        # dependency mechanism. But see #1408.
-
-        sch = iaxiom.IScheduler(self.store, None)
-        if sch is None:
-            installOn(SubScheduler(store=self.store), self.store)
-
     def step(self, style=iaxiom.LOCAL, skip=()):
         now = extime.Time()
         first = True
@@ -408,7 +400,8 @@ class _BatchProcessorMixin:
         processor is being added to the database.
 
         If this processor is not already scheduled to run, this will schedule
-        it.
+        it.  It will also start the batch process if it is not yet running and
+        there are any registered remote listeners.
         """
         localCount = self.store.query(
             _ReliableListener,
@@ -416,9 +409,19 @@ class _BatchProcessorMixin:
                            _ReliableListener.style == iaxiom.LOCAL),
             limit=1).count()
 
+        remoteCount = self.store.query(
+            _ReliableListener,
+            attributes.AND(_ReliableListener.processor == self,
+                           _ReliableListener.style == iaxiom.REMOTE),
+            limit=1).count()
+
         if localCount and self.scheduled is None:
             self.scheduled = extime.Time()
             iaxiom.IScheduler(self.store).schedule(self, self.scheduled)
+        if remoteCount:
+            batchService = iaxiom.IBatchService(self.store, None)
+            if batchService is not None:
+                batchService.start()
 
 
 
@@ -475,7 +478,9 @@ def processor(forType):
     created.
     """
     MILLI = 1000
-    if forType not in _processors:
+    try:
+        processor = _processors[forType]
+    except KeyError:
         def __init__(self, *a, **kw):
             item.Item.__init__(self, *a, **kw)
             self.store.powerUp(self, iaxiom.IBatchProcessor)
@@ -500,7 +505,7 @@ def processor(forType):
             # MAGIC NUMBERS AREN'T THEY WONDERFUL?
             'busyInterval': attributes.integer(doc="", default=MILLI / 10),
             }
-        _processors[forType] = item.MetaItem(
+        _processors[forType] = processor = item.MetaItem(
             attrs['__name__'],
             (item.Item, _BatchProcessorMixin),
             attrs)
@@ -510,7 +515,7 @@ def processor(forType):
             _processors[forType].typeName,
             1, 2)
 
-    return _processors[forType]
+    return processor
 
 
 
@@ -544,22 +549,24 @@ def _childProcTerminated(self, err):
 
 
 class ProcessController(object):
-    """Stateful class which tracks a Juice connection to a child process.
+    """
+    Stateful class which tracks a Juice connection to a child process.
 
     Communication occurs over stdin and stdout of the child process.  The
     process is launched and restarted as necessary.  Failures due to the child
     process terminating, either unilaterally of by request, are represented as
     a transient exception class,
 
-    Mode is one of
-      'stopped'       (no process running or starting)
-      'starting'      (process begun but not ready for requests)
-      'ready'         (process ready for requests)
-      'stopping'      (process being torn down)
-      'waiting_ready' (process beginning but will be shut down
-                          as soon as it starts up)
+    Mode is one of::
 
-    Transitions are as follows
+      - 'stopped'       (no process running or starting)
+      - 'starting'      (process begun but not ready for requests)
+      - 'ready'         (process ready for requests)
+      - 'stopping'      (process being torn down)
+      - 'waiting_ready' (process beginning but will be shut down
+                         as soon as it starts up)
+
+    Transitions are as follows::
 
        getProcess:
            stopped -> starting:
@@ -654,7 +661,6 @@ class ProcessController(object):
     def _startProcess(self):
         executable = sys.executable
         env = os.environ
-        env['PYTHONPATH'] = os.pathsep.join(sys.path)
 
         twistdBinaries = procutils.which("twistd2.4") + procutils.which("twistd")
         if not twistdBinaries:
@@ -901,7 +907,13 @@ class BatchProcessingControllerService(service.Service):
     """
     Controls starting, stopping, and passing messages to the system process in
     charge of remote batch processing.
+
+    @ivar batchController: A reference to the L{ProcessController} for
+        interacting with the batch process, if one exists.  Otherwise C{None}.
     """
+    implements(iaxiom.IBatchService)
+
+    batchController = None
 
     def __init__(self, store):
         self.store = store
@@ -955,6 +967,11 @@ class BatchProcessingControllerService(service.Service):
                            method=method).do)
 
 
+    def start(self):
+        if self.batchController is not None:
+            self.batchController.getProcess()
+
+
     def suspend(self, storepath, storeID):
         return self.batchController.getProcess().addCallback(
             SuspendProcessor(storepath=storepath, storeid=storeID).do)
@@ -984,6 +1001,10 @@ class _SubStoreBatchChannel(object):
         return self.service.call(itemMethod)
 
 
+    def start(self):
+        self.service.start()
+
+
     def suspend(self, storeID):
         return self.service.suspend(self.storepath, storeID)
 
@@ -994,9 +1015,23 @@ class _SubStoreBatchChannel(object):
 
 
 def storeBatchServiceSpecialCase(st, pups):
+    """
+    Adapt a L{Store} to L{IBatchService}.
+
+    If C{st} is a substore, return a simple wrapper that delegates to the site
+    store's L{IBatchService} powerup.  Return C{None} if C{st} has no
+    L{BatchProcessingControllerService}.
+    """
     if st.parent is not None:
-        return _SubStoreBatchChannel(st)
-    return service.IService(st).getServiceNamed("Batch Processing Controller")
+        try:
+            return _SubStoreBatchChannel(st)
+        except TypeError:
+            return None
+    storeService = service.IService(st)
+    try:
+        return storeService.getServiceNamed("Batch Processing Controller")
+    except KeyError:
+        return None
 
 
 
@@ -1060,7 +1095,7 @@ class BatchProcessingProtocol(JuiceChild):
 
         try:
             paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
-        except eaxiom.SQLError, e:
+        except eaxiom.SQLError as e:
             # Generally, database is locked.
             log.msg("SubStore query failed with SQLError: %r" % (e,))
         except:
@@ -1076,7 +1111,7 @@ class BatchProcessingProtocol(JuiceChild):
             for added in paths - set(self.subStores):
                 try:
                     s = store.Store(added, debug=False)
-                except eaxiom.SQLError, e:
+                except eaxiom.SQLError as e:
                     # Generally, database is locked.
                     log.msg("Opening sub-Store failed with SQLError: %r" % (e,))
                 except:
@@ -1152,7 +1187,7 @@ class BatchProcessingService(service.Service):
                     log.msg("Stepping processor %r (suspended is %r)" % (item, self.suspended))
                 try:
                     itemHasMore = item.store.transact(item.step, style=self.style, skip=self.suspended)
-                except _ProcessingFailure, e:
+                except _ProcessingFailure as e:
                     log.msg("%r failed while processing %r:" % (e.reliableListener, e.workUnit))
                     log.err(e.failure)
                     e.mark()

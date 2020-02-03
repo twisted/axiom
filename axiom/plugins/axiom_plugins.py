@@ -27,6 +27,7 @@ from axiom.scripts import axiomatic
 from axiom.listversions import ListVersions
 from axiom import version
 from axiom.iaxiom import IVersion
+from axiom.upgrade import upgradeExplicitOid
 
 directlyProvides(version, IPlugin, IVersion)
 
@@ -57,8 +58,10 @@ class Upgrade(axiomatic.AxiomaticCommand):
         Recursively upgrade C{store}.
         """
         self.upgradeEverything(store)
+        upgradeExplicitOid(store)
 
         for substore in store.query(SubStore):
+            print 'Upgrading: {!r}'.format(substore)
             self.upgradeStore(substore.open())
 
     def perform(self, store, count):
@@ -72,7 +75,7 @@ class Upgrade(axiomatic.AxiomaticCommand):
         try:
             self.upgradeStore(store)
             print 'Upgrade complete'
-        except errors.ItemUpgradeError, e:
+        except errors.ItemUpgradeError as e:
             print 'Upgrader error:'
             e.originalFailure.printTraceback(file=sys.stdout)
             print self.errorMessageFormat % (
