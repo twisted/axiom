@@ -165,7 +165,7 @@ class SchedulerMixin:
         while workBeingDone and workUnitsPerformed < MAX_WORK_PER_TICK:
             try:
                 workBeingDone = self.store.transact(self._oneTick, now)
-            except _WackyControlFlow, wcf:
+            except _WackyControlFlow as wcf:
                 self.store.transact(wcf.eventObject.handleError, now, wcf.failureObject)
                 log.err(wcf.failureObject)
                 errors += 1
@@ -227,7 +227,7 @@ _EPSILON = 1e-20      # A very small amount of time.
 
 
 
-class _SiteScheduler(object, Service, SchedulerMixin):
+class _SiteScheduler(SchedulerMixin, Service, object):
     """
     Adapter from a site store to L{IScheduler}.
     """
@@ -294,7 +294,7 @@ class _SiteScheduler(object, Service, SchedulerMixin):
 
 
 
-class _UserScheduler(object, Service, SchedulerMixin):
+class _UserScheduler(SchedulerMixin, Service, object):
     """
     Adapter from a non-site store to L{IScheduler}.
     """

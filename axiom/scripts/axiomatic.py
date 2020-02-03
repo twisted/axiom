@@ -72,7 +72,7 @@ class PIDMixin:
     def signalServer(self, signal):
         try:
             return self._sendSignal(signal)
-        except (OSError, IOError), e:
+        except (OSError, IOError) as e:
             if e.errno in (errno.ENOENT, errno.ESRCH):
                 raise usage.UsageError('There is no server running from the Axiom database %r.' % (self.parent.getStoreDirectory(),))
             else:
@@ -104,13 +104,27 @@ class Start(twistd.ServerOptions):
     def getArguments(self, store, args):
         run = store.dbdir.child("run")
         logs = run.child("logs")
-        if "--logfile" not in args and "-l" not in args and "--nodaemon" not in args and "-n" not in args:
+        handleLogfile = True
+        handlePidfile = True
+
+        for arg in args:
+            if arg.startswith("--logfile=") or arg in (
+                "-l", "--logfile", "-n", "--nodaemon"
+            ):
+                handleLogfile = False
+            elif arg.startswith("--pidfile=") or arg == "--pidfile":
+                handlePidfile = False
+
+        if handleLogfile:
             if not logs.exists():
                 logs.makedirs()
             args.extend(["--logfile", logs.child("axiomatic.log").path])
-        if not platform.isWindows() and "--pidfile" not in args:
+
+        if not platform.isWindows() and handlePidfile:
             args.extend(["--pidfile", run.child("axiomatic.pid").path])
         args.extend(["axiomatic-start", "--dbdir", store.dbdir.path])
+        if store.journalMode is not None:
+            args.extend(['--journal-mode', store.journalMode.encode('ascii')])
         return args
 
 
@@ -121,11 +135,17 @@ class Start(twistd.ServerOptions):
             # If a reactor is being selected, it must be done before the store
             # is opened, since that may execute arbitrary application code
             # which may in turn install the default reactor.
-            if "--reactor" in args:
-                reactorIndex = args.index("--reactor")
-                shortName = args[reactorIndex + 1]
-                del args[reactorIndex:reactorIndex + 2]
-                self.opt_reactor(shortName)
+            for index, arg in enumerate(args):
+                if arg in ("--reactor", "-r"):
+                    shortName = args[index + 1]
+                    del args[index:index + 2]
+                    self.opt_reactor(shortName)
+                    break
+                elif arg.startswith("--reactor="):
+                    shortName = arg.split("=")[1]
+                    del args[index]
+                    self.opt_reactor(shortName)
+                    break
             sys.argv[1:] = self.getArguments(self.parent.getStore(), args)
             self.run()
 
@@ -150,6 +170,7 @@ class Options(usage.Options):
 
     optParameters = [
         ('dbdir', 'd', None, 'Path containing axiom database to configure/create'),
+        ('journal-mode', None, None, 'SQLite journal mode to set'),
         ]
 
     optFlags = [
@@ -179,8 +200,12 @@ class Options(usage.Options):
 
     def getStore(self):
         from axiom.store import Store
+        jm = self['journal-mode']
+        if jm is not None:
+            jm = jm.decode('ascii')
         if self.store is None:
-            self.store = Store(self.getStoreDirectory(), debug=self['debug'])
+            self.store = Store(
+                self.getStoreDirectory(), debug=self['debug'], journalMode=jm)
         return self.store
 
 
@@ -193,5 +218,5 @@ def main(argv=None):
     o = Options()
     try:
         o.parseOptions(argv)
-    except usage.UsageError, e:
+    except usage.UsageError as e:
         raise SystemExit(str(e))

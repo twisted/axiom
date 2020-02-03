@@ -27,9 +27,16 @@ from twisted.python import log
 from axiom import errors, iaxiom
 
 class Connection(object):
+    """
+    Wrapper for an SQLite3 C{Connection} object.
+
+    @type closed: L{bool}
+    @ivar closed: Has this cursor been closed?
+    """
     def __init__(self, connection, timeout=None):
         self._connection = connection
         self._timeout = timeout
+        self.closed = False
 
 
     def fromDatabaseName(cls, dbFilename, timeout=None, isolationLevel=None):
@@ -55,12 +62,27 @@ class Connection(object):
         return errors.SQLError(sql, args, e)
 
 
+    def close(self):
+        """
+        Close the underlying connection.
+        """
+        self._connection.close()
+        self.closed = True
+
+
 
 class Cursor(object):
+    """
+    Wrapper for an SQLite3 C{Cursor} object.
+
+    @type closed: L{bool}
+    @ivar closed: Has this cursor been closed?
+    """
     def __init__(self, connection, timeout):
         self._connection = connection
         self._cursor = connection._connection.cursor()
         self.timeout = timeout
+        self.closed = False
 
 
     def __iter__(self):
@@ -114,7 +136,7 @@ class Cursor(object):
                     while 1:
                         try:
                             return self._cursor.execute(sql, args)
-                        except dbapi2.OperationalError, e:
+                        except dbapi2.OperationalError as e:
                             if e.args[0] == 'database is locked':
                                 now = self.time()
                                 if self.timeout is not None:
@@ -133,7 +155,7 @@ class Cursor(object):
                     log.msg(interface=iaxiom.IStatEvent,
                             stat_cursor_execute_time=txntime,
                             stat_cursor_blocked_time=blockedTime)
-            except dbapi2.OperationalError, e:
+            except dbapi2.OperationalError as e:
                 if e.args[0] == 'database schema has changed':
                     return self._cursor.execute(sql, args)
                 raise
@@ -148,7 +170,11 @@ class Cursor(object):
 
 
     def close(self):
+        """
+        Close the underlying cursor.
+        """
         self._cursor.close()
+        self.closed = True
 
 
 # Export some names from the underlying module.

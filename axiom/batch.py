@@ -478,7 +478,9 @@ def processor(forType):
     created.
     """
     MILLI = 1000
-    if forType not in _processors:
+    try:
+        processor = _processors[forType]
+    except KeyError:
         def __init__(self, *a, **kw):
             item.Item.__init__(self, *a, **kw)
             self.store.powerUp(self, iaxiom.IBatchProcessor)
@@ -503,7 +505,7 @@ def processor(forType):
             # MAGIC NUMBERS AREN'T THEY WONDERFUL?
             'busyInterval': attributes.integer(doc="", default=MILLI / 10),
             }
-        _processors[forType] = item.MetaItem(
+        _processors[forType] = processor = item.MetaItem(
             attrs['__name__'],
             (item.Item, _BatchProcessorMixin),
             attrs)
@@ -513,7 +515,7 @@ def processor(forType):
             _processors[forType].typeName,
             1, 2)
 
-    return _processors[forType]
+    return processor
 
 
 
@@ -1093,7 +1095,7 @@ class BatchProcessingProtocol(JuiceChild):
 
         try:
             paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
-        except eaxiom.SQLError, e:
+        except eaxiom.SQLError as e:
             # Generally, database is locked.
             log.msg("SubStore query failed with SQLError: %r" % (e,))
         except:
@@ -1109,7 +1111,7 @@ class BatchProcessingProtocol(JuiceChild):
             for added in paths - set(self.subStores):
                 try:
                     s = store.Store(added, debug=False)
-                except eaxiom.SQLError, e:
+                except eaxiom.SQLError as e:
                     # Generally, database is locked.
                     log.msg("Opening sub-Store failed with SQLError: %r" % (e,))
                 except:
@@ -1185,7 +1187,7 @@ class BatchProcessingService(service.Service):
                     log.msg("Stepping processor %r (suspended is %r)" % (item, self.suspended))
                 try:
                     itemHasMore = item.store.transact(item.step, style=self.style, skip=self.suspended)
-                except _ProcessingFailure, e:
+                except _ProcessingFailure as e:
                     log.msg("%r failed while processing %r:" % (e.reliableListener, e.workUnit))
                     log.err(e.failure)
                     e.mark()

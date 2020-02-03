@@ -350,7 +350,8 @@ class InMemoryPowerupTests(unittest.TestCase):
     def test_adapterNoPowerups(self):
         """
         Adapting an item to an interface for which no powerups are installed
-        will allow adaption to procede via a registered adapter.
+
+        will allow adaption to proceed via a registered adapter.
         """
         item = ItemWithAdapter()
         self.assertEquals(ISumProducer(item), 42)

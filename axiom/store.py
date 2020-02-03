@@ -208,12 +208,14 @@ class BaseQuery:
     _cloneAttributes = 'store tableClass comparison limit offset sort'.split()
 
     # IQuery
-    def cloneQuery(self, limit=_noItem):
+    def cloneQuery(self, limit=_noItem, sort=_noItem):
         clonekw = {}
         for attr in self._cloneAttributes:
             clonekw[attr] = getattr(self, attr)
         if limit is not _noItem:
             clonekw['limit'] = limit
+        if sort is not _noItem:
+            clonekw['sort'] = sort
         return self.__class__(**clonekw)
 
 
@@ -627,6 +629,11 @@ class ItemQuery(BaseQuery):
         """
         Delete all the Items which are found by this query.
         """
+        if (self.limit is None and
+            not isinstance(self.sort, attributes.UnspecifiedOrdering)):
+            # The ORDER BY is pointless here, and SQLite complains about it.
+            return self.cloneQuery(sort=None).deleteFromStore()
+
         #We can do this the fast way or the slow way.
 
         # If there's a 'deleted' callback on the Item type or 'deleteFromStore'
@@ -795,12 +802,12 @@ class _DistinctQuery(object):
         self.limit = query.limit
 
 
-    def cloneQuery(self, limit=_noItem):
+    def cloneQuery(self, limit=_noItem, sort=_noItem):
         """
         Clone the original query which this distinct query wraps, and return a new
         wrapper around that clone.
         """
-        newq = self.query.cloneQuery(limit=limit)
+        newq = self.query.cloneQuery(limit=limit, sort=sort)
         return self.__class__(newq)
 
 
@@ -999,6 +1006,33 @@ def _schedulerServiceSpecialCase(empowered, pups):
     return None
 
 
+
+def _diffSchema(diskSchema, memorySchema):
+    """
+    Format a schema mismatch for human consumption.
+
+    @param diskSchema: The on-disk schema.
+
+    @param memorySchema: The in-memory schema.
+
+    @rtype: L{bytes}
+    @return: A description of the schema differences.
+    """
+    diskSchema = set(diskSchema)
+    memorySchema = set(memorySchema)
+    diskOnly = diskSchema - memorySchema
+    memoryOnly = memorySchema - diskSchema
+    diff = []
+    if diskOnly:
+        diff.append('Only on disk:')
+        diff.extend(map(repr, diskOnly))
+    if memoryOnly:
+        diff.append('Only in memory:')
+        diff.extend(map(repr, memoryOnly))
+    return '\n'.join(diff)
+
+
+
 class Store(Empowered):
     """
     I am a database that Axiom Items can be stored in.
@@ -1082,7 +1116,8 @@ class Store(Empowered):
     storeID = STORE_SELF_ID
 
 
-    def __init__(self, dbdir=None, filesdir=None, debug=False, parent=None, idInParent=None):
+    def __init__(self, dbdir=None, filesdir=None, debug=False, parent=None,
+                 idInParent=None, journalMode=None):
         """
         Create a store.
 
@@ -1113,6 +1148,7 @@ class Store(Empowered):
         self.idInParent = idInParent
         self.debug = debug
         self.autocommit = True
+        self.journalMode = journalMode
         self.queryTimes = []
         self.execTimes = []
 
@@ -1127,11 +1163,6 @@ class Store(Empowered):
                                 # this run
 
         self.objectCache = _fincache.FinalizingCache()
-
-        self.tableQueries = {}  # map typename: query string w/ storeID
-                                # parameter.  a typename is a persistent
-                                # database handle for what we'll call a 'FQPN',
-                                # i.e. arg to namedAny.
 
         self.typenameAndVersionToID = {} # map database-persistent typename and
                                          # version to an oid in the types table
@@ -1283,7 +1314,7 @@ class Store(Empowered):
             if typename not in _typeNameToMostRecentClass:
                 try:
                     namedAny(module)
-                except ValueError, err:
+                except ValueError as err:
                     raise ImportError('cannot find module ' + module, str(err))
             self.typenameAndVersionToID[typename, version] = oid
 
@@ -1339,6 +1370,9 @@ class Store(Empowered):
     def _initdb(self, dbfname):
         self.connection = Connection.fromDatabaseName(dbfname)
         self.cursor = self.connection.cursor()
+        if self.journalMode is not None:
+            self.querySchemaSQL(
+                'PRAGMA *DATABASE*.journal_mode = {}'.format(self.journalMode))
 
 
     def __repr__(self):
@@ -1517,9 +1551,9 @@ class Store(Empowered):
                            for storedAttribute in onDiskSchema[key]]
         if inMemorySchema != persistedSchema:
             raise RuntimeError(
-                "Schema mismatch on already-loaded %r <%r> object version %d: %r != %r" %
+                "Schema mismatch on already-loaded %r <%r> object version %d:\n%s" %
                 (actualType, actualType.typeName, actualType.schemaVersion,
-                 onDiskSchema, inMemorySchema))
+                 _diffSchema(persistedSchema, inMemorySchema)))
 
         if actualType.__legacy__:
             return
@@ -1919,6 +1953,7 @@ class Store(Empowered):
 
     def close(self, _report=True):
         self.cursor.close()
+        self.connection.close()
         self.cursor = self.connection = None
         if self.debug and _report:
             if not self.queryTimes:
@@ -1954,8 +1989,13 @@ class Store(Empowered):
                                        '_'.join(attrname))
 
 
+    def _tableNameOnlyFor(self, typename, version):
+        return 'item_{}_v{:d}'.format(typename, version)
+
+
     def _tableNameFor(self, typename, version):
-        return "%s.item_%s_v%d" % (self.databaseName, typename, version)
+        return '.'.join([self.databaseName,
+                         self._tableNameOnlyFor(typename, version)])
 
 
     def getTableName(self, tableClass):
@@ -1998,6 +2038,8 @@ class Store(Empowered):
         that this method is used during table creation.
         """
         if isinstance(attribute, _StoreIDComparer):
+            # The column is named "oid" instead of "storeID" for backwards
+            # compatibility with the implicit oid/rowid column in old Stores.
             return 'oid'
         return '[' + attribute.attrname + ']'
 
@@ -2039,6 +2081,36 @@ class Store(Empowered):
         return self.transact(self._maybeCreateTable, tableClass, key)
 
 
+    def _justCreateTable(self, tableClass):
+        """
+        Execute the table creation DDL for an Item subclass.
+
+        Indexes are *not* created.
+
+        @type tableClass: type
+        @param tableClass: an Item subclass
+        """
+        sqlstr = []
+        sqlarg = []
+
+        # needs to be calculated including version
+        tableName = self._tableNameFor(tableClass.typeName,
+                                       tableClass.schemaVersion)
+
+        sqlstr.append("CREATE TABLE %s (" % tableName)
+
+        # The column is named "oid" instead of "storeID" for backwards
+        # compatibility with the implicit oid/rowid column in old Stores.
+        sqlarg.append("oid INTEGER PRIMARY KEY")
+        for nam, atr in tableClass.getSchema():
+            sqlarg.append("\n%s %s" %
+                          (atr.getShortColumnName(self), atr.sqltype))
+
+        sqlstr.append(', '.join(sqlarg))
+        sqlstr.append(')')
+        self.createSQL(''.join(sqlstr))
+
+
     def _maybeCreateTable(self, tableClass, key):
         """
         A type ID has been requested for an Item subclass whose table was not
@@ -2057,29 +2129,8 @@ class Store(Empowered):
         existing one if the table was created by another Store object
         referencing this database.
         """
-        sqlstr = []
-        sqlarg = []
-
-        # needs to be calculated including version
-        tableName = self._tableNameFor(tableClass.typeName,
-                                       tableClass.schemaVersion)
-
-        sqlstr.append("CREATE TABLE %s (" % tableName)
-
-        for nam, atr in tableClass.getSchema():
-            # it's a stored attribute
-            sqlarg.append("\n%s %s" %
-                          (atr.getShortColumnName(self), atr.sqltype))
-
-        if len(sqlarg) == 0:
-            # XXX should be raised way earlier, in the class definition or something
-            raise NoEmptyItems("%r did not define any attributes" % (tableClass,))
-
-        sqlstr.append(', '.join(sqlarg))
-        sqlstr.append(')')
-
         try:
-            self.createSQL(''.join(sqlstr))
+            self._justCreateTable(tableClass)
         except errors.TableAlreadyExists:
             # Although we don't have a memory of this table from the last time
             # we called "_startup()", another process has updated the schema
@@ -2097,6 +2148,13 @@ class Store(Empowered):
 
         if self.tablesCreatedThisTransaction is not None:
             self.tablesCreatedThisTransaction.append(tableClass)
+
+        # If the new type is a legacy type (not the current version), we need
+        # to queue it for upgrade to ensure that if we are in the middle of an
+        # upgrade, legacy items of this version get upgraded.
+        cls = _typeNameToMostRecentClass.get(tableClass.typeName)
+        if cls is not None and tableClass.schemaVersion != cls.schemaVersion:
+            self._upgradeManager.queueTypeUpgrade(tableClass)
 
         # We can pass () for extantIndexes here because since the table didn't
         # exist for tableClass, none of its indexes could have either.
@@ -2159,14 +2217,6 @@ class Store(Empowered):
             self.createSQL(csql)
 
 
-    def getTableQuery(self, typename, version):
-        if (typename, version) not in self.tableQueries:
-            query = 'SELECT * FROM %s WHERE oid = ?' % (
-                self._tableNameFor(typename, version), )
-            self.tableQueries[typename, version] = query
-        return self.tableQueries[typename, version]
-
-
     def getItemByID(self, storeID, default=_noItem, autoUpgrade=True):
         """
         Retrieve an item by its storeID, and return it.
@@ -2192,7 +2242,7 @@ class Store(Empowered):
         upgraded a database to a new schema and then attempt to open it with a
         previous version of the code.)
 
-        @raise KeyError: if no item corresponded to the given storeID.
+        @raise errors.ItemNotFound: if no item existed with the given storeID.
 
         @return: an Item, or the given default, if it was passed and no row
         corresponding to the given storeID can be located in the database.
@@ -2213,14 +2263,6 @@ class Store(Empowered):
             "Database panic: more than one result for TYPEOF!"
         if results:
             typename, module, version = results[0]
-            # for the moment we're going to assume no inheritance
-            attrs = self.querySQL(self.getTableQuery(typename, version),
-                                  [storeID])
-            if len(attrs) != 1:
-                if default is _noItem:
-                    raise errors.ItemNotFound("No results for known-to-be-good object")
-                return default
-            attrs = attrs[0]
             useMostRecent = False
             moreRecentAvailable = False
 
@@ -2256,6 +2298,18 @@ class Store(Empowered):
                 T = mostRecent
             else:
                 T = self.getOldVersionOf(typename, version)
+
+            # for the moment we're going to assume no inheritance
+            attrs = self.querySQL(T._baseSelectSQL(self), [storeID])
+            if len(attrs) == 0:
+                if default is _noItem:
+                    raise errors.ItemNotFound(
+                        'No results for known-to-be-good object')
+                return default
+            elif len(attrs) > 1:
+                raise errors.DataIntegrityError(
+                    'Too many results for {:d}'.format(storeID))
+            attrs = attrs[0]
             x = T.existingInStore(self, storeID, attrs)
             if moreRecentAvailable and (not useMostRecent) and autoUpgrade:
                 # upgradeVersion will do caching as necessary, we don't have to
@@ -2267,7 +2321,7 @@ class Store(Empowered):
                 self.objectCache.cache(storeID, x)
             return x
         if default is _noItem:
-            raise KeyError(storeID)
+            raise errors.ItemNotFound(storeID)
         return default
 
 

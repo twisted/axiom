@@ -1218,8 +1218,8 @@ class WildcardQueries(QueryingTestCase):
             D.one.notLike('foobar%'),
             '(%s NOT LIKE (?))' % (D.one.getColumnName(self.store),),
             ['foobar%'])
-        self.assertEquals(self.query(D, D.one.like('d1.one')), [self.d1])
-        self.assertEquals(self.query(D, D.one.notLike('d%.one')), [])
+        self.assertEquals(self.query(D, D.four.like(u'd1.four')), [self.d1])
+        self.assertEquals(self.query(D, D.four.notLike(u'd%.four')), [])
 
     def testOneColumn(self):
         self.assertQuery(
@@ -1230,11 +1230,11 @@ class WildcardQueries(QueryingTestCase):
 
     def testOneColumnAndStrings(self):
         self.assertQuery(
-            D.one.like('%', D.id, '%one'),
-            '(%s LIKE (? || %s || ?))' % (D.one.getColumnName(self.store),
+            D.four.like(u'%', D.id, u'%four'),
+            '(%s LIKE (? || %s || ?))' % (D.four.getColumnName(self.store),
                                           D.id.getColumnName(self.store)),
-            ['%', '%one'])
-        q = self.query(D, D.one.like('%', D.id, '%one'))
+            [u'%', u'%four'])
+        q = self.query(D, D.four.like(u'%', D.id, u'%four'))
         e = [self.d1, self.d2, self.d3]
         self.assertEquals(sorted(q), sorted(e))
 
@@ -1251,27 +1251,17 @@ class WildcardQueries(QueryingTestCase):
 
     def testStartsEndsWith(self):
         self.assertQuery(
-            D.one.startswith('foo'),
-            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            D.four.startswith(u'foo'),
+            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
             ['foo%'])
         self.assertQuery(
-            D.one.endswith('foo'),
-            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            D.four.endswith(u'foo'),
+            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
             ['%foo'])
         self.assertEquals(
-            self.query(D, D.one.startswith('d1')), [self.d1])
+            self.query(D, D.four.startswith(u'd1')), [self.d1])
         self.assertEquals(
-            self.query(D, D.one.endswith('3.one')), [self.d3])
-
-
-    def testStartsEndsWithColumn(self):
-        self.assertQuery(
-            D.one.startswith(D.two),
-            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
-                                     D.two.getColumnName(self.store)),
-            ['%'])
-        self.assertEquals(
-            self.query(D, D.one.startswith(D.two)), [])
+            self.query(D, D.four.endswith(u'3.four')), [self.d3])
 
 
     def testStartsEndsWithText(self):
@@ -1282,20 +1272,6 @@ class WildcardQueries(QueryingTestCase):
             self.query(D, D.four.endswith(u'2.four')),
             [self.d2])
 
-
-    def testOtherTable(self):
-        self.assertQuery(
-            D.one.startswith(A.type),
-            '(%s LIKE (%s || ?))' % (D.one.getColumnName(self.store),
-                                     A.type.getColumnName(self.store)),
-            ['%'])
-
-        C(store=self.store, name=u'd1.')
-        C(store=self.store, name=u'2.one')
-        self.assertEquals(
-            self.query(D, D.one.startswith(C.name)), [self.d1])
-        self.assertEquals(
-            self.query(D, D.one.endswith(C.name)), [self.d2])
 
 
 class UniqueTest(TestCase):
@@ -1796,3 +1772,40 @@ class PlaceholderTestCase(TestCase):
         expectedSQL = "placeholder_0.oid, placeholder_0.[attr], placeholder_0.[characters], placeholder_0.[other]"
 
         self.assertEquals(query._queryTarget, expectedSQL)
+
+
+
+class BytesDeprecatedLikeTests(TestCase):
+    """
+    Deprecated tests for LIKE queries on L{axiom.attributes.bytes}.
+    """
+    def test_startsWith(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.startswith was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.startswith('string'))
+
+
+    def test_endsWith(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.endswith was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.endswith('string'))
+
+
+    def test_like(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.like was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.like('string'))
+
+
+    def test_notLike(self):
+        self.assertWarns(
+            DeprecationWarning,
+            'axiom.attributes.notLike was deprecated in Axiom 0.7.5',
+            __file__,
+            lambda: D.one.notLike('string'))

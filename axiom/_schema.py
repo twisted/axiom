@@ -3,28 +3,38 @@
 CREATE_OBJECT = 'INSERT INTO *DATABASE*.axiom_objects (type_id) VALUES (?)'
 CREATE_TYPE = 'INSERT INTO *DATABASE*.axiom_types (typename, module, version) VALUES (?, ?, ?)'
 
+GET_TABLE_INFO = 'PRAGMA *DATABASE*.table_info(?)'
 
-BASE_SCHEMA = ["""
+
+# The storeID for an object must be unique over the lifetime of the store.
+# Since the storeID is allocated by inserting into axiom_objects, we use
+# AUTOINCREMENT so that oids/rowids and thus storeIDs are never reused.
+
+# The column is named "oid" instead of "storeID" for backwards compatibility
+# with the implicit oid/rowid column in old Stores.
+CREATE_OBJECTS = """
 CREATE TABLE *DATABASE*.axiom_objects (
+    oid INTEGER PRIMARY KEY AUTOINCREMENT,
     type_id INTEGER NOT NULL
         CONSTRAINT fk_type_id REFERENCES axiom_types(oid)
 )
-""",
-
 """
+
+CREATE_OBJECTS_IDX = """
 CREATE INDEX *DATABASE*.axiom_objects_type_idx
     ON axiom_objects(type_id);
-""",
-
 """
+
+CREATE_TYPES = """
 CREATE TABLE *DATABASE*.axiom_types (
+    oid INTEGER PRIMARY KEY AUTOINCREMENT,
     typename VARCHAR,
     module VARCHAR,
     version INTEGER
 )
-""",
-
 """
+
+CREATE_ATTRIBUTES = """
 CREATE TABLE *DATABASE*.axiom_attributes (
     type_id INTEGER,
     row_offset INTEGER,
@@ -35,7 +45,11 @@ CREATE TABLE *DATABASE*.axiom_attributes (
     attribute VARCHAR,
     docstring TEXT
 )
-"""]
+"""
+
+BASE_SCHEMA = [
+    CREATE_OBJECTS, CREATE_OBJECTS_IDX, CREATE_TYPES, CREATE_ATTRIBUTES]
+
 
 TYPEOF_QUERY = """
 SELECT *DATABASE*.axiom_types.typename, *DATABASE*.axiom_types.module, *DATABASE*.axiom_types.version
@@ -57,6 +71,8 @@ ADD_SCHEMA_ATTRIBUTE = (
     'VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
 
 ALL_TYPES = 'SELECT oid, module, typename, version FROM *DATABASE*.axiom_types'
+
+LATEST_TYPES = 'SELECT typename, MAX(version) FROM *DATABASE*.axiom_types GROUP BY typename'
 
 GET_GREATER_VERSIONS_OF_TYPE = ('SELECT version FROM *DATABASE*.axiom_types '
                                 'WHERE typename = ? AND version > ?')
