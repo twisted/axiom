@@ -548,7 +548,7 @@ def _childProcTerminated(self, err):
     del self.waitingForProcess
 
 
-class ProcessController(object, metaclass=modal.ModalType):
+class ProcessController(six.with_metaclass(modal.ModalType, object)):
     """
     Stateful class which tracks a Juice connection to a child process.
 

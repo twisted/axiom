@@ -174,8 +174,8 @@ class _Strict(object):
             "%r can't set attribute %r" % (self.__class__.__name__, name))
 
 
-class SchemaMachine(_Strict, metaclass=SchemaMetaMachine):
+class SchemaMachine(six.with_metaclass(SchemaMetaMachine, _Strict)):
     pass
 
-class SlotMachine(_Strict, metaclass=_SlotMetaMachine):
+class SlotMachine(six.with_metaclass(_SlotMetaMachine, _Strict)):
     pass

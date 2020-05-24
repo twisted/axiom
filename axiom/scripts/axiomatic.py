@@ -45,7 +45,7 @@ class AxiomaticSubCommand(usage.Options, AxiomaticSubCommandMixin):
 
 
 
-class AxiomaticCommand(usage.Options, AxiomaticSubCommandMixin, metaclass=_AxiomaticCommandMeta):
+class AxiomaticCommand(six.with_metaclass(_AxiomaticCommandMeta, usage.Options, AxiomaticSubCommandMixin)):
     """
     L{twisted.python.usage.Options} subclass for Axiomatic plugin commands.
 

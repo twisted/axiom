@@ -461,7 +461,7 @@ def allowDeletion(store, tableClass, comparisonFactory):
 
 
 
-class Item(Empowered, slotmachine._Strict, metaclass=MetaItem):
+class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
     # Python-Special Attributes
     __dirty__ = inmemory()
     __legacy__ = False
