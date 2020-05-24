@@ -13,8 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: [2.7, pypy2]
+        python: [pypy2]
         twisted: [twtrunk, twlatest, twlowest]
+        include: # 2.7 only supports up to twpy27 not trunk or latest anymore
+          - python: 2.7
+            twisted: twpy27
+          - python: 2.7
+            twisted: twlowest
     steps:
       - uses: actions/checkout@v2
         with:
