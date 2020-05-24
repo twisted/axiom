@@ -5,7 +5,7 @@
 Tests for Axiom store version history.
 """
 
-import sys, StringIO
+import sys, io
 from twisted.trial import unittest
 from twisted.python.versions import Version
 
@@ -68,7 +68,7 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
         checkSystemVersion(self.store, versions)
 
         query_results = list(self.store.query(SystemVersion))
-        self.assertEquals(len(query_results), 1)
+        self.assertEqual(len(query_results), 1)
 
         # Adjust a version number and try again.
         v = versions[0]
@@ -76,19 +76,19 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
         checkSystemVersion(self.store, versions)
 
         query_results = list(self.store.query(SystemVersion))
-        self.assertEquals(len(query_results), 2)
+        self.assertEqual(len(query_results), 2)
 
         # Revert the version number and try again.
         versions[0] = v
 
         checkSystemVersion(self.store, versions)
         query_results = list(self.store.query(SystemVersion))
-        self.assertEquals(len(query_results), 3)
+        self.assertEqual(len(query_results), 3)
 
         # Reopening the store does not duplicate the version.
         self._reopenStore()
         query_results = list(self.store.query(SystemVersion))
-        self.assertEquals(len(query_results), 3)
+        self.assertEqual(len(query_results), 3)
 
 
     def test_commandLine(self):
@@ -98,7 +98,7 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
         """
         checkSystemVersion(self.store)
 
-        out = StringIO.StringIO()
+        out = io.StringIO()
         self.patch(sys, 'stdout', out)
         lv = ListVersions()
         lv.parent = self

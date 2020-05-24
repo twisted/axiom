@@ -7,7 +7,7 @@ of data over an extended period of time.
 
 import weakref, datetime, os, sys
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python import reflect, failure, log, procutils, util, runtime
 from twisted.internet import task, defer, reactor, error, protocol
@@ -548,7 +548,7 @@ def _childProcTerminated(self, err):
     del self.waitingForProcess
 
 
-class ProcessController(object):
+class ProcessController(object, metaclass=modal.ModalType):
     """
     Stateful class which tracks a Juice connection to a child process.
 
@@ -625,8 +625,6 @@ class ProcessController(object):
     case where process shutdown was explicitly requested via
     stopProcess().
     """
-
-    __metaclass__ = modal.ModalType
 
     initialMode = 'stopped'
     modeAttribute = 'mode'
@@ -903,6 +901,7 @@ class CallItemMethod(juice.Command):
                  ('method', juice.String())]
 
 
+@implementer(iaxiom.IBatchService)
 class BatchProcessingControllerService(service.Service):
     """
     Controls starting, stopping, and passing messages to the system process in
@@ -911,7 +910,6 @@ class BatchProcessingControllerService(service.Service):
     @ivar batchController: A reference to the L{ProcessController} for
         interacting with the batch process, if one exists.  Otherwise C{None}.
     """
-    implements(iaxiom.IBatchService)
 
     batchController = None
 
@@ -959,8 +957,8 @@ class BatchProcessingControllerService(service.Service):
 
         Return a Deferred which fires when the method has been invoked.
         """
-        item = itemMethod.im_self
-        method = itemMethod.im_func.func_name
+        item = itemMethod.__self__
+        method = itemMethod.__func__.__name__
         return self.batchController.getProcess().addCallback(
             CallItemMethod(storepath=item.store.dbdir,
                            storeid=item.storeID,
@@ -982,7 +980,7 @@ class BatchProcessingControllerService(service.Service):
             ResumeProcessor(storepath=storepath, storeid=storeID).do)
 
 
-
+@implementer(iaxiom.IBatchService)
 class _SubStoreBatchChannel(object):
     """
     SubStore adapter for passing messages to the batch processing system
@@ -990,7 +988,6 @@ class _SubStoreBatchChannel(object):
 
     SubStores are adaptable to L{iaxiom.IBatchService} via this adapter.
     """
-    implements(iaxiom.IBatchService)
 
     def __init__(self, substore):
         self.storepath = substore.dbdir
@@ -1089,7 +1086,7 @@ class BatchProcessingProtocol(JuiceChild):
         # Any service which has encountered an error will have logged it and
         # then stopped.  Prune those here, so that they are noticed as missing
         # below and re-added.
-        for path, svc in self.subStores.items():
+        for path, svc in list(self.subStores.items()):
             if not svc.running:
                 del self.subStores[path]
 

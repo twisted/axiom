@@ -37,15 +37,15 @@ class TestCrossStoreTransactions(CrossStoreTest):
             ei = ExplosiveItem(store=self.substore)
             ei.yourHeadAsplode()
 
-        self.failUnlessRaises(ZeroDivisionError,
+        self.assertRaises(ZeroDivisionError,
                               self.store.transact,
                               createTwoSubStoreThings)
 
-        self.failUnlessEqual(
+        self.assertEqual(
             self.store.query(ExplosiveItem).count(),
             0)
 
-        self.failUnlessEqual(
+        self.assertEqual(
             self.substore.query(ExplosiveItem).count(),
             0)
 
@@ -53,16 +53,16 @@ class TestCrossStoreInsert(CrossStoreTest):
 
     def testCrossStoreInsert(self):
         def populate(s, n):
-            for i in xrange(n):
+            for i in range(n):
                 ExplosiveItem(store=s)
 
         self.store.transact(populate, self.store, 2)
         self.store.transact(populate, self.substore, 3)
 
-        self.failUnlessEqual(
+        self.assertEqual(
             self.store.query(ExplosiveItem).count(),
             2)
 
-        self.failUnlessEqual(
+        self.assertEqual(
             self.substore.query(ExplosiveItem).count(),
             3)

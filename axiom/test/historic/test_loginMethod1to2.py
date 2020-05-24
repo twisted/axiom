@@ -8,7 +8,7 @@ from axiom.test.test_userbase import IGarbage
 
 from axiom.test.historic import stubloader
 
-CREDENTIALS = (u'test', u'example.com', 'secret')
+CREDENTIALS = ('test', 'example.com', 'secret')
 GARBAGE_LEVEL = 26
 
 class LoginMethodUpgradeTest(stubloader.StubbedTest):
@@ -16,9 +16,10 @@ class LoginMethodUpgradeTest(stubloader.StubbedTest):
         p = Portal(IRealm(self.store),
                    [ICredentialsChecker(self.store)])
 
-        def loggedIn((interface, avatarAspect, logout)):
+        def loggedIn(xxx_todo_changeme):
             # if we can login, i guess everything is fine
-            self.assertEquals(avatarAspect.garbage, GARBAGE_LEVEL)
+            (interface, avatarAspect, logout) = xxx_todo_changeme
+            self.assertEqual(avatarAspect.garbage, GARBAGE_LEVEL)
 
         creds = UsernamePassword('@'.join(CREDENTIALS[:-1]), CREDENTIALS[-1])
         d = p.login(creds, None, IGarbage)

@@ -4,7 +4,7 @@
 A dependency management system for items.
 """
 
-import sys, itertools
+import sys, itertools, six
 
 from zope.interface.advice import addClassAdvisor
 
@@ -57,7 +57,7 @@ def dependsOn(itemType, itemCustomizer=None, doc='',
         raise TypeError("dependsOn can be used only from a class definition.")
     ref = reference(reftype=itemType, doc=doc, indexed=indexed, allowNone=True,
                     whenDeleted=whenDeleted)
-    if "__dependsOn_advice_data__" not in locals:
+    if "__dependsOn_advice_data__" not in locals and six.PY2:
         addClassAdvisor(_dependsOn_advice)
     locals.setdefault('__dependsOn_advice_data__', []).append(
     (itemType, itemCustomizer, ref))
@@ -65,8 +65,8 @@ def dependsOn(itemType, itemCustomizer=None, doc='',
 
 def _dependsOn_advice(cls):
     if cls in _globalDependencyMap:
-        print "Double advising of %s. dependency map from first time: %s" % (
-            cls, _globalDependencyMap[cls])
+        print("Double advising of %s. dependency map from first time: %s" % (
+            cls, _globalDependencyMap[cls]))
         #bail if we end up here twice, somehow
         return cls
     for itemType, itemCustomizer, ref in cls.__dict__[
@@ -104,7 +104,7 @@ def installOn(self, target):
 
 def _installOn(self, target, __explicitlyInstalled=False):
     depBlob = _globalDependencyMap.get(self.__class__, [])
-    dependencies, itemCustomizers, refs = (map(list, zip(*depBlob))
+    dependencies, itemCustomizers, refs = (list(map(list, list(zip(*depBlob))))
                                          or ([], [], []))
     #See if any of our dependencies have been installed already
     for dc in self.store.query(_DependencyConnector,
@@ -116,7 +116,7 @@ def _installOn(self, target, __explicitlyInstalled=False):
         if (dc.installee.__class__ == self.__class__
             and self.__class__ in set(
             itertools.chain([blob[0][0] for blob in
-                             _globalDependencyMap.values()]))):
+                             list(_globalDependencyMap.values())]))):
             #Somebody got here before we did... let's punt
             raise DependencyError("An instance of %r is already "
                                   "installed on %r." % (self.__class__,

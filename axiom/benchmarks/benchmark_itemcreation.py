@@ -17,7 +17,7 @@ def main():
     s = Store("TEMPORARY.axiom")
     def txn():
         for x in range(10000):
-            AB(a=x, b=unicode(x), store=s)
+            AB(a=x, b=str(x), store=s)
 
     benchmark.start()
     s.transact(txn)

@@ -11,7 +11,7 @@ cur = con.cursor()
 
 while True:
     try:
-        cur.execute(raw_input("SQL> "))
+        cur.execute(input("SQL> "))
         results = list(cur)
         if results:
             pprint(results)

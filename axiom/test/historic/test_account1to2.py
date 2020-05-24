@@ -16,7 +16,8 @@ class AccountUpgradeTest(stubloader.StubbedTest):
         p = Portal(IRealm(self.store),
                    [ICredentialsChecker(self.store)])
 
-        def loggedIn((ifc, av, lgo)):
+        def loggedIn(xxx_todo_changeme):
+            (ifc, av, lgo) = xxx_todo_changeme
             assert av.garbage == 7
             # Bug in cooperator?  this triggers an exception.
             # return svc.stopService()

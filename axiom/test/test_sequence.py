@@ -29,14 +29,14 @@ class SequenceTestCase(unittest.TestCase):
             setattr(self, 'i%i'%i, item)
 
     def assertContents(self, seq, L):
-        self.assertEquals(len(seq), len(L))
+        self.assertEqual(len(seq), len(L))
         for i in range(len(L)):
             self.assertIdentical(seq[i], L[i])
 
 class TestSequenceOfItems(SequenceTestCase):
     def test_createItem(self):
         seq = List(store=self.store)
-        self.assertEquals(len(seq), 0)
+        self.assertEqual(len(seq), 0)
 
     def test_createItemWithDefaults(self):
         seq = List([self.i0, self.i1], store=self.store)
@@ -55,12 +55,12 @@ class TestSequenceOfItems(SequenceTestCase):
     def test_appendAndGetItem(self):
         seq = List(store=self.store)
         seq.append(self.i0)
-        self.assertEquals(len(seq), 1)
-        self.assertEquals(seq[0], self.i0)
+        self.assertEqual(len(seq), 1)
+        self.assertEqual(seq[0], self.i0)
         seq.append(self.i1)
         seq.append(self.i2)
-        self.assertEquals(seq[1], self.i1)
-        self.assertEquals(seq[2], self.i2)
+        self.assertEqual(seq[1], self.i1)
+        self.assertEqual(seq[2], self.i2)
 
     def test_appendSliceSyntax(self):
         seq = List(store=self.store)
@@ -77,7 +77,7 @@ class TestSequenceOfItems(SequenceTestCase):
         seq = List(store=self.store)
         self.assertRaises(IndexError, seq.__getitem__, 0)
         seq.append(self.i0)
-        self.assertEquals(seq[0], self.i0)
+        self.assertEqual(seq[0], self.i0)
         self.assertRaises(IndexError, seq.__getitem__, 1)
 
     def test_negativeIndices(self):
@@ -85,34 +85,34 @@ class TestSequenceOfItems(SequenceTestCase):
         seq.append(self.i0)
         seq.append(self.i1)
         seq.append(self.i2)
-        self.assertEquals(seq[-1], self.i2)
-        self.assertEquals(seq[-2], self.i1)
-        self.assertEquals(seq[-3], self.i0)
+        self.assertEqual(seq[-1], self.i2)
+        self.assertEqual(seq[-2], self.i1)
+        self.assertEqual(seq[-3], self.i0)
         self.assertRaises(IndexError, seq.__getitem__, -4)
 
     def test_setItem(self):
         seq = List(store=self.store)
         seq.append(self.i0)
         seq.append(self.i1)
-        self.assertEquals(len(seq), 2)
-        self.assertEquals(seq[0], self.i0)
-        self.assertEquals(seq[1], self.i1)
+        self.assertEqual(len(seq), 2)
+        self.assertEqual(seq[0], self.i0)
+        self.assertEqual(seq[1], self.i1)
         seq[1] = self.i2
-        self.assertEquals(seq[1], self.i2)
+        self.assertEqual(seq[1], self.i2)
 
     def test_delItem(self):
         seq = List(store=self.store)
         seq.append(self.i1)
         seq.append(self.i2)
         seq.append(self.i3)
-        self.assertEquals(seq.length, 3)
-        self.assertEquals(seq[0], self.i1)
-        self.assertEquals(seq[1], self.i2)
-        self.assertEquals(seq[2], self.i3)
+        self.assertEqual(seq.length, 3)
+        self.assertEqual(seq[0], self.i1)
+        self.assertEqual(seq[1], self.i2)
+        self.assertEqual(seq[2], self.i3)
         del seq[1]
-        self.assertEquals(seq.length, 2)
-        self.assertEquals(seq[0], self.i1)
-        self.assertEquals(seq[1], self.i3)
+        self.assertEqual(seq.length, 2)
+        self.assertEqual(seq[0], self.i1)
+        self.assertEqual(seq[1], self.i3)
         self.assertRaises(IndexError, seq.__getitem__, 2)
 
 
@@ -125,14 +125,14 @@ class TestSequenceOperations(SequenceTestCase):
     def test_x_in_s(self):
         seq = List(store=self.store)
         seq.append(self.i0)
-        self.failUnless(self.i0 in seq)
-        self.failIf(self.xy in seq)
+        self.assertTrue(self.i0 in seq)
+        self.assertFalse(self.xy in seq)
 
     def test_x_not_in_s(self):
         seq = List(store=self.store)
         seq.append(self.i0)
-        self.failUnless(self.xy not in seq)
-        self.failIf(self.i0 not in seq)
+        self.assertTrue(self.xy not in seq)
+        self.assertFalse(self.i0 not in seq)
 
     def test_s_plus_t(self):
         L1 = List(store=self.store)
@@ -142,13 +142,13 @@ class TestSequenceOperations(SequenceTestCase):
         # XXX ASSUMPTION: all operations which return another
         # instance will return regular lists, *not* Lists.
         L = L1 + L2
-        self.assertEquals(L, [self.i0, self.i1])
+        self.assertEqual(L, [self.i0, self.i1])
 
     def test_shallow_copies(self, n=3):
         seq = List(store=self.store)
         seq.append(self.i0)
         for L in (seq * n, n * seq):
-            self.assertEquals(L, [self.i0]*n)
+            self.assertEqual(L, [self.i0]*n)
 
     def test_index(self):
         seq = List(store=self.store)
@@ -165,10 +165,10 @@ class TestSequenceOperations(SequenceTestCase):
         seq.append(self.i1)
         seq.append(self.i2)
         seq.append(self.i3)
-        self.assertEquals(seq[0:2], [self.i0, self.i1])
-        self.assertEquals(seq[0:3], [self.i0, self.i1, self.i2])
-        self.assertEquals(seq[1:0], [])
-        self.assertEquals(seq[-1:], [self.i3])
+        self.assertEqual(seq[0:2], [self.i0, self.i1])
+        self.assertEqual(seq[0:3], [self.i0, self.i1, self.i2])
+        self.assertEqual(seq[1:0], [])
+        self.assertEqual(seq[-1:], [self.i3])
     test_slices.todo = "Slices are not supported yet"
 
     def test_slice_with_step(self):
@@ -177,19 +177,19 @@ class TestSequenceOperations(SequenceTestCase):
         seq.append(self.i1)
         seq.append(self.i2)
         seq.append(self.i3)
-        self.assertEquals(seq[0:4:2], [self.i0, self.i2])
-        self.assertEquals(seq[1:5:2], [self.i1, self.i3])
+        self.assertEqual(seq[0:4:2], [self.i0, self.i2])
+        self.assertEqual(seq[1:5:2], [self.i1, self.i3])
     test_slice_with_step.todo = "Slices are not supported yet"
 
     def test_len(self):
         seq = List(store=self.store)
-        self.assertEquals(len(seq), 0)
+        self.assertEqual(len(seq), 0)
         seq.append(self.i0)
-        self.assertEquals(len(seq), 1)
+        self.assertEqual(len(seq), 1)
         seq.append(self.i0)
-        self.assertEquals(len(seq), 2)
+        self.assertEqual(len(seq), 2)
         seq.append(self.i0)
-        self.assertEquals(len(seq), 3)
+        self.assertEqual(len(seq), 3)
 
     def test_min_max(self):
         seq = List(store=self.store)
@@ -245,7 +245,7 @@ class TestMutableSequenceOperations(SequenceTestCase):
         seq.append(self.i2)
         seq.append(self.i3)
         del seq[1:3]
-        self.assertEquals(len(seq), 2)
+        self.assertEqual(len(seq), 2)
         self.assertIdentical(seq[0], self.i0)
         self.assertIdentical(seq[1], self.i3)
     test_deleteSlice.todo = "Slices are not supported yet"
@@ -329,10 +329,10 @@ class TestMutableSequenceOperations(SequenceTestCase):
         seq.append(self.i2)
         seq.append(self.i0)
         seq.append(self.i2)
-        self.assertEquals(seq.count(self.i0), 3)
-        self.assertEquals(seq.count(self.i1), 1)
-        self.assertEquals(seq.count(self.i2), 2)
-        self.assertEquals(seq.count(self.i3), 0)
+        self.assertEqual(seq.count(self.i0), 3)
+        self.assertEqual(seq.count(self.i1), 1)
+        self.assertEqual(seq.count(self.i2), 2)
+        self.assertEqual(seq.count(self.i3), 0)
 
     def test_index(self):
         seq = List(store=self.store)
@@ -342,13 +342,13 @@ class TestMutableSequenceOperations(SequenceTestCase):
         seq.append(self.i2)
         seq.append(self.i0)
         seq.append(self.i2)
-        self.assertEquals(seq.index(self.i0),    0)
-        self.assertEquals(seq.index(self.i0, 0), 0)
-        self.assertEquals(seq.index(self.i0, 1), 2)
-        self.assertEquals(seq.index(self.i1),    1)
-        self.assertEquals(seq.index(self.i1, 1), 1)
-        self.assertEquals(seq.index(self.i2),    3)
-        self.assertEquals(seq.index(self.i2, 4), 5)
+        self.assertEqual(seq.index(self.i0),    0)
+        self.assertEqual(seq.index(self.i0, 0), 0)
+        self.assertEqual(seq.index(self.i0, 1), 2)
+        self.assertEqual(seq.index(self.i1),    1)
+        self.assertEqual(seq.index(self.i1, 1), 1)
+        self.assertEqual(seq.index(self.i2),    3)
+        self.assertEqual(seq.index(self.i2, 4), 5)
         self.assertRaises(ValueError, seq.index, self.i3)
         self.assertRaises(ValueError, seq.index, self.i1, 3)
         self.assertRaises(ValueError, seq.index, self.i0, 1, 1)
@@ -546,27 +546,27 @@ class TestMutableSequenceOperations(SequenceTestCase):
         seq.append(self.i3)
         seq.append(self.i3)
         seq.append(self.i3)
-        self.assertEquals(seq.count(self.i1), 1)
-        self.assertEquals(seq.count(self.i2), 2)
-        self.assertEquals(seq.count(self.i3), 3)
+        self.assertEqual(seq.count(self.i1), 1)
+        self.assertEqual(seq.count(self.i2), 2)
+        self.assertEqual(seq.count(self.i3), 3)
 
     def test_contains(self):
         seq = List(store=self.store)
         seq.append(self.i1)
         seq.append(self.i2)
-        self.failUnless(self.i1 in seq)
-        self.failUnless(self.i2 in seq)
-        self.failIf(self.i3 in seq)
+        self.assertTrue(self.i1 in seq)
+        self.assertTrue(self.i2 in seq)
+        self.assertFalse(self.i3 in seq)
 
     def test_multicontains(self):
         seq1 = List(store=self.store)
         seq2 = List(store=self.store)
         seq1.append(self.i1)
         seq2.append(self.i2)
-        self.failUnless(self.i1 in seq1)
-        self.failUnless(self.i2 in seq2)
-        self.failIf(self.i1 in seq2)
-        self.failIf(self.i2 in seq1)
+        self.assertTrue(self.i1 in seq1)
+        self.assertTrue(self.i2 in seq2)
+        self.assertFalse(self.i1 in seq2)
+        self.assertFalse(self.i2 in seq1)
 
     def test_multidelitem(self):
         seq1 = List(store=self.store)

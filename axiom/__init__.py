@@ -6,6 +6,6 @@ def asTwistedVersion(packageName, versionString):
     import re
     return versions.Version(
         packageName,
-        *map(int, re.match(r"[0-9.]*", versionString).group().split(".")[:3]))
+        *list(map(int, re.match(r"[0-9.]*", versionString).group().split(".")[:3])))
 
 version = asTwistedVersion("axiom", __version__)

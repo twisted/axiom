@@ -3,9 +3,9 @@
 Tests for L{axiom.userbase}.
 """
 
-import datetime, StringIO, sys
+import datetime, io, sys
 
-from zope.interface import Interface, implements
+from zope.interface import Interface, implementer
 from zope.interface.verify import verifyObject
 
 from twisted.trial import unittest
@@ -36,14 +36,13 @@ from axiom import dependency
 class IGarbage(Interface):
     pass
 
+@implementer(IGarbage)
 class GarbageProtocolHandler(Item):
     schemaVersion = 1
     typeName = 'test_login_garbage'
 
     powerupInterfaces = (IGarbage,)
     garbage = integer()
-
-    implements(IGarbage)
 
 SECRET = 'bananas'
 
@@ -80,9 +79,10 @@ class UserBaseTest(unittest.TestCase):
 
         p, gph = s.transact(_speedup)
 
-        def wasItGph((interface, avatar, logout)):
-            self.assertEquals(interface, IGarbage)
-            self.assertEquals(avatar, gph)
+        def wasItGph(xxx_todo_changeme):
+            (interface, avatar, logout) = xxx_todo_changeme
+            self.assertEqual(interface, IGarbage)
+            self.assertEqual(avatar, gph)
             logout()
 
         return p.login(UsernamePassword('bob@localhost', SECRET), None, IGarbage
@@ -139,7 +139,7 @@ class CommandTestCase(unittest.TestCase):
         @param interface: A L{zope.interface.Interface} that C{obj} should
         implement.
         """
-        self.failUnless(interface.providedBy(interface(obj, None)))
+        self.assertTrue(interface.providedBy(interface(obj, None)))
 
 
     def userbase(self, *args):
@@ -149,7 +149,7 @@ class CommandTestCase(unittest.TestCase):
 
         @return: A list of lines printed to stdout by the axiomatic command.
         """
-        output = StringIO.StringIO()
+        output = io.StringIO()
         sys.stdout, stdout = output, sys.stdout
         try:
             axiomatic.main(['-d', self.dbdir.path, 'userbase'] + list(args))
@@ -176,11 +176,12 @@ class CommandTestCase(unittest.TestCase):
         """
         self.userbase('create', 'alice', 'localhost', SECRET)
 
-        def cb((interface, avatar, logout)):
+        def cb(xxx_todo_changeme1):
+            (interface, avatar, logout) = xxx_todo_changeme1
             ss = avatar.avatars.open()
-            self.assertEquals(list(userbase.getAccountNames(ss)),
-                              [(u'alice', u'localhost')])
-            self.assertEquals(avatar.password, SECRET)
+            self.assertEqual(list(userbase.getAccountNames(ss)),
+                              [('alice', 'localhost')])
+            self.assertEqual(avatar.password, SECRET)
             logout()
 
         d = self._login('alice@localhost', SECRET)
@@ -193,7 +194,7 @@ class CommandTestCase(unittest.TestCase):
         'userbase list' on a fresh store.
         """
         output = self.userbase('list')
-        self.assertEquals(output, ['No accounts'])
+        self.assertEqual(output, ['No accounts'])
 
 
     def test_list(self):
@@ -204,7 +205,7 @@ class CommandTestCase(unittest.TestCase):
         self.userbase('create', 'alice', 'localhost', SECRET)
         self.userbase('create', 'bob', 'localhost', SECRET)
         output = self.userbase('list')
-        self.assertEquals(output, ['alice@localhost', 'bob@localhost'])
+        self.assertEqual(output, ['alice@localhost', 'bob@localhost'])
 
 
     def test_listWithDisabled(self):
@@ -215,10 +216,11 @@ class CommandTestCase(unittest.TestCase):
         self.userbase('create', 'alice', 'localhost', SECRET)
         self.userbase('create', 'bob', 'localhost', SECRET)
 
-        def cb((interface, avatar, logout)):
+        def cb(xxx_todo_changeme2):
+            (interface, avatar, logout) = xxx_todo_changeme2
             avatar.disabled = 1
             output = self.userbase('list')
-            self.assertEquals(output,
+            self.assertEqual(output,
                               ['alice@localhost', 'bob@localhost [DISABLED]'])
 
         return self._login('bob@localhost', SECRET).addCallback(cb)
@@ -236,7 +238,7 @@ class CommandTestCase(unittest.TestCase):
         realm.addAccount(name, None, None, internal=True,
                          avatars=substoreItem)
         output = self.userbase('list')
-        self.assertEquals(output, [name])
+        self.assertEqual(output, [name])
 
 
 
@@ -255,15 +257,15 @@ class AccountTestCase(unittest.TestCase):
         acc = ls.addAccount('username', 'dom.ain', 'password')
         ss = acc.avatars.open()
 
-        self.assertEquals(
+        self.assertEqual(
             list(userbase.getAccountNames(ss)),
             [('username', 'dom.ain')])
 
-        acc.addLoginMethod(u'nameuser', u'ain.dom')
+        acc.addLoginMethod('nameuser', 'ain.dom')
 
         names = list(userbase.getAccountNames(ss))
         names.sort()
-        self.assertEquals(
+        self.assertEqual(
             names,
             [('nameuser', 'ain.dom'), ('username', 'dom.ain')])
 
@@ -276,20 +278,20 @@ class AccountTestCase(unittest.TestCase):
         ls = userbase.LoginSystem(store=s)
         dependency.installOn(ls, s)
 
-        acc = ls.addAccount('username', 'dom.ain', 'password', protocol=u'speech')
+        acc = ls.addAccount('username', 'dom.ain', 'password', protocol='speech')
         ss = acc.avatars.open()
 
-        for protocol in (None, u'speech'):
-            self.assertEquals(list(userbase.getAccountNames(ss, protocol)),
+        for protocol in (None, 'speech'):
+            self.assertEqual(list(userbase.getAccountNames(ss, protocol)),
                               [('username', 'dom.ain')])
 
         # defaults to ANY_PROTOCOL
-        acc.addLoginMethod(u'username2', u'dom.ain')
+        acc.addLoginMethod('username2', 'dom.ain')
 
         # check that searching for protocol=speech also gives us the
         # ANY_PROTOCOL LoginMethod
-        for protocol in (None, u'speech'):
-            self.assertEquals(sorted(userbase.getAccountNames(ss, protocol)),
+        for protocol in (None, 'speech'):
+            self.assertEqual(sorted(userbase.getAccountNames(ss, protocol)),
                               [('username', 'dom.ain'),
                                ('username2', 'dom.ain')])
 
@@ -320,21 +322,21 @@ class AccountTestCase(unittest.TestCase):
 
         # Make sure that our stupid call to addAccount did not corrupt
         # anything, because we are stupid
-        self.assertEquals(acc.avatars.open().query(userbase.LoginAccount).count(), 1)
+        self.assertEqual(acc.avatars.open().query(userbase.LoginAccount).count(), 1)
 
 
     def testParallelLoginMethods(self):
         dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
-        acc = ls.addAccount(u'username', u'example.com', u'password')
+        acc = ls.addAccount('username', 'example.com', 'password')
         ss = acc.avatars.open()
 
         loginMethods = s.query(userbase.LoginMethod)
         subStoreLoginMethods = ss.query(userbase.LoginMethod)
 
-        self.assertEquals(loginMethods.count(), 1)
-        self.assertEquals(
+        self.assertEqual(loginMethods.count(), 1)
+        self.assertEqual(
             [pvals(m) for m in loginMethods],
             [pvals(m) for m in subStoreLoginMethods])
 
@@ -343,16 +345,16 @@ class AccountTestCase(unittest.TestCase):
         dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
-        acc = ls.addAccount(u'username', u'example.com', u'password')
+        acc = ls.addAccount('username', 'example.com', 'password')
 
         # Do everything twice to make sure repeated calls don't corrupt state
         # somehow
         for i in [0, 1]:
             acc.addLoginMethod(
-                localpart=u'anothername',
-                domain=u'example.org',
+                localpart='anothername',
+                domain='example.org',
                 verified=True,
-                protocol=u'test',
+                protocol='test',
                 internal=False)
 
             loginMethods = s.query(
@@ -361,9 +363,9 @@ class AccountTestCase(unittest.TestCase):
             subStoreLoginMethods = acc.avatars.open().query(
                 userbase.LoginMethod, sort=userbase.LoginMethod.storeID.ascending)
 
-            self.assertEquals(loginMethods.count(), 2)
+            self.assertEqual(loginMethods.count(), 2)
 
-            self.assertEquals(
+            self.assertEqual(
                 [pvals(m) for m in loginMethods],
                 [pvals(m) for m in subStoreLoginMethods])
 
@@ -372,7 +374,7 @@ class AccountTestCase(unittest.TestCase):
         dbdir = FilePath(self.mktemp())
         s = Store(dbdir)
         ls = userbase.LoginSystem(store=s)
-        acc = ls.addAccount(u'username', u'example.com', u'password')
+        acc = ls.addAccount('username', 'example.com', 'password')
         ss = acc.avatars.open()
         subStoreLoginAccount = ss.findUnique(userbase.LoginAccount)
 
@@ -380,10 +382,10 @@ class AccountTestCase(unittest.TestCase):
         # somehow
         for i in [0, 1]:
             subStoreLoginAccount.addLoginMethod(
-                localpart=u'anothername',
-                domain=u'example.org',
+                localpart='anothername',
+                domain='example.org',
                 verified=True,
-                protocol=u'test',
+                protocol='test',
                 internal=False)
 
             loginMethods = s.query(
@@ -392,9 +394,9 @@ class AccountTestCase(unittest.TestCase):
             subStoreLoginMethods = ss.query(
                 userbase.LoginMethod, sort=userbase.LoginMethod.storeID.ascending)
 
-            self.assertEquals(loginMethods.count(), 2)
+            self.assertEqual(loginMethods.count(), 2)
 
-            self.assertEquals(
+            self.assertEqual(
                 [pvals(m) for m in loginMethods],
                 [pvals(m) for m in subStoreLoginMethods])
 
@@ -403,20 +405,20 @@ class AccountTestCase(unittest.TestCase):
         s = Store()
         acc = s
         for localpart, domain, internal in [
-            (u'local', u'example.com', True),
-            (u'local', u'example.net', True),
-            (u'remote', u'example.org', False),
-            (u'another', u'example.com', True),
-            (u'brokenguy', None, True)]:
+            ('local', 'example.com', True),
+            ('local', 'example.net', True),
+            ('remote', 'example.org', False),
+            ('another', 'example.com', True),
+            ('brokenguy', None, True)]:
             userbase.LoginMethod(
                 store=s,
                 localpart=localpart,
                 domain=domain,
                 verified=True,
                 account=s,
-                protocol=u'test',
+                protocol='test',
                 internal=internal)
-        self.assertEquals(userbase.getDomainNames(s), [u"example.com", u"example.net"])
+        self.assertEqual(userbase.getDomainNames(s), ["example.com", "example.net"])
 
 
 
@@ -433,8 +435,8 @@ class SubStoreMigrationTestCase(unittest.TestCase):
 
     IMPORTANT_VALUE = 159
 
-    localpart = u'testuser'
-    domain = u'example.com'
+    localpart = 'testuser'
+    domain = 'example.com'
 
     def setUp(self):
         self.dbdir = FilePath(self.mktemp())
@@ -443,7 +445,7 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self.scheduler = IScheduler(self.store)
 
         self.account = self.ls.addAccount(
-            self.localpart, self.domain, u'PASSWORD')
+            self.localpart, self.domain, 'PASSWORD')
 
         self.accountStore = self.account.avatars.open()
 
@@ -470,14 +472,14 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         events are present.
         """
         userbase.extractUserStore(self.account, self.destdir)
-        self.assertEquals(
+        self.assertEqual(
             self.ls.accountByAddress(self.localpart, self.domain),
             None)
 
-        self.failIf(list(self.store.query(SubStore, SubStore.storepath == self.origdir)))
+        self.assertFalse(list(self.store.query(SubStore, SubStore.storepath == self.origdir)))
         self.origdir.restat(False)
-        self.failIf(self.origdir.exists())
-        self.failIf(list(self.store.query(_SubSchedulerParentHook)))
+        self.assertFalse(self.origdir.exists())
+        self.assertFalse(list(self.store.query(_SubSchedulerParentHook)))
 
 
     def test_noTimedEventsInsertion(self):
@@ -498,15 +500,15 @@ class SubStoreMigrationTestCase(unittest.TestCase):
         self._testInsertion(_deleteDomainDirectory)
         insertedStore = self.ls.accountByAddress(self.localpart,
                                                  self.domain).avatars.open()
-        self.assertEquals(
+        self.assertEqual(
             insertedStore.findUnique(ThingThatMovesAround).superValue,
             self.IMPORTANT_VALUE)
         siteStoreSubRef = self.store.getItemByID(insertedStore.idInParent)
         ssph = self.store.findUnique(_SubSchedulerParentHook,
                          _SubSchedulerParentHook.subStore == siteStoreSubRef,
                                      default=None)
-        self.failUnless(ssph)
-        self.failUnless(self.store.findUnique(TimedEvent,
+        self.assertTrue(ssph)
+        self.assertTrue(self.store.findUnique(TimedEvent,
                                               TimedEvent.runnable == ssph))
 
 
@@ -532,9 +534,9 @@ class RealmTestCase(unittest.TestCase):
     """
     Tests for the L{IRealm} implementation in L{axiom.userbase}.
     """
-    localpart = u'testuser'
-    domain = u'example.com'
-    password = u'password'
+    localpart = 'testuser'
+    domain = 'example.com'
+    password = 'password'
 
     def setUp(self):
         self.store = Store()
@@ -558,7 +560,7 @@ class RealmTestCase(unittest.TestCase):
         Test that trying to authenticate as a user who does not exist fails
         with a L{NoSuchUser} exception.
         """
-        username = u'%s@%s' % (self.localpart, self.domain)
+        username = '%s@%s' % (self.localpart, self.domain)
         d = self._requestAvatarId(
             UsernamePassword(username, self.password))
         return self.assertFailure(d, errors.NoSuchUser)
@@ -582,7 +584,7 @@ class RealmTestCase(unittest.TestCase):
         """
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
-        username = u'%s@%s' % (self.localpart, self.domain)
+        username = '%s@%s' % (self.localpart, self.domain)
         d = self._requestAvatarId(UsernamePassword(username, self.password))
         d.addCallback(self.assertEqual, account.storeID)
         return d
@@ -595,13 +597,13 @@ class RealmTestCase(unittest.TestCase):
         """
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
-        username = u'%s@%s' % (self.localpart, self.domain)
+        username = '%s@%s' % (self.localpart, self.domain)
         aid = self.successResultOf(
             self._requestAvatarId(
                 UsernameHashedPassword(username, self.password)))
-        self.assertEquals(aid, account.storeID)
+        self.assertEqual(aid, account.storeID)
         ws = self.flushWarnings()
-        self.assertEquals(ws[0]['category'], DeprecationWarning)
+        self.assertEqual(ws[0]['category'], DeprecationWarning)
 
 
     def test_usernamepasswordInvalid(self):
@@ -612,8 +614,8 @@ class RealmTestCase(unittest.TestCase):
         """
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
-        username = u'%s@%s' % (self.localpart, self.domain)
-        d = self._requestAvatarId(UsernamePassword(username, u'blahblah'))
+        username = '%s@%s' % (self.localpart, self.domain)
+        d = self._requestAvatarId(UsernamePassword(username, 'blahblah'))
         self.assertFailure(d, UnauthorizedLogin)
         return d
 
@@ -626,7 +628,7 @@ class RealmTestCase(unittest.TestCase):
         """
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
-        username = u'%s@%s' % (self.localpart, self.domain)
+        username = '%s@%s' % (self.localpart, self.domain)
         d = self._requestAvatarId(userbase.Preauthenticated(username))
         d.addCallback(self.assertEqual, account.storeID)
         return d
@@ -639,12 +641,12 @@ class RealmTestCase(unittest.TestCase):
         """
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
-        username = u'%s@%s' % (self.localpart, self.domain)
-        self.successResultOf(account.setPassword(u'blahblah'))
-        self.assertEquals(
+        username = '%s@%s' % (self.localpart, self.domain)
+        self.successResultOf(account.setPassword('blahblah'))
+        self.assertEqual(
             self.successResultOf(
                 self._requestAvatarId(
-                    UsernamePassword(username, u'blahblah'))),
+                    UsernamePassword(username, 'blahblah'))),
             account.storeID)
         self.failureResultOf(
             self._requestAvatarId(
@@ -660,7 +662,7 @@ class RealmTestCase(unittest.TestCase):
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
         self.failureResultOf(
-            account.replacePassword(u'blahblah', u'blah'),
+            account.replacePassword('blahblah', 'blah'),
             errors.BadCredentials)
 
 
@@ -671,13 +673,13 @@ class RealmTestCase(unittest.TestCase):
         """
         account = self.realm.addAccount(
             self.localpart, self.domain, self.password)
-        username = u'%s@%s' % (self.localpart, self.domain)
+        username = '%s@%s' % (self.localpart, self.domain)
         self.successResultOf(
-            account.replacePassword(self.password, u'blahblah'))
-        self.assertEquals(
+            account.replacePassword(self.password, 'blahblah'))
+        self.assertEqual(
             self.successResultOf(
                 self._requestAvatarId(
-                    UsernamePassword(username, u'blahblah'))),
+                    UsernamePassword(username, 'blahblah'))),
             account.storeID)
         self.failureResultOf(
             self._requestAvatarId(
@@ -696,7 +698,7 @@ class PreauthenticatedTests(unittest.TestCase):
         its user.
         """
         self.assertEqual(
-            repr(userbase.Preauthenticated(u'foo@bar')),
+            repr(userbase.Preauthenticated('foo@bar')),
             '<Preauthenticated: foo@bar>')
 
 
@@ -705,7 +707,7 @@ class PreauthenticatedTests(unittest.TestCase):
         L{Preauthenticated} implements L{IUsernamePassword} and succeeds all
         authentication checks.
         """
-        creds = userbase.Preauthenticated(u'foo@bar')
+        creds = userbase.Preauthenticated('foo@bar')
         self.assertTrue(
             verifyObject(IUsernamePassword, creds),
             "Preauthenticated does not implement IUsernamePassword")
@@ -719,7 +721,7 @@ class PreauthenticatedTests(unittest.TestCase):
         L{Preauthenticated} implements L{IUsernameHashedPassword} and succeeds
         all authentication checks.
         """
-        creds = userbase.Preauthenticated(u'foo@bar')
+        creds = userbase.Preauthenticated('foo@bar')
         self.assertTrue(
             verifyObject(IUsernameHashedPassword, creds),
             "Preauthenticated does not implement IUsernameHashedPassword")

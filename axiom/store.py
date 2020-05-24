@@ -7,9 +7,9 @@ This module holds the Axiom Store class and related classes, such as queries.
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
-import time, os, itertools, warnings, sys, operator, weakref
+import time, os, itertools, warnings, sys, operator, weakref, six
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python import log
 from twisted.python.failure import Failure
@@ -59,14 +59,13 @@ def _mkdirIfNotExists(dirname):
     os.makedirs(dirname)
     return True
 
-class AtomicFile(file):
+@implementer(iaxiom.IAtomicFile)
+class AtomicFile(six.BytesIO):
     """I am a file which is moved from temporary to permanent storage when it
     is closed.
 
     After I'm closed, I will have a 'finalpath' property saying where I went.
     """
-
-    implements(iaxiom.IAtomicFile)
 
     def __init__(self, tempname, destpath):
         """
@@ -153,7 +152,7 @@ def _typeIsTotallyUnknown(typename, version):
             and ((typename, version) not in _legacyTypes))
 
 
-
+@implementer(iaxiom.IQuery)
 class BaseQuery:
     """
     This is the abstract base implementation of query logic shared between item
@@ -166,10 +165,8 @@ class BaseQuery:
     # XXX: need a better convention for this sort of
     # abstract-but-provide-most-of-a-base-implementation thing. -glyph
 
-    # How about not putting the implements(iaxiom.IQuery) here, but on
+    # How about not putting the @implementer(iaxiom.IQuery) here, but on
     # subclasses instead? -exarkun
-
-    implements(iaxiom.IQuery)
 
     def __init__(self, store, tableClass,
                  comparison=None, limit=None,
@@ -306,12 +303,12 @@ class BaseQuery:
             # statement does not.  this smells like a bug in sqlite's parser to
             # me, but I don't know my SQL syntax standards well enough to be
             # sure -glyph
-            if not isinstance(self.limit, (int, long)):
+            if not isinstance(self.limit, int):
                 raise TypeError("limit must be an integer: %r" % (self.limit,))
             limitClause.append('LIMIT')
             limitClause.append(str(self.limit))
             if self.offset is not None:
-                if not isinstance(self.offset, (int, long)):
+                if not isinstance(self.offset, int):
                     raise TypeError("offset must be an integer: %r" % (self.offset,))
                 limitClause.append('OFFSET')
                 limitClause.append(str(self.offset))
@@ -431,7 +428,7 @@ class BaseQuery:
 
 
     _selfiter = None
-    def next(self):
+    def __next__(self):
         """
         This method is deprecated, a holdover from when queries were iterators,
         rather than iterables.
@@ -445,7 +442,7 @@ class BaseQuery:
                 "more expressive like store.findFirst or store.findOrCreate?",
                 DeprecationWarning, stacklevel=2)
             self._selfiter = self.__iter__()
-        return self._selfiter.next()
+        return next(self._selfiter)
 
 
 
@@ -639,10 +636,10 @@ class ItemQuery(BaseQuery):
         # If there's a 'deleted' callback on the Item type or 'deleteFromStore'
         # is overridden, we have to do it the slow way.
         deletedOverridden = (
-            self.tableClass.deleted.im_func is not item.Item.deleted.im_func)
+            self.tableClass.deleted.__func__ is not item.Item.deleted.__func__)
         deleteFromStoreOverridden = (
-            self.tableClass.deleteFromStore.im_func is not
-            item.Item.deleteFromStore.im_func)
+            self.tableClass.deleteFromStore.__func__ is not
+            item.Item.deleteFromStore.__func__)
 
         if deletedOverridden or deleteFromStoreOverridden:
             for it in self:
@@ -781,13 +778,13 @@ class MultipleItemQuery(BaseQuery):
         """
         return _MultipleItemDistinctQuery(self)
 
+@implementer(iaxiom.IQuery)
 class _DistinctQuery(object):
     """
     A query for results excluding duplicates.
 
     Results from this query depend on the query it was initialized with.
     """
-    implements(iaxiom.IQuery)
 
     def __init__(self, query):
         """
@@ -961,7 +958,7 @@ class AttributeQuery(BaseQuery):
         dbval = rslt[0][0]
         if dbval is None:
             if default is _noDefault:
-                raise ValueError, '%s() on table with no items'%(which)
+                raise ValueError('%s() on table with no items'%(which))
             else:
                 return default
         return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
@@ -1025,14 +1022,14 @@ def _diffSchema(diskSchema, memorySchema):
     diff = []
     if diskOnly:
         diff.append('Only on disk:')
-        diff.extend(map(repr, diskOnly))
+        diff.extend(list(map(repr, diskOnly)))
     if memoryOnly:
         diff.append('Only in memory:')
-        diff.extend(map(repr, memoryOnly))
+        diff.extend(list(map(repr, memoryOnly)))
     return '\n'.join(diff)
 
 
-
+@implementer(iaxiom.IBeneficiary)
 class Store(Empowered):
     """
     I am a database that Axiom Items can be stored in.
@@ -1067,8 +1064,6 @@ class Store(Empowered):
         IServiceCollection: storeServiceSpecialCase,
         iaxiom.IBatchService: _storeBatchServiceSpecialCase,
         iaxiom.IScheduler: _schedulerServiceSpecialCase}
-
-    implements(iaxiom.IBeneficiary)
 
     transaction = None          # set of objects changed in the current transaction
     touched = None              # set of objects changed since the last checkpoint
@@ -1309,8 +1304,8 @@ class Store(Empowered):
 
         for oid, module, typename, version in self.querySchemaSQL(_schema.ALL_TYPES):
             if self.debug:
-                print
-                print 'SCHEMA:', oid, module, typename, version
+                print()
+                print('SCHEMA:', oid, module, typename, version)
             if typename not in _typeNameToMostRecentClass:
                 try:
                     namedAny(module)
@@ -1324,7 +1319,7 @@ class Store(Empowered):
 
         # Now that we have persistedSchema, loop over everything again and
         # prepare old types.
-        for (typename, version), typeID in self.typenameAndVersionToID.iteritems():
+        for (typename, version), typeID in self.typenameAndVersionToID.items():
             cls = _typeNameToMostRecentClass.get(typename)
 
             if cls is not None:
@@ -1406,7 +1401,7 @@ class Store(Empowered):
         positional argument function to call on the new item if it is new.
         """
         andargs = []
-        for k, v in attrs.iteritems():
+        for k, v in attrs.items():
             col = getattr(userItemClass, k)
             andargs.append(col == v)
 
@@ -1452,7 +1447,7 @@ class Store(Empowered):
                 tmpbase = self.filesdir
         else:
             tmpbase = self.dbdir
-        tmpname = tmpbase.child('temp').child(str(tempCounter.next()) + ".tmp")
+        tmpname = tmpbase.child('temp').child(str(next(tempCounter)) + ".tmp")
         return AtomicFile(tmpname.path, self.newFilePath(*path))
 
     def newDirectory(self, *path):
@@ -1490,7 +1485,7 @@ class Store(Empowered):
         # to use typeID instead of that tuple, which may be possible.  Probably
         # only represents a very tiny possible speedup.
         typeIDToNameAndVersion = {}
-        for key, value in self.typenameAndVersionToID.iteritems():
+        for key, value in self.typenameAndVersionToID.items():
             typeIDToNameAndVersion[value] = key
 
         # Indexing attribute, ordering by it, and getting rid of row_offset
@@ -1866,7 +1861,7 @@ class Store(Empowered):
 
     def _begin(self):
         if self.debug:
-            print '<'*10, 'BEGIN', '>'*10
+            print('<'*10, 'BEGIN', '>'*10)
         self.cursor.execute("BEGIN IMMEDIATE TRANSACTION")
         self._setupTxnState()
 
@@ -1880,12 +1875,12 @@ class Store(Empowered):
             self.transaction = set()
             self.touched = set()
         self.autocommit = False
-        for sub in self._attachedChildren.values():
+        for sub in list(self._attachedChildren.values()):
             sub._setupTxnState()
 
     def _commit(self):
         if self.debug:
-            print '*'*10, 'COMMIT', '*'*10
+            print('*'*10, 'COMMIT', '*'*10)
         # self.connection.commit()
         self.cursor.execute("COMMIT")
         log.msg(interface=iaxiom.IStatEvent, stat_commits=1)
@@ -1903,7 +1898,7 @@ class Store(Empowered):
 
     def _rollback(self):
         if self.debug:
-            print '>'*10, 'ROLLBACK', '<'*10
+            print('>'*10, 'ROLLBACK', '<'*10)
         # self.connection.rollback()
         self.cursor.execute("ROLLBACK")
         log.msg(interface=iaxiom.IStatEvent, stat_rollbacks=1)
@@ -1938,7 +1933,7 @@ class Store(Empowered):
                 if attr in self.attrToColumnNameCache:
                     del self.attrToColumnNameCache[attr]
 
-        for sub in self._attachedChildren.values():
+        for sub in list(self._attachedChildren.values()):
             sub._inMemoryRollback()
 
 
@@ -1948,7 +1943,7 @@ class Store(Empowered):
         self.touched = None
         self.executedThisTransaction = None
         self.tablesCreatedThisTransaction = []
-        for sub in self._attachedChildren.values():
+        for sub in list(self._attachedChildren.values()):
             sub._cleanupTxnState()
 
     def close(self, _report=True):
@@ -1957,13 +1952,13 @@ class Store(Empowered):
         self.cursor = self.connection = None
         if self.debug and _report:
             if not self.queryTimes:
-                print 'no queries'
+                print('no queries')
             else:
-                print 'query:', self.avgms(self.queryTimes)
+                print('query:', self.avgms(self.queryTimes))
             if not self.execTimes:
-                print 'no execs'
+                print('no execs')
             else:
-                print 'exec:', self.avgms(self.execTimes)
+                print('exec:', self.avgms(self.execTimes))
 
     def avgms(self, l):
         return 'count: %d avg: %dus' % (len(l),
@@ -2248,7 +2243,7 @@ class Store(Empowered):
         corresponding to the given storeID can be located in the database.
         """
 
-        if not isinstance(storeID, (int, long)):
+        if not isinstance(storeID, int):
             raise TypeError("storeID *must* be an int or long, not %r" % (
                     type(storeID).__name__,))
         if storeID == STORE_SELF_ID:
@@ -2342,7 +2337,7 @@ class Store(Empowered):
 
     def _queryandfetch(self, sql, args):
         if self.debug:
-            print '**', sql, '--', ', '.join(map(str, args))
+            print('**', sql, '--', ', '.join(map(str, args)))
         self.cursor.execute(sql, args)
         before = time.time()
         result = list(self.cursor)
@@ -2352,8 +2347,8 @@ class Store(Empowered):
             log.msg(sql)
             # import traceback; traceback.print_stack()
         if self.debug:
-            print '  lastrow:', self.cursor.lastRowID()
-            print '  result:', result
+            print('  lastrow:', self.cursor.lastRowID())
+            print('  result:', result)
         return result
 
 

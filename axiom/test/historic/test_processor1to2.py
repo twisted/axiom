@@ -8,7 +8,7 @@ class ProcessorUpgradeTest(StubbedTest):
     def setUp(self):
         # Ick, we need to catch the run event of DummyProcessor, and I can't
         # think of another way to do it.
-        self.dummyRun = DummyProcessor.run.im_func
+        self.dummyRun = DummyProcessor.run.__func__
         self.calledBack = Deferred()
         def dummyRun(calledOn):
             self.calledBack.callback(calledOn)
@@ -32,9 +32,9 @@ class ProcessorUpgradeTest(StubbedTest):
         figure out what state they should be in.
         """
         proc = self.store.findUnique(DummyProcessor)
-        self.assertEquals(proc.busyInterval, 100)
-        self.failIfEqual(proc.scheduled, None)
+        self.assertEqual(proc.busyInterval, 100)
+        self.assertNotEqual(proc.scheduled, None)
         def assertion(result):
-            self.assertEquals(result, proc)
+            self.assertEqual(result, proc)
         return self.calledBack.addCallback(assertion)
 

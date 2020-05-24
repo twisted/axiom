@@ -22,7 +22,7 @@ def createDatabase(s):
     Put a processor of some sort into a Store.
     """
     t = DummyProcessor(store=s)
-    print t.typeName
+    print(t.typeName)
 
 
 if __name__ == '__main__':

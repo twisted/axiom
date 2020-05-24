@@ -15,7 +15,7 @@ class AB(Item):
 
 def main():
     s = Store("TEMPORARY.axiom")
-    rows = [(x, unicode(x)) for x in xrange(10000)]
+    rows = [(x, str(x)) for x in range(10000)]
     s.transact(lambda: s.batchInsert(AB, (AB.a, AB.b), rows))
 
     benchmark.start()

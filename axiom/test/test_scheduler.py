@@ -124,7 +124,7 @@ class SchedTest:
         """
         Verify that IScheduler is declared as implemented.
         """
-        self.failUnless(IScheduler.providedBy(IScheduler(self.store)))
+        self.assertTrue(IScheduler.providedBy(IScheduler(self.store)))
 
 
     def test_scheduler(self):
@@ -138,13 +138,13 @@ class SchedTest:
         s = self.store
 
         t1 = TestEvent(testCase=self,
-                       name=u't1',
+                       name='t1',
                        store=s, runAgain=None)
         t2 = TestEvent(testCase=self,
-                       name=u't2',
+                       name='t2',
                        store=s, runAgain=2)
         t3 = TestEvent(testCase=self,
-                       name=u't3',
+                       name='t3',
                        store=s, runAgain=None)
 
         now = self.now()
@@ -169,15 +169,15 @@ class SchedTest:
         Test the unscheduleFirst method of the scheduler.
         """
         sch = IScheduler(self.store)
-        t1 = TestEvent(testCase=self, name=u't1', store=self.store)
-        t2 = TestEvent(testCase=self, name=u't2', store=self.store, runAgain=None)
+        t1 = TestEvent(testCase=self, name='t1', store=self.store)
+        t2 = TestEvent(testCase=self, name='t2', store=self.store, runAgain=None)
 
         sch.schedule(t1, self.now() + timedelta(seconds=1))
         sch.schedule(t2, self.now() + timedelta(seconds=2))
         sch.unscheduleFirst(t1)
         self.clock.advance(3)
-        self.assertEquals(t1.runCount, 0)
-        self.assertEquals(t2.runCount, 1)
+        self.assertEqual(t1.runCount, 0)
+        self.assertEqual(t2.runCount, 1)
 
 
     def test_inspection(self):
@@ -188,12 +188,12 @@ class SchedTest:
         now = self.now() + timedelta(seconds=1)
         off = timedelta(seconds=3)
         sch = IScheduler(self.store)
-        runnable = TestEvent(store=self.store, name=u'Only event')
+        runnable = TestEvent(store=self.store, name='Only event')
         sch.schedule(runnable, now)
         sch.schedule(runnable, now + off)
         sch.schedule(runnable, now + off + off)
 
-        self.assertEquals(
+        self.assertEqual(
             list(sch.scheduledTimes(runnable)),
             [now, now + off, now + off + off])
 
@@ -214,7 +214,7 @@ class SchedTest:
         scheduler.schedule(runner, self.now())
         scheduler.schedule(runner, then)
         self.clock.advance(1)
-        self.assertEquals(futureTimes, [[then], []])
+        self.assertEqual(futureTimes, [[then], []])
 
 
     def test_deletedRunnable(self):
@@ -225,7 +225,7 @@ class SchedTest:
         """
         now = self.now()
         scheduler = IScheduler(self.store)
-        runnable = TestEvent(store=self.store, name=u'Only event')
+        runnable = TestEvent(store=self.store, name='Only event')
         scheduler.schedule(runnable, now)
 
         runnable.deleteFromStore()
@@ -265,19 +265,19 @@ class TopStoreSchedTest(SchedTest, TestCase):
         S.schedule(NotActuallyRunnable(store=self.store), self.now())
 
         te = TestEvent(store=self.store, testCase=self,
-                       name=u't1', runAgain=None)
+                       name='t1', runAgain=None)
         S.schedule(te, self.now() + timedelta(seconds=1))
 
-        self.assertEquals(
+        self.assertEqual(
             self.store.query(TimedEventFailureLog).count(), 0)
 
         self.clock.advance(3)
 
-        self.assertEquals(te.runCount, 1)
+        self.assertEqual(te.runCount, 1)
 
         errs = self.flushLoggedErrors(AttributeError)
-        self.assertEquals(len(errs), 1)
-        self.assertEquals(self.store.query(TimedEventFailureLog).count(), 1)
+        self.assertEqual(len(errs), 1)
+        self.assertEqual(self.store.query(TimedEventFailureLog).count(), 1)
 
     def testScheduledErrorWithHandler(self):
         S = IScheduler(self.store)
@@ -285,20 +285,20 @@ class TopStoreSchedTest(SchedTest, TestCase):
         S.schedule(spec, self.now())
 
         te = TestEvent(store=self.store, testCase=self,
-                       name=u't1', runAgain=None)
+                       name='t1', runAgain=None)
         S.schedule(te, self.now() + timedelta(seconds=1))
-        self.assertEquals(
+        self.assertEqual(
             self.store.query(TimedEventFailureLog).count(), 0)
 
         self.clock.advance(3)
 
-        self.assertEquals(te.runCount, 1)
+        self.assertEqual(te.runCount, 1)
 
         errs = self.flushLoggedErrors(SpecialError)
-        self.assertEquals(len(errs), 1)
-        self.assertEquals(self.store.query(TimedEventFailureLog).count(), 0)
-        self.failUnless(spec.procd)
-        self.failIf(spec.broken)
+        self.assertEqual(len(errs), 1)
+        self.assertEqual(self.store.query(TimedEventFailureLog).count(), 0)
+        self.assertTrue(spec.procd)
+        self.assertFalse(spec.broken)
 
 
 
@@ -332,7 +332,7 @@ class SubSchedulerTests(SchedTest, TestCase):
         del self.scheduler.now
 
         self.clock.advance(17)
-        self.assertEquals(
+        self.assertEqual(
             self.scheduler.now(),
             Time.fromPOSIXTimestamp(self.clock.seconds()))
 
@@ -355,19 +355,19 @@ class SubSchedulerTests(SchedTest, TestCase):
         self.clock.advance(1)
         object.__delattr__(hook, 'run')
 
-        self.assertEquals(
+        self.assertEqual(
             self.siteStore.findUnique(TimedEventFailureLog).runnable,
             hook)
         [err] = self.flushLoggedErrors(IOError)
-        self.assertEquals(str(err.value), 'Denied')
-        self.assertEquals(runnable.runCount, 0)
+        self.assertEqual(str(err.value), 'Denied')
+        self.assertEqual(runnable.runCount, 0)
 
         # Schedule runnable again.  The restored hook in the site store should
         # trigger both scheduled runs in the substore now.
 
         self.scheduler.schedule(runnable, self.now() + timedelta(seconds=1))
         self.clock.advance(1)
-        self.assertEquals(runnable.runCount, 2)
+        self.assertEqual(runnable.runCount, 2)
 
 
 
@@ -532,7 +532,7 @@ class MissingService(unittest.TestCase):
     def _testSchedule(self, scheduler):
         t1 = TestEvent(store=scheduler.store)
         scheduler.schedule(t1, Time.fromPOSIXTimestamp(0))
-        self.failIf(self.calls,
+        self.assertFalse(self.calls,
                     "Should not have had any calls: %r" % (self.calls,))
         self.assertIdentical(
             scheduler._getNextEvent(Time.fromPOSIXTimestamp(1)).runnable, t1)
@@ -731,9 +731,9 @@ class BackwardsCompatibilitySchedTests(object):
         self.store = Store()
         self.oldScheduler = self.schedulerType(store=self.store)
         warnings = self.flushWarnings([self.setUp])
-        self.assertEquals(len(warnings), 1)
-        self.assertEquals(warnings[0]['category'], PendingDeprecationWarning)
-        self.assertEquals(
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]['category'], PendingDeprecationWarning)
+        self.assertEqual(
             warnings[0]['message'],
             self.schedulerType.__name__ + " is deprecated since Axiom 0.5.32.  "
             "Just adapt stores to IScheduler.")
@@ -811,9 +811,9 @@ class BackwardsCompatibilitySchedTests(object):
         # Just load the scheduler, we don't need to use it for anything.
         self.store.getItemByID(storeID)
         warnings = self.flushWarnings([self.test_deprecated])
-        self.assertEquals(len(warnings), 1)
-        self.assertEquals(warnings[0]['category'], PendingDeprecationWarning)
-        self.assertEquals(
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(warnings[0]['category'], PendingDeprecationWarning)
+        self.assertEqual(
             warnings[0]['message'],
             self.schedulerType.__name__ + " is deprecated since Axiom 0.5.32.  "
             "Just adapt stores to IScheduler.")

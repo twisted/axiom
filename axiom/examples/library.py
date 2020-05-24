@@ -9,13 +9,13 @@ from epsilon import extime
 _d = extime.Time.fromISO8601TimeAndDate
 
 _books = [
-    (u'Heart of Darkness', u'Joseph Conrad', u'0486264645', 80, _d('1990-07-01T00:00:00.000001')),
-    (u'The Dark Tower, Book 7', u'Stephen King', u'1880418622', 864, _d('2004-11-21T00:00:00.000001')),
-    (u'Guns, Germs, and Steel: The Fates of Human Societies', u'Jared Diamond', u'0393317552', 480, _d('1999-04-01T00:00:00.000001')),
-    (u'The Lions of al-Rassan', u'Guy Gavriel Kay', u'0060733497', 528, _d('2005-06-28T00:00:00.000001')),
+    ('Heart of Darkness', 'Joseph Conrad', '0486264645', 80, _d('1990-07-01T00:00:00.000001')),
+    ('The Dark Tower, Book 7', 'Stephen King', '1880418622', 864, _d('2004-11-21T00:00:00.000001')),
+    ('Guns, Germs, and Steel: The Fates of Human Societies', 'Jared Diamond', '0393317552', 480, _d('1999-04-01T00:00:00.000001')),
+    ('The Lions of al-Rassan', 'Guy Gavriel Kay', '0060733497', 528, _d('2005-06-28T00:00:00.000001')),
     ]
 
-_borrowers = [u'Anne', u'Bob', u'Carol', u'Dave']
+_borrowers = ['Anne', 'Bob', 'Carol', 'Dave']
 
 
 class Borrower(Item):
@@ -68,44 +68,44 @@ class LendingLibrary(Item):
 
     def displayBooks(self):
         for book in self.books():
-            print book.title,
+            print(book.title, end=' ')
             if book.lentTo is not None:
-                print 'lent to', '['+book.lentTo.name+']'
+                print('lent to', '['+book.lentTo.name+']')
             else:
-                print 'in library'
+                print('in library')
 
     def shuffleLending(self):
         for book in self.books():
             if book.lentTo is not None:
-                print book.lentTo.name, 'returned', book.title
+                print(book.lentTo.name, 'returned', book.title)
                 book.lentTo = None
         for book in self.books():
             if random.choice([True, False]):
                 borrower = random.choice(_borrowers)
-                print 'Lending', book.title, 'to', borrower
+                print('Lending', book.title, 'to', borrower)
                 book.lentTo = self.getBorrower(borrower)
 
 def main(s):
     for ll in s.query(LendingLibrary):
-        print 'found existing library'
+        print('found existing library')
         break
     else:
-        print 'creating new library'
+        print('creating new library')
         ll = LendingLibrary(store=s)
         ll.initialize()
     ll.displayBooks()
-    print '***'
+    print('***')
     ll.shuffleLending()
-    print '---'
+    print('---')
     ll.displayBooks()
-    print '***'
+    print('***')
     ll.shuffleLending()
-    print '---'
+    print('---')
 
-    print s.count(Book, AND (Book.author == u'Stephen King',
-                             Book.title == u'The Lions of al-Rassan'))
-    print s.count(Book, OR (Book.author == u'Stephen King',
-                            Book.title == u'The Lions of al-Rassan'))
+    print(s.count(Book, AND (Book.author == 'Stephen King',
+                             Book.title == 'The Lions of al-Rassan')))
+    print(s.count(Book, OR (Book.author == 'Stephen King',
+                            Book.title == 'The Lions of al-Rassan')))
 
 
 if __name__ == '__main__':

@@ -58,7 +58,7 @@ class TestQueryUtilities(TestCase):
         CA = Segment(store=s, x=C, y=A)
         BL = Segment(store=s, x=B, y=L)
 
-        self.assertEquals(
+        self.assertEqual(
             list(s.query(Segment,
                          overlapping(Segment.x,
                                      Segment.y,
@@ -95,7 +95,7 @@ class TestQueryUtilities(TestCase):
                            sort=[ABC.a.ascending,
                                  ABC.b.ascending,
                                  ABC.c.ascending])
-            self.assertEquals(
+            self.assertEqual(
                 L[L.index(comparee) + 1:],
                 [(o.a, o.b, o.c) for o in qobj])
 
@@ -104,7 +104,7 @@ class TestQueryUtilities(TestCase):
                            sort=[ABC.a.ascending,
                                  ABC.b.ascending,
                                  ABC.c.ascending])
-            self.assertEquals(
+            self.assertEqual(
                 L[L.index(comparee):],
                 [(o.a, o.b, o.c) for o in qobj])
 
@@ -113,7 +113,7 @@ class TestQueryUtilities(TestCase):
                            sort=[ABC.a.ascending,
                                  ABC.b.ascending,
                                  ABC.c.ascending])
-            self.assertEquals(
+            self.assertEqual(
                 [comparee],
                 [(o.a, o.b, o.c) for o in qobj])
 
@@ -122,7 +122,7 @@ class TestQueryUtilities(TestCase):
                            sort=[ABC.a.ascending,
                                  ABC.b.ascending,
                                  ABC.c.ascending])
-            self.assertEquals(
+            self.assertEqual(
                 L[:L.index(comparee)] + L[L.index(comparee) + 1:],
                 [(o.a, o.b, o.c) for o in qobj])
 
@@ -131,7 +131,7 @@ class TestQueryUtilities(TestCase):
                            sort=[ABC.a.ascending,
                                  ABC.b.ascending,
                                  ABC.c.ascending])
-            self.assertEquals(
+            self.assertEqual(
                 L[:L.index(comparee)],
                 [(o.a, o.b, o.c) for o in qobj])
 
@@ -140,7 +140,7 @@ class TestQueryUtilities(TestCase):
                            sort=[ABC.a.ascending,
                                  ABC.b.ascending,
                                  ABC.c.ascending])
-            self.assertEquals(
+            self.assertEqual(
                 L[:L.index(comparee) + 1],
                 [(o.a, o.b, o.c) for o in qobj])
 

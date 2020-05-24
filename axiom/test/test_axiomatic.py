@@ -4,9 +4,9 @@
 Tests for L{axiom.scripts.axiomatic}.
 """
 
-import sys, os, signal, StringIO
+import sys, os, signal, io
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python.log import msg
 from twisted.python.filepath import FilePath
@@ -32,13 +32,13 @@ from twisted.plugins.axiom_plugins import AxiomaticStart
 from axiom.test.reactorimporthelper import SomeItem
 
 
+@implementer(IService)
 class RecorderService(Item):
     """
     Minimal L{IService} implementation which remembers if it was ever started.
     This is used by tests to make sure services get started when they should
     be.
     """
-    implements(IService)
 
     started = boolean(
         doc="""
@@ -99,7 +99,7 @@ class StartTests(TestCase):
         store it is passed. It also adds I{--journal-mode} if this is passed.
         """
         dbdir = FilePath(self.mktemp())
-        store = Store(dbdir, journalMode=u'WAL')
+        store = Store(dbdir, journalMode='WAL')
         run = self._getRunDir(dbdir)
         logs = self._getLogDir(dbdir)
         start = axiomatic.Start()
@@ -189,7 +189,7 @@ class StartTests(TestCase):
         start = axiomatic.Start()
         start.run = None
         original = sys.stdout
-        sys.stdout = stdout = StringIO.StringIO()
+        sys.stdout = stdout = io.StringIO()
         try:
             self.assertRaises(SystemExit, start.parseOptions, ["--help"])
         finally:
@@ -488,14 +488,14 @@ class TestMisc(TestCase):
         Test that AxiomaticCommand itself does not provide IAxiomaticCommand or
         IPlugin, but subclasses do.
         """
-        self.failIf(IAxiomaticCommand.providedBy(axiomatic.AxiomaticCommand), 'IAxiomaticCommand provided')
-        self.failIf(IPlugin.providedBy(axiomatic.AxiomaticCommand), 'IPlugin provided')
+        self.assertFalse(IAxiomaticCommand.providedBy(axiomatic.AxiomaticCommand), 'IAxiomaticCommand provided')
+        self.assertFalse(IPlugin.providedBy(axiomatic.AxiomaticCommand), 'IPlugin provided')
 
         class _TestSubClass(axiomatic.AxiomaticCommand):
             pass
 
-        self.failUnless(IAxiomaticCommand.providedBy(_TestSubClass), 'IAxiomaticCommand not provided')
-        self.failUnless(IPlugin.providedBy(_TestSubClass), 'IPlugin not provided')
+        self.assertTrue(IAxiomaticCommand.providedBy(_TestSubClass), 'IAxiomaticCommand not provided')
+        self.assertTrue(IPlugin.providedBy(_TestSubClass), 'IPlugin not provided')
 
 
 
@@ -511,4 +511,4 @@ class AxiomaticTests(TestCase):
         options = axiomatic.Options()
         options['dbdir'] = self.mktemp()
         options['journal-mode'] = 'WAL'
-        self.assertEqual(options.getStore().journalMode, u'WAL')
+        self.assertEqual(options.getStore().journalMode, 'WAL')

@@ -48,9 +48,9 @@ class TestBorrowedMixins(TestCase):
     def testSanity(self):
         xyz = XYZ()
         val = xyz.m()
-        self.assertEquals(val, 3)
+        self.assertEqual(val, 3)
 
     def testItemSanity(self):
         xyz = ItemXYZ()
         val = xyz.m()
-        self.assertEquals(val, 3)
+        self.assertEqual(val, 3)

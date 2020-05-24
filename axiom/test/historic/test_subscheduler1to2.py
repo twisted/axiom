@@ -21,7 +21,7 @@ class SubSchedulerUpgradeTests(StubbedTest):
         upgraded = sub.whenFullyUpgraded()
         def subUpgraded(ignored):
             scheduler = sub.findUnique(SubScheduler)
-            self.assertEquals(list(sub.interfacesFor(scheduler)), [])
+            self.assertEqual(list(sub.interfacesFor(scheduler)), [])
 
             self.assertIsInstance(IScheduler(sub), _UserScheduler)
         upgraded.addCallback(subUpgraded)

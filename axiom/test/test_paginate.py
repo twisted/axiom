@@ -35,10 +35,10 @@ class CrossTransactionIteration(TestCase):
         b2 = SingleColumnSortHelper(store=s, mainColumn=2)
         b3 = SingleColumnSortHelper(store=s, mainColumn=3)
         itr = s.transact(lambda : iter(s.query(SingleColumnSortHelper).paginate()))
-        self.assertIdentical(s.transact(itr.next), b1)
-        self.assertEquals(s.transact(lambda : (itr.next(), itr.next())),
+        self.assertIdentical(s.transact(itr.__next__), b1)
+        self.assertEqual(s.transact(lambda : (next(itr), next(itr))),
                           (b2, b3))
-        self.assertRaises(StopIteration, lambda : s.transact(itr.next))
+        self.assertRaises(StopIteration, lambda : s.transact(itr.__next__))
 
 
     def test_moreItemsNotMoreWork(self):
@@ -85,28 +85,28 @@ class CrossTransactionIteration(TestCase):
             # subsequent item will take 0, breaking our attempt to measure
             # below)
             lambda : L.append(qry.paginate(pagesize=1)))
-        self.assertEquals(m, 0)
+        self.assertEqual(m, 0)
         y = L.pop()
         g = iter(y)
         # startup costs a little more, so ignore that
         # s.debug = True
-        what = qc.measure(g.next)                # 1
-        oneunit = qc.measure(g.next)                   # 2
-        otherunit = qc.measure(g.next)
-        self.assertEquals(otherunit, oneunit) # 3
+        what = qc.measure(g.__next__)                # 1
+        oneunit = qc.measure(g.__next__)                   # 2
+        otherunit = qc.measure(g.__next__)
+        self.assertEqual(otherunit, oneunit) # 3
         # Now, make some more data
 
         for i in range(3):
             more()
         # and make sure that doesn't increase the amount of work
-        self.assertEquals(qc.measure(g.next), oneunit) # 4
-        self.assertEquals(qc.measure(g.next), oneunit) # 5
-        self.assertEquals(qc.measure(g.next), oneunit) # 6
+        self.assertEqual(qc.measure(g.__next__), oneunit) # 4
+        self.assertEqual(qc.measure(g.__next__), oneunit) # 5
+        self.assertEqual(qc.measure(g.__next__), oneunit) # 6
 
         # one more sanity check - we're at the end.
-        self.assertEquals(g.next().mainColumn, 7)
-        self.assertEquals(g.next().mainColumn, 8)
-        self.assertEquals(list(g), [])
+        self.assertEqual(g.next().mainColumn, 7)
+        self.assertEqual(g.next().mainColumn, 8)
+        self.assertEqual(list(g), [])
 
 
     def test_storeIDTiebreaker(self):
@@ -120,7 +120,7 @@ class CrossTransactionIteration(TestCase):
         last = SingleColumnSortHelper(store=s, mainColumn=1235)
         # This is sensitive to page size, so let's test it at lots of places
         # where edge-cases are likely to develop in the implementation.
-        for pagesize in range(1, 30) + [1000]:
+        for pagesize in list(range(1, 30)) + [1000]:
             # The ordering here in the asserts might look a little weird - that we
             # ascend by storeID in both cases regardless of the order of the sort,
             # but it's intentional.  The storeID is merely to be a tiebreaker to
@@ -157,7 +157,7 @@ class CrossTransactionIteration(TestCase):
         y3 = MultiColumnSortHelper(store=s, columnOne=2, columnTwo=3)
         y4 = MultiColumnSortHelper(store=s, columnOne=2, columnTwo=4)
         z = MultiColumnSortHelper(store=s, columnOne=3, columnTwo=5)
-        self.assertEquals(list(
+        self.assertEqual(list(
                 s.query(MultiColumnSortHelper,
                         sort=[MultiColumnSortHelper.columnOne.ascending,
                               MultiColumnSortHelper.columnTwo.ascending]

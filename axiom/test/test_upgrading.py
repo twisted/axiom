@@ -4,7 +4,7 @@
 Tests for the Axiom upgrade system.
 """
 
-import sys, StringIO
+import sys, io
 
 from zope.interface import Interface
 from zope.interface.verify import verifyObject
@@ -25,6 +25,7 @@ from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.plugins.axiom_plugins import Upgrade
 from axiom.test.util import CommandStub
+import importlib
 
 
 
@@ -45,18 +46,18 @@ def axiomInvalidate(itemClass):
     """
     # Note, be very careful not to use comparison on attributes here.  For
     # example, do not use list.remove(), since it is equality based. -exarkun
-    for cascades in attributes._cascadingDeletes.itervalues():
-        for i in xrange(len(cascades) - 1, -1, -1):
+    for cascades in attributes._cascadingDeletes.values():
+        for i in range(len(cascades) - 1, -1, -1):
             if cascades[i].type is itemClass:
                 del cascades[i]
 
     store._typeNameToMostRecentClass.pop(itemClass.typeName, None)
 
-    for (tnam, schever) in item._legacyTypes.keys():
+    for (tnam, schever) in list(item._legacyTypes.keys()):
         if tnam == itemClass.typeName:
             item._legacyTypes.pop((tnam, schever))
 
-    for k in upgrade._upgradeRegistry.keys():
+    for k in list(upgrade._upgradeRegistry.keys()):
         if k[0] == itemClass.typeName:
             upgrade._upgradeRegistry.pop(k)
 
@@ -64,7 +65,7 @@ def axiomInvalidateModule(moduleObject):
     """
     Call L{axiomInvalidate} on all Item subclasses defined in a module.
     """
-    for v in moduleObject.__dict__.values():
+    for v in list(moduleObject.__dict__.values()):
         if isinstance(v, item.MetaItem):
             axiomInvalidate(v)
 
@@ -86,7 +87,7 @@ def choose(module=None):
         axiomInvalidateModule(old)
 
     if module is not None:
-        reload(module)
+        importlib.reload(module)
 
 oldapp = loadSchemaModule('axiom.test.oldapp')
 
@@ -158,7 +159,7 @@ def callWithStdoutRedirect(f, *a, **kw):
 
     @returns: C{(returnValue, stdout})
     """
-    output = StringIO.StringIO()
+    output = io.StringIO()
     sys.stdout, stdout = output, sys.stdout
     try:
         result = f(*a, **kw)
@@ -215,18 +216,18 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             ok = False
             unrelatedMessages = []
             for msgdict in logMessages:
-                msgstr = u''.join(msgdict.get('message', ()))
-                if u'finished upgrading' in msgstr:
+                msgstr = ''.join(msgdict.get('message', ()))
+                if 'finished upgrading' in msgstr:
                     ok = True
                 else:
                     unrelatedMessages.append(msgstr)
-            self.failUnless(ok, "No messages related to upgrading: %r" % (unrelatedMessages,))
+            self.assertTrue(ok, "No messages related to upgrading: %r" % (unrelatedMessages,))
             s = self.openStore()
             def afterUpgrade(noLogMessages):
                 for nmsgdict in noLogMessages:
-                    mm = u''.join(nmsgdict.get('message', ()))
+                    mm = ''.join(nmsgdict.get('message', ()))
                     if mm:
-                        self.failIfIn(u'finished upgrading', mm)
+                        self.failIfIn('finished upgrading', mm)
             self.startStoreService()
             return _logMessagesFrom(s.whenFullyUpgraded
                                     ).addCallback(afterUpgrade)
@@ -243,7 +244,7 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         s = self.openStore()
         swordID = oldapp.Sword(
             store=s,
-            name=u'flaming vorpal doom',
+            name='flaming vorpal doom',
             hurtfulness=7).storeID
         self.closeStore()
 
@@ -284,12 +285,12 @@ class SwordUpgradeTest(SchemaUpgradeTest):
 
         sword = oldapp.Sword(
             store=s,
-            name=u'flaming vorpal doom',
+            name='flaming vorpal doom',
             hurtfulness=7)
 
         player = oldapp.Player(
             store=s,
-            name=u'Milton',
+            name='Milton',
             sword=sword)
 
         self.closeStore()
@@ -368,16 +369,16 @@ class SwordUpgradeTest(SchemaUpgradeTest):
     def _testPlayerAndSwordState(self, player, sword):
         assert not player.__legacy__
         assert not sword.__legacy__
-        self.assertEquals(player.name, 'Milton')
-        self.failIf(hasattr(player, 'sword'))
-        self.assertEquals(sword.name, 'flaming vorpal doom')
-        self.assertEquals(sword.damagePerHit, 14)
-        self.failIf(hasattr(sword, 'hurtfulness'))
-        self.assertEquals(sword.owner.storeID, player.storeID)
-        self.assertEquals(type(sword.owner), type(player))
-        self.assertEquals(sword.owner, player)
-        self.assertEquals(sword.activated, 1)
-        self.assertEquals(player.activated, 1)
+        self.assertEqual(player.name, 'Milton')
+        self.assertFalse(hasattr(player, 'sword'))
+        self.assertEqual(sword.name, 'flaming vorpal doom')
+        self.assertEqual(sword.damagePerHit, 14)
+        self.assertFalse(hasattr(sword, 'hurtfulness'))
+        self.assertEqual(sword.owner.storeID, player.storeID)
+        self.assertEqual(type(sword.owner), type(player))
+        self.assertEqual(sword.owner, player)
+        self.assertEqual(sword.activated, 1)
+        self.assertEqual(player.activated, 1)
 
 
     def test_multipleLegacyVersions(self):
@@ -462,14 +463,14 @@ class PathUpgrade(SchemaUpgradeTest):
         versions in the specified module.
         """
         axiomInvalidateModule(module)
-        reload(oldpath)
+        importlib.reload(oldpath)
         self.openStore()
         nfp = self.currentStore.newFilePath("pathname")
         oldpath.Path(store=self.currentStore,
                      thePath=nfp)
         self.closeStore()
         axiomInvalidateModule(oldpath)
-        reload(module)
+        importlib.reload(module)
         self.openStore()
         self.startStoreService()
         return nfp, self.currentStore.whenFullyUpgraded()
@@ -482,7 +483,7 @@ class PathUpgrade(SchemaUpgradeTest):
         """
         nfp, d = self._runPathUpgrade(newpath)
         def checkPathEquivalence(n):
-            self.assertEquals(
+            self.assertEqual(
                 self.currentStore.findUnique(newpath.Path).thePath.path,
                 nfp.path)
         return d.addCallback(checkPathEquivalence)
@@ -496,7 +497,7 @@ class PathUpgrade(SchemaUpgradeTest):
         nfp, d = self._runPathUpgrade(path_postcopy)
         path2 = nfp.child("foo")
         def checkPath(_):
-            self.assertEquals(
+            self.assertEqual(
                 self.currentStore.findUnique(path_postcopy.Path).thePath.path,
                 path2.path)
         return d.addCallback(checkPath)
@@ -523,7 +524,7 @@ class DeletionTest(SchemaUpgradeTest):
         is deleted in the course of B's upgrade, you should still get a
         reference to B.
         """
-        reload(oldcirc)
+        importlib.reload(oldcirc)
         self.openStore()
         b = oldcirc.B(a=oldcirc.A(store=self.currentStore),
                       store=self.currentStore)
@@ -532,14 +533,14 @@ class DeletionTest(SchemaUpgradeTest):
         self.closeStore()
 
         axiomInvalidateModule(oldcirc)
-        reload(newcirc)
+        importlib.reload(newcirc)
 
         self.openStore()
         origA = self.currentStore.findUnique(newcirc.A)
         origB = origA.b
         secondA = self.currentStore.findUnique(newcirc.A)
         secondB = secondA.b
-        self.assertEquals(origB, secondB)
+        self.assertEqual(origB, secondB)
         self.assertNotEqual(origA, secondA)
 
     def testPowerupsFor(self):
@@ -547,18 +548,18 @@ class DeletionTest(SchemaUpgradeTest):
         Powerups deleted during upgrades should be omitted from the results of
         powerupsFor.
         """
-        reload(oldobsolete)
+        importlib.reload(oldobsolete)
         self.openStore()
         o = oldobsolete.Obsolete(store=self.currentStore)
         self.currentStore.powerUp(o, IObsolete)
         # sanity check
-        self.assertEquals(IObsolete(self.currentStore), o)
+        self.assertEqual(IObsolete(self.currentStore), o)
         self.closeStore()
 
         axiomInvalidateModule(oldobsolete)
-        reload(newobsolete)
+        importlib.reload(newobsolete)
         self.openStore()
-        self.assertEquals(list(self.currentStore.powerupsFor(IObsolete)), [])
+        self.assertEqual(list(self.currentStore.powerupsFor(IObsolete)), [])
         self.closeStore()
         axiomInvalidateModule(newobsolete)
 
@@ -567,18 +568,18 @@ class DeletionTest(SchemaUpgradeTest):
         Powerups deleted during upgrades should be omitted from the results of
         powerupsFor.
         """
-        reload(oldobsolete)
+        importlib.reload(oldobsolete)
         self.openStore()
         o = oldobsolete.Obsolete(store=self.currentStore)
         self.currentStore.powerUp(o, IObsolete)
         # sanity check
-        self.assertEquals(IObsolete(self.currentStore), o)
+        self.assertEqual(IObsolete(self.currentStore), o)
         self.closeStore()
 
         axiomInvalidateModule(oldobsolete)
-        reload(newobsolete)
+        importlib.reload(newobsolete)
         self.openStore()
-        self.assertEquals(IObsolete(self.currentStore, None), None)
+        self.assertEqual(IObsolete(self.currentStore, None), None)
         self.closeStore()
         axiomInvalidateModule(newobsolete)
 
@@ -679,7 +680,7 @@ class DuringUpgradeTests(unittest.TestCase):
         new = self.storeWithVersion(reentrant_new)
         self.assertRaises(errors.UpgraderRecursion, new.getItemByID, storeID)
         # A whitebox flourish to make sure our state tracking is correct:
-        self.failIf(new._upgradeManager._currentlyUpgrading,
+        self.assertFalse(new._upgradeManager._currentlyUpgrading,
                     "No upgraders should currently be in progress.")
 
 
@@ -789,7 +790,7 @@ class AxiomaticUpgradeTest(unittest.TestCase):
         """
         choose(oldapp)
         swordID = oldapp.Sword(
-            store=self.store, name=u'broadsword', hurtfulness=5).storeID
+            store=self.store, name='broadsword', hurtfulness=5).storeID
         self.store.close()
 
         choose(deleteswordapp)
@@ -813,7 +814,7 @@ class AxiomaticUpgradeTest(unittest.TestCase):
         """
         choose(oldapp)
         swordID = oldapp.Sword(
-            store=self.store, name=u'longsword', hurtfulness=4).storeID
+            store=self.store, name='longsword', hurtfulness=4).storeID
         self.store.close()
 
         choose(brokenapp)
@@ -846,7 +847,7 @@ class AxiomaticUpgradeTest(unittest.TestCase):
         """
         choose(oldapp)
         swordID = oldapp.Sword(
-            store=self.store, name=u'rapier', hurtfulness=3).storeID
+            store=self.store, name='rapier', hurtfulness=3).storeID
         self.store.close()
 
         choose(brokenapp)
@@ -881,8 +882,8 @@ class AxiomaticUpgradeTest(unittest.TestCase):
         ss2 = SubStore.createNew(self.store, ['b'])
 
         swordIDs = [
-            (ss1.storeID, oldapp.Sword(store=ss1.open(), name=u'foo').storeID),
-            (ss2.storeID, oldapp.Sword(store=ss2.open(), name=u'bar').storeID)]
+            (ss1.storeID, oldapp.Sword(store=ss1.open(), name='foo').storeID),
+            (ss2.storeID, oldapp.Sword(store=ss2.open(), name='bar').storeID)]
 
         del ss1, ss2
         self.store.close()

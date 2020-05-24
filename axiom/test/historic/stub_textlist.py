@@ -17,7 +17,7 @@ def createDatabase(s):
     """
     Populate the given Store with some Dummy items.
     """
-    Dummy(store=s, attribute=[u'foo', u'bar'])
+    Dummy(store=s, attribute=['foo', 'bar'])
 
 
 

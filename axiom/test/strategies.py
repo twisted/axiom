@@ -16,7 +16,7 @@ def axiomText(*a, **kw):
     return st.text(
         alphabet=st.characters(
             blacklist_categories={'Cs'},
-            blacklist_characters={u'\x00'}),
+            blacklist_characters={'\x00'}),
         *a, **kw)
 
 
@@ -27,7 +27,7 @@ def textlists():
     return st.lists(st.text(
         alphabet=st.characters(
             blacklist_categories={'Cs'},
-            blacklist_characters={u'\x00', u'\x02', u'\x1f'})))
+            blacklist_characters={'\x00', '\x02', '\x1f'})))
 
 
 

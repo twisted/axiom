@@ -7,7 +7,7 @@ from decimal import Decimal
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python import filepath
 from twisted.python.deprecate import deprecated
@@ -178,12 +178,12 @@ class Comparable(_ContainableMixin, _ComparisonOperatorMuxer,
 
 
 
+@implementer(IOrdering)
 class SimpleOrdering:
     """
     Currently this class is mostly internal.  More documentation will follow as
     its interface is finalized.
     """
-    implements(IOrdering)
 
     # maybe this will be a useful public API, for the query something
     # something.
@@ -222,11 +222,11 @@ class SimpleOrdering:
             return NotImplemented
 
 
+@implementer(IOrdering)
 class CompoundOrdering:
     """
     List of SimpleOrdering instances.
     """
-    implements(IOrdering)
 
     def __init__(self, seq):
         self.simpleOrderings = list(seq)
@@ -275,9 +275,8 @@ class CompoundOrdering:
         return x
 
 
-
+@implementer(IOrdering)
 class UnspecifiedOrdering:
-    implements(IOrdering)
 
     def __init__(self, null):
         pass
@@ -301,6 +300,7 @@ def compoundIndex(*columns):
     for column in columns:
         column.compoundIndexes.append(columns)
 
+@implementer(IColumn)
 class SQLAttribute(inmemory, Comparable):
     """
     Abstract superclass of all attributes.
@@ -312,7 +312,6 @@ class SQLAttribute(inmemory, Comparable):
 
     @ivar default: The value used for this attribute, if no value is specified.
     """
-    implements(IColumn)
 
     sqltype = None
 
@@ -502,8 +501,8 @@ class SQLAttribute(inmemory, Comparable):
                 st._rejectChanges -= 1
 
 
+@implementer(IComparison)
 class TwoAttributeComparison:
-    implements(IComparison)
     def __init__(self, leftAttribute, operationString, rightAttribute):
         self.leftAttribute = leftAttribute
         self.operationString = operationString
@@ -532,8 +531,8 @@ class TwoAttributeComparison:
                          self.rightAttribute.fullyQualifiedName()))
 
 
+@implementer(IComparison)
 class AttributeValueComparison:
-    implements(IComparison)
     def __init__(self, attribute, operationString, value):
         self.attribute = attribute
         self.operationString = operationString
@@ -554,8 +553,9 @@ class AttributeValueComparison:
                          self.operationString,
                          repr(self.value)))
 
+
+@implementer(IComparison)
 class NullComparison:
-    implements(IComparison)
     def __init__(self, attribute, negate=False):
         self.attribute = attribute
         self.negate = negate
@@ -609,8 +609,8 @@ class LikeColumn(LikeFragment):
         return [self.attribute.type]
 
 
+@implementer(IComparison)
 class LikeComparison:
-    implements(IComparison)
     # Not AggregateComparison or AttributeValueComparison because there is a
     # different, optimized syntax for 'or'.  WTF is wrong with you, SQL??
 
@@ -646,23 +646,22 @@ class LikeComparison:
         return l
 
 
-
+@implementer(IComparison)
 class AggregateComparison:
     """
     Abstract base class for compound comparisons that aggregate other
     comparisons - currently only used for AND and OR comparisons.
     """
 
-    implements(IComparison)
     operator = None
 
     def __init__(self, *conditions):
         self.conditions = conditions
         if self.operator is None:
-            raise NotImplementedError, ('%s cannot be used; you want AND or OR.'
+            raise NotImplementedError('%s cannot be used; you want AND or OR.'
                                         % self.__class__.__name__)
         if not conditions:
-            raise ValueError, ('%s condition requires at least one argument'
+            raise ValueError('%s condition requires at least one argument'
                                % self.operator)
 
     def getQuery(self, store):
@@ -688,10 +687,8 @@ class AggregateComparison:
                            ', '.join(map(repr, self.conditions)))
 
 
-
+@implementer(IComparison)
 class SequenceComparison:
-    implements(IComparison)
-
     def __init__(self, attribute, container, negate):
         self.attribute = attribute
         self.container = container
@@ -795,12 +792,12 @@ class OR(AggregateComparison):
     operator = 'OR'
 
 
+@implementer(IComparison)
 class TableOrderComparisonWrapper(object):
     """
     Wrap any other L{IComparison} and override its L{getInvolvedTables} method
     to specify the same tables but in an explicitly specified order.
     """
-    implements(IComparison)
 
     tables = None
     comparison = None
@@ -894,7 +891,7 @@ class integer(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        requireType(self, pyval, inttyperepr, int, long)
+        requireType(self, pyval, inttyperepr, int, int)
         if not LARGEST_NEGATIVE <= pyval <= LARGEST_POSITIVE:
             raise ConstraintError(
                 self, inttyperepr, pyval)
@@ -913,7 +910,7 @@ class bytes(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if isinstance(pyval, unicode):
+        if isinstance(pyval, str):
             raise ConstraintError(self, "str or other byte buffer", pyval)
         return buffer(pyval)
 
@@ -968,7 +965,7 @@ class text(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if not isinstance(pyval, unicode) or u'\0' in pyval:
+        if not isinstance(pyval, str) or '\0' in pyval:
             raise ConstraintError(
                 self, "unicode string without NULL bytes", pyval)
         return pyval
@@ -979,13 +976,13 @@ class text(SQLAttribute):
 
 
 class textlist(text):
-    delimiter = u'\u001f'
+    delimiter = '\u001f'
 
     # Once upon a time, textlist encoded the list in such a way that caused []
     # to be indistinguishable from [u'']. This value is now used as a
     # placeholder at the head of the list, to avoid this problem in a way that
     # is almost completely backwards-compatible with older databases.
-    guard = u'\u0002'
+    guard = '\u0002'
 
     def outfilter(self, dbval, oself):
         unicodeString = super(textlist, self).outfilter(dbval, oself)
@@ -1031,7 +1028,7 @@ class path(text):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        mypath = unicode(pyval.path)
+        mypath = str(pyval.path)
         if store is None:
             store = oself.store
         if store is None:
@@ -1281,7 +1278,7 @@ class AbstractFixedPointDecimal(integer):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if isinstance(pyval, (int, long)):
+        if isinstance(pyval, int):
             pyval = Decimal(pyval)
         if isinstance(pyval, Decimal):
             # Python < 2.5.2 compatibility:

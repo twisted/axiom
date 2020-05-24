@@ -22,18 +22,18 @@ def main():
 
     objects = []
     def createObjects():
-        for x in xrange(N):
+        for x in range(N):
             objects.append(TaggedObject(store=s))
     s.transact(createObjects)
 
     def tagObjects():
         for o in objects:
-            for x in xrange(N):
-                c.tag(o, unicode(x))
+            for x in range(N):
+                c.tag(o, str(x))
     s.transact(tagObjects)
 
     def getTags():
-        for i in xrange(N):
+        for i in range(N):
             for o in objects:
                 for t in c.tagsOf(o):
                     pass

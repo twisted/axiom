@@ -17,5 +17,5 @@ class SchedulerUpgradeTests(StubbedTest):
         L{_SiteScheduler}.
         """
         scheduler = self.store.findUnique(Scheduler)
-        self.assertEquals(list(self.store.interfacesFor(scheduler)), [])
+        self.assertEqual(list(self.store.interfacesFor(scheduler)), [])
         self.assertIsInstance(IScheduler(self.store), _SiteScheduler)

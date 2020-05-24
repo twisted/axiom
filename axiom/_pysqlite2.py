@@ -161,7 +161,7 @@ class Cursor(object):
                 raise
         except (dbapi2.ProgrammingError,
                 dbapi2.InterfaceError,
-                dbapi2.OperationalError), e:
+                dbapi2.OperationalError) as e:
             raise self._connection.identifySQLError(sql, args, e)
 
 

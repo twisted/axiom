@@ -3,7 +3,7 @@
 __metaclass__ = type
 
 import gc
-from zope.interface import implements, implementer, Interface
+from zope.interface import implementer, Interface
 
 from inspect import getabsfile
 from weakref import WeakValueDictionary
@@ -105,11 +105,11 @@ class MetaItem(slotmachine.SchemaMetaMachine):
 def noop():
     pass
 
+@implementer(IColumn)
 class _StoreIDComparer(Comparable):
     """
     See Comparable's docstring for the explanation of the requirements of my implementation.
     """
-    implements(IColumn)
 
     def __init__(self, type):
         self.type = type
@@ -265,7 +265,7 @@ class Empowered(object):
         else:
             forc = self.store.findOrCreate(_PowerupConnector,
                                            item=self,
-                                           interface=unicode(qual(interface)),
+                                           interface=str(qual(interface)),
                                            powerup=powerup)
             forc.priority = priority
 
@@ -295,7 +295,7 @@ class Empowered(object):
         else:
             for cable in self.store.query(_PowerupConnector,
                                           AND(_PowerupConnector.item == self,
-                                              _PowerupConnector.interface == unicode(qual(interface)),
+                                              _PowerupConnector.interface == str(qual(interface)),
                                               _PowerupConnector.powerup == powerup)):
                 cable.deleteFromStore()
                 return
@@ -341,7 +341,7 @@ class Empowered(object):
             yield inMemoryPowerup
         if self.store is None:
             return
-        name = unicode(qual(interface), 'ascii')
+        name = str(qual(interface), 'ascii')
         for cable in self.store.query(
             _PowerupConnector,
             AND(_PowerupConnector.interface == name,
@@ -461,11 +461,8 @@ def allowDeletion(store, tableClass, comparisonFactory):
 
 
 
-class Item(Empowered, slotmachine._Strict):
+class Item(Empowered, slotmachine._Strict, metaclass=MetaItem):
     # Python-Special Attributes
-    __metaclass__ = MetaItem
-
-    # Axiom-Special Attributes
     __dirty__ = inmemory()
     __legacy__ = False
 
@@ -596,7 +593,7 @@ class Item(Empowered, slotmachine._Strict):
                 if name not in kw:
                     kw[name] = attr.computeDefault()
 
-        for k, v in kw.iteritems():
+        for k, v in kw.items():
             setattr(self, k, v)
 
         if tostore != None:
@@ -923,7 +920,7 @@ class Item(Empowered, slotmachine._Strict):
         # XXX no point in caching for every possible combination of attribute
         # values - probably.  check out how prepared statements are used in
         # python sometime.
-        dirty = self.__dirty__.items()
+        dirty = list(self.__dirty__.items())
         if not dirty:
             raise RuntimeError("Non-dirty item trying to generate SQL.")
         dirty.sort()
@@ -955,7 +952,7 @@ class Item(Empowered, slotmachine._Strict):
     getTableAlias = classmethod(getTableAlias)
 
 
-
+@implementer(IColumn)
 class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
                          _MatchingOperationMuxer, _OrderingMixin):
     """
@@ -963,7 +960,6 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
     name built with a table alias name instead of the underlying column's real
     table name.
     """
-    implements(IColumn)
 
     def __init__(self, placeholder, column):
         self.type = placeholder

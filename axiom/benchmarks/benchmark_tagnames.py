@@ -24,13 +24,13 @@ def main():
     o = TaggedObject(store=s)
 
     def tagObjects(tag, copies):
-        for x in xrange(copies):
+        for x in range(copies):
             c.tag(o, tag)
-    for i in xrange(N_TAGS):
-        s.transact(tagObjects, unicode(i), N_COPIES)
+    for i in range(N_TAGS):
+        s.transact(tagObjects, str(i), N_COPIES)
 
     def getTags():
-        for i in xrange(N_LOOPS):
+        for i in range(N_LOOPS):
             list(c.tagNames())
 
     benchmark.start()

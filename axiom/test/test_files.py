@@ -29,7 +29,7 @@ class InStoreFilesTest(unittest.TestCase):
         f = s.newFile('test', 'whatever.txt')
         f.write('crap')
         def cb(fpath):
-            self.assertEquals(fpath.open().read(), 'crap')
+            self.assertEqual(fpath.open().read(), 'crap')
 
         return f.close().addCallback(cb)
 
@@ -83,7 +83,7 @@ class PathAttributesTest(unittest.TestCase):
             s2 = Store(npath)
             pti = list(s2.query(PathTesterItem))[0]
 
-            self.assertEquals(pti.relpath.getContent(),
+            self.assertEqual(pti.relpath.getContent(),
                               TEST_STR)
 
         return rel.close().addCallback(cb)

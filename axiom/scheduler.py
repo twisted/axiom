@@ -25,7 +25,7 @@ collection by name::
 
 import warnings
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet import reactor
 
@@ -43,7 +43,7 @@ from axiom.substore import SubStore
 
 VERBOSE = False
 
-SITE_SCHEDULER = u"Site Scheduler"
+SITE_SCHEDULER = "Site Scheduler"
 
 
 class TimedEventFailureLog(Item):
@@ -226,12 +226,11 @@ class SchedulerMixin:
 _EPSILON = 1e-20      # A very small amount of time.
 
 
-
+@implementer(IScheduler)
 class _SiteScheduler(SchedulerMixin, Service, object):
     """
     Adapter from a site store to L{IScheduler}.
     """
-    implements(IScheduler)
 
     timer = None
     callLater = reactor.callLater
@@ -293,12 +292,11 @@ class _SiteScheduler(SchedulerMixin, Service, object):
         self.nextEventAt = when
 
 
-
+@implementer(IScheduler)
 class _UserScheduler(SchedulerMixin, Service, object):
     """
     Adapter from a non-site store to L{IScheduler}.
     """
-    implements(IScheduler)
 
     def __init__(self, store):
         self.store = store
@@ -357,7 +355,7 @@ class _UserScheduler(SchedulerMixin, Service, object):
             self._transientSchedule(te.time, None)
 
 
-
+@implementer(IScheduler)
 class _SchedulerCompatMixin(object):
     """
     Backwards compatibility helper for L{Scheduler} and L{SubScheduler}.
@@ -370,7 +368,6 @@ class _SchedulerCompatMixin(object):
 
     @see: L{IScheduler}
     """
-    implements(IScheduler)
 
     def forwardToReal(name):
         def get(self):
@@ -407,7 +404,7 @@ class _SchedulerCompatMixin(object):
             stacklevel=stacklevel)
 
 
-
+@implementer(IService)
 class Scheduler(Item, _SchedulerCompatMixin):
     """
     Track and execute persistent timed events for a I{site} store.
@@ -415,7 +412,6 @@ class Scheduler(Item, _SchedulerCompatMixin):
     This is deprecated and present only for backwards compatibility.  Adapt
     the store to L{IScheduler} instead.
     """
-    implements(IService)
 
     typeName = 'axiom_scheduler'
     schemaVersion = 2

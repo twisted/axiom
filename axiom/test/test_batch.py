@@ -52,7 +52,7 @@ class BatchTestCase(unittest.TestCase):
 
         procC = batch.processor(ExtraUnit)
         self.failIfIdentical(procB, procC)
-        self.failIfEqual(procB.typeName, procC.typeName)
+        self.assertNotEqual(procB.typeName, procC.typeName)
 
 
     def testInstantiation(self):
@@ -70,10 +70,10 @@ class BatchTestCase(unittest.TestCase):
         listeners, and that it correctly reports it has no work to do.
         """
         proc = self.procType(store=self.store)
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
 
         TestWorkUnit(store=self.store, information=0)
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
 
 
     def testListeners(self):
@@ -85,21 +85,21 @@ class BatchTestCase(unittest.TestCase):
         listenerA = WorkListener(store=self.store)
         listenerB = WorkListener(store=self.store)
 
-        self.assertEquals(list(proc.getReliableListeners()), [])
+        self.assertEqual(list(proc.getReliableListeners()), [])
 
         proc.addReliableListener(listenerA)
-        self.assertEquals(list(proc.getReliableListeners()), [listenerA])
+        self.assertEqual(list(proc.getReliableListeners()), [listenerA])
 
         proc.addReliableListener(listenerB)
         expected = [listenerA, listenerB]
         listeners = list(proc.getReliableListeners())
-        self.assertEquals(sorted(expected), sorted(listeners))
+        self.assertEqual(sorted(expected), sorted(listeners))
 
         proc.removeReliableListener(listenerA)
-        self.assertEquals(list(proc.getReliableListeners()), [listenerB])
+        self.assertEqual(list(proc.getReliableListeners()), [listenerB])
 
         proc.removeReliableListener(listenerB)
-        self.assertEquals(list(proc.getReliableListeners()), [])
+        self.assertEqual(list(proc.getReliableListeners()), [])
 
 
     def testBasicProgress(self):
@@ -116,27 +116,27 @@ class BatchTestCase(unittest.TestCase):
 
         proc.addReliableListener(listener)
 
-        self.assertEquals(processedItems, [])
+        self.assertEqual(processedItems, [])
 
-        self.failIf(proc.step(), "expected no work to be reported, some was")
+        self.assertFalse(proc.step(), "expected no work to be reported, some was")
 
-        self.assertEquals(processedItems, [])
+        self.assertEqual(processedItems, [])
 
         for i in range(3):
             TestWorkUnit(store=self.store, information=i)
-            ExtraUnit(store=self.store, unformashun=unicode(-i))
+            ExtraUnit(store=self.store, unformashun=str(-i))
 
-        self.failUnless(proc.step(), "expected more work to be reported, none was")
-        self.assertEquals(processedItems, [0])
+        self.assertTrue(proc.step(), "expected more work to be reported, none was")
+        self.assertEqual(processedItems, [0])
 
-        self.failUnless(proc.step(), "expected more work to be reported, none was")
-        self.assertEquals(processedItems, [0, 1])
+        self.assertTrue(proc.step(), "expected more work to be reported, none was")
+        self.assertEqual(processedItems, [0, 1])
 
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
-        self.assertEquals(processedItems, [0, 1, 2])
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
+        self.assertEqual(processedItems, [0, 1, 2])
 
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
-        self.assertEquals(processedItems, [0, 1, 2])
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
+        self.assertEqual(processedItems, [0, 1, 2])
 
 
     def testProgressAgainstExisting(self):
@@ -158,34 +158,34 @@ class BatchTestCase(unittest.TestCase):
 
         proc.addReliableListener(listener)
 
-        self.assertEquals(processedItems, [])
+        self.assertEqual(processedItems, [])
 
-        self.failUnless(proc.step(), "expected more work to be reported, none was")
-        self.assertEquals(processedItems, [2])
+        self.assertTrue(proc.step(), "expected more work to be reported, none was")
+        self.assertEqual(processedItems, [2])
 
-        self.failUnless(proc.step(), "expected more work to be reported, none was")
-        self.assertEquals(processedItems, [2, 1])
+        self.assertTrue(proc.step(), "expected more work to be reported, none was")
+        self.assertEqual(processedItems, [2, 1])
 
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
-        self.assertEquals(processedItems, [2, 1, 0])
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
+        self.assertEqual(processedItems, [2, 1, 0])
 
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
-        self.assertEquals(processedItems, [2, 1, 0])
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
+        self.assertEqual(processedItems, [2, 1, 0])
 
         for i in range(3, 6):
             TestWorkUnit(store=self.store, information=i)
 
-        self.failUnless(proc.step(), "expected more work to be reported, none was")
-        self.assertEquals(processedItems, [2, 1, 0, 3])
+        self.assertTrue(proc.step(), "expected more work to be reported, none was")
+        self.assertEqual(processedItems, [2, 1, 0, 3])
 
-        self.failUnless(proc.step(), "expected more work to be reported, none was")
-        self.assertEquals(processedItems, [2, 1, 0, 3, 4])
+        self.assertTrue(proc.step(), "expected more work to be reported, none was")
+        self.assertEqual(processedItems, [2, 1, 0, 3, 4])
 
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
-        self.assertEquals(processedItems, [2, 1, 0, 3, 4, 5])
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
+        self.assertEqual(processedItems, [2, 1, 0, 3, 4, 5])
 
-        self.failIf(proc.step(), "expected no more work to be reported, some was")
-        self.assertEquals(processedItems, [2, 1, 0, 3, 4, 5])
+        self.assertFalse(proc.step(), "expected no more work to be reported, some was")
+        self.assertEqual(processedItems, [2, 1, 0, 3, 4, 5])
 
 
     def testBrokenListener(self):
@@ -215,20 +215,20 @@ class BatchTestCase(unittest.TestCase):
                 proc.step()
             except batch._ProcessingFailure:
                 proc.timedEventErrorHandler(
-                    (u"Oh crap, I do not have a TimedEvent, "
+                    ("Oh crap, I do not have a TimedEvent, "
                      "I sure hope that never becomes a problem."),
                     failure.Failure())
 
-        self.assertEquals(processedItems, [0, 2])
+        self.assertEqual(processedItems, [0, 2])
 
         errors = list(proc.getFailedItems())
-        self.assertEquals(len(errors), 1)
-        self.assertEquals(errors[0][0], listener)
-        self.assertEquals(errors[0][1].information, 1)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0][0], listener)
+        self.assertEqual(errors[0][1].information, 1)
 
         loggedErrors = self.flushLoggedErrors(RuntimeError)
-        self.assertEquals(len(loggedErrors), 1)
-        self.assertEquals(loggedErrors[0].getErrorMessage(), errmsg)
+        self.assertEqual(len(loggedErrors), 1)
+        self.assertEqual(loggedErrors[0].getErrorMessage(), errmsg)
 
 
     def testMultipleListeners(self):
@@ -267,10 +267,10 @@ class BatchTestCase(unittest.TestCase):
         else:
             self.fail("Processing loop took too long")
 
-        self.assertEquals(
+        self.assertEqual(
             processedItemsA, [2, 3, 4, 5, 1, 0])
 
-        self.assertEquals(
+        self.assertEqual(
             processedItemsB, [4, 5, 3, 2, 1, 0])
 
 
@@ -283,7 +283,7 @@ class BatchTestCase(unittest.TestCase):
         listener = WorkListener(store=self.store)
         proc.addReliableListener(listener)
         proc.addReliableListener(listener)
-        self.assertEquals(list(proc.getReliableListeners()), [listener])
+        self.assertEqual(list(proc.getReliableListeners()), [listener])
 
 
     def testSuperfluousItemAddition(self):
@@ -322,7 +322,7 @@ class BatchTestCase(unittest.TestCase):
         else:
             self.fail("Processing loop took too long")
 
-        self.assertEquals(processedItems, [2, 3, 1, 0])
+        self.assertEqual(processedItems, [2, 3, 1, 0])
 
 
     def testReprocessItemAddition(self):
@@ -349,7 +349,7 @@ class BatchTestCase(unittest.TestCase):
         else:
             self.fail("Processing loop took too long")
 
-        self.assertEquals(processedItems, range(3))
+        self.assertEqual(processedItems, list(range(3)))
 
         # Now that we have processed some items, re-add one of those items to
         # be re-processed and make sure it actually does get passed to the
@@ -358,13 +358,13 @@ class BatchTestCase(unittest.TestCase):
 
         rellist.addItem(two)
 
-        for i in xrange(100):
+        for i in range(100):
             if not proc.step():
                 break
         else:
             self.fail("Processing loop took too long")
 
-        self.assertEquals(processedItems, [1])
+        self.assertEqual(processedItems, [1])
 
 
     def test_processorStartsUnscheduled(self):
@@ -374,7 +374,7 @@ class BatchTestCase(unittest.TestCase):
         """
         proc = self.procType(store=self.store)
         self.assertIdentical(proc.scheduled, None)
-        self.assertEquals(
+        self.assertEqual(
             list(self.scheduler.scheduledTimes(proc)),
             [])
 
@@ -388,7 +388,7 @@ class BatchTestCase(unittest.TestCase):
         proc = self.procType(store=self.store)
         proc.itemAdded()
         self.assertEqual(proc.scheduled, None)
-        self.assertEquals(
+        self.assertEqual(
             list(self.scheduler.scheduledTimes(proc)),
             [])
 
@@ -409,8 +409,8 @@ class BatchTestCase(unittest.TestCase):
         self.scheduler.unscheduleAll(proc)
 
         proc.itemAdded()
-        self.failIfEqual(proc.scheduled, None)
-        self.assertEquals(
+        self.assertNotEqual(proc.scheduled, None)
+        self.assertEqual(
             list(self.scheduler.scheduledTimes(proc)),
             [proc.scheduled])
 
@@ -423,8 +423,8 @@ class BatchTestCase(unittest.TestCase):
         proc = self.procType(store=self.store)
         listener = WorkListener(store=self.store)
         proc.addReliableListener(listener)
-        self.failIfEqual(proc.scheduled, None)
-        self.assertEquals(
+        self.assertNotEqual(proc.scheduled, None)
+        self.assertEqual(
             list(self.scheduler.scheduledTimes(proc)),
             [proc.scheduled])
 
@@ -440,8 +440,8 @@ class BatchTestCase(unittest.TestCase):
         proc.addReliableListener(listener)
         when = proc.scheduled
         proc.itemAdded()
-        self.assertEquals(proc.scheduled, when)
-        self.assertEquals(
+        self.assertEqual(proc.scheduled, when)
+        self.assertEqual(
             list(self.scheduler.scheduledTimes(proc)),
             [proc.scheduled])
 
@@ -458,8 +458,8 @@ class BatchTestCase(unittest.TestCase):
         when = proc.scheduled
         listenerB = WorkListener(store=self.store)
         proc.addReliableListener(listenerB)
-        self.assertEquals(proc.scheduled, when)
-        self.assertEquals(
+        self.assertEqual(proc.scheduled, when)
+        self.assertEqual(
             list(self.scheduler.scheduledTimes(proc)),
             [proc.scheduled])
 
@@ -494,7 +494,7 @@ class BatchWorkItem(item.Item):
     Item class which will be delivered as work units for testing error handling
     around reliable listeners.
     """
-    value = attributes.text(default=u"unprocessed")
+    value = attributes.text(default="unprocessed")
 
 
 
@@ -526,7 +526,7 @@ class WorkingReliableListener(item.Item):
     anAttribute = attributes.integer()
 
     def processItem(self, item):
-        item.value = u"processed"
+        item.value = "processed"
 
 
 
@@ -562,7 +562,7 @@ class RemoteTestCase(unittest.TestCase):
         s = store.Store(dbdir)
         ss = substore.SubStore.createNew(s, ['substore'])
         bs = iaxiom.IBatchService(ss)
-        self.failUnless(iaxiom.IBatchService.providedBy(bs))
+        self.assertTrue(iaxiom.IBatchService.providedBy(bs))
 
 
     def testProcessLifetime(self):
@@ -622,16 +622,16 @@ class RemoteTestCase(unittest.TestCase):
         # Loop 6 (BATCH_WORK_UNITS * 2) times - three items times two
         # listeners, it should not take any more than six iterations to
         # completely process all work.
-        for i in xrange(BATCH_WORK_UNITS * 2):
-            task.next()
+        for i in range(BATCH_WORK_UNITS * 2):
+            next(task)
 
 
-        self.assertEquals(
+        self.assertEqual(
             len(self.flushLoggedErrors(BrokenException)),
             BATCH_WORK_UNITS)
 
-        self.assertEquals(
-            st.query(BatchWorkItem, BatchWorkItem.value == u"processed").count(),
+        self.assertEqual(
+            st.query(BatchWorkItem, BatchWorkItem.value == "processed").count(),
             BATCH_WORK_UNITS)
 
 
@@ -660,7 +660,7 @@ class RemoteTestCase(unittest.TestCase):
         # Sanity check: addReliableListener should eventually also trigger a
         # batch process start if necessary.  But we don't want to test that case
         # here, so make sure it's not happening.
-        self.assertEquals(batchService.batchController.mode, 'stopped')
+        self.assertEqual(batchService.batchController.mode, 'stopped')
 
         # Now trigger it to start.
         proc.itemAdded()
@@ -691,7 +691,7 @@ class RemoteTestCase(unittest.TestCase):
         self.addCleanup(svc.stopService)
 
         batchService = iaxiom.IBatchService(st)
-        self.assertEquals(batchService.batchController.mode, 'stopped')
+        self.assertEqual(batchService.batchController.mode, 'stopped')
 
 
     def test_itemAddedWithoutBatchService(self):

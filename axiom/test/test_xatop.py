@@ -118,7 +118,7 @@ class StoreTests(unittest.TestCase):
         x = len(s.typeToTableNameCache)
         for i in range(10):
             s.getTableName(TestItem)
-        self.assertEquals(x, len(s.typeToTableNameCache))
+        self.assertEqual(x, len(s.typeToTableNameCache))
 
 
     def testStoreIDComparerIdentity(self):
@@ -426,10 +426,10 @@ s.close()
         Passing a journalling mode sets that mode on open.
         """
         dbdir = filepath.FilePath(self.mktemp())
-        s = store.Store(dbdir, journalMode=u'MEMORY')
-        self.assertEquals(
+        s = store.Store(dbdir, journalMode='MEMORY')
+        self.assertEqual(
             s.querySchemaSQL('PRAGMA *DATABASE*.journal_mode'),
-            [(u'memory',)])
+            [('memory',)])
 
 
     def test_journalModeNone(self):
@@ -437,12 +437,12 @@ s.close()
         Passing a journalling mode of C{None} sets no mode.
         """
         dbdir = filepath.FilePath(self.mktemp())
-        s = store.Store(dbdir, journalMode=u'WAL')
+        s = store.Store(dbdir, journalMode='WAL')
         s.close()
         s = store.Store(dbdir, journalMode=None)
-        self.assertEquals(
+        self.assertEqual(
             s.querySchemaSQL('PRAGMA *DATABASE*.journal_mode'),
-            [(u'wal',)])
+            [('wal',)])
 
 
 
@@ -471,7 +471,7 @@ class FailurePathTests(unittest.TestCase):
 
         t3.store = s1
 
-        self.assertEquals(list(s1.query(TestItem)),
+        self.assertEqual(list(s1.query(TestItem)),
                           [t1, t3])
 
 
@@ -489,14 +489,14 @@ class ItemTests(unittest.TestCase):
                       checkactive=True,
                       other=tio)
 
-        self.assertEquals(ti.checked, True)
+        self.assertEqual(ti.checked, True)
 
     def testItemCreation(self):
         timeval = extime.Time.fromISO8601TimeAndDate('2004-10-05T10:12:14.1234')
 
         s = TestItem(
             foo = 42,
-            bar = u'hello world',
+            bar = 'hello world',
             baz = timeval,
             booleanT = True,
             booleanF = False
@@ -508,16 +508,16 @@ class ItemTests(unittest.TestCase):
         self.store.close()
         self.store = store.Store(self.dbdir)
         s2 = self.store.getItemByID(sid)
-        self.assertEquals(s2.foo, s.foo)
-        self.assertEquals(s2.booleanT, s.booleanT)
-        self.assertEquals(s2.booleanF, s.booleanF)
+        self.assertEqual(s2.foo, s.foo)
+        self.assertEqual(s2.booleanT, s.booleanT)
+        self.assertEqual(s2.booleanF, s.booleanF)
         self.assertIdentical(s2.myStore, self.store)
 
 
     def testBasicQuery(self):
         def tt():
             # !@#$ 3x+ speedup over not doing this in a transact()
-            created = [TestItem(foo=x, bar=u"string-value-of-"+str(x))
+            created = [TestItem(foo=x, bar="string-value-of-"+str(x))
                        for x in range(20)]
             for c in created:
                 c.store = self.store
@@ -527,7 +527,7 @@ class ItemTests(unittest.TestCase):
         loaded = self.store.query(TestItem,
                                   TestItem.foo >= 10)
 
-        self.assertEquals(len(list(loaded)), 10)
+        self.assertEqual(len(list(loaded)), 10)
 
     def testCreateThenDelete(self):
         timeval = extime.Time.fromISO8601TimeAndDate('2004-10-05T10:12:14.1234')
@@ -536,21 +536,21 @@ class ItemTests(unittest.TestCase):
             s = TestItem(
                 store = self.store,
                 foo = 42,
-                bar = u'hello world',
+                bar = 'hello world',
                 baz = timeval,
                 booleanT = True,
                 booleanF = False
             )
             sid.append(s.storeID)
-            self.assertEquals(list(self.store.query(TestItem)), [s])
+            self.assertEqual(list(self.store.query(TestItem)), [s])
             s.deleteFromStore()
-            self.assertEquals(list(self.store.query(TestItem)), [])
+            self.assertEqual(list(self.store.query(TestItem)), [])
             # hmm.  possibly due its own test.
             # self.assertRaises(KeyError, self.store.getItemByID, sid[0])
 
         self.store.transact(txn)
         self.assertRaises(KeyError, self.store.getItemByID, sid[0])
-        self.assertEquals(list(self.store.query(TestItem)), [])
+        self.assertEqual(list(self.store.query(TestItem)), [])
 
 
     def test_getNeverInsertedItem(self):
@@ -575,7 +575,7 @@ class ItemTests(unittest.TestCase):
         item1 = TestItem(
             store=self.store,
             foo=24,
-            bar=u'Zoom',
+            bar='Zoom',
             baz=extime.Time.fromISO8601TimeAndDate('2004-10-05T10:12:14.1234')
             )
 
@@ -583,12 +583,12 @@ class ItemTests(unittest.TestCase):
             item2 = TestItem(
                 store=self.store,
                 foo=42,
-                bar=u'mooZ',
+                bar='mooZ',
                 baz=extime.Time.fromISO8601TimeAndDate('1970-03-12T05:05:11.5921')
                 )
 
             item1.foo = 823
-            item1.bar = u'this is the wrong answer'
+            item1.bar = 'this is the wrong answer'
             item1.baz = extime.Time()
 
             raise RevertException(item2.storeID)
@@ -599,9 +599,9 @@ class ItemTests(unittest.TestCase):
             [storeID] = exc.args
 
             self.assertRaises(KeyError, self.store.getItemByID, storeID)
-            self.assertEquals(item1.foo, 24)
-            self.assertEquals(item1.bar, u'Zoom')
-            self.assertEquals(item1.baz.asISO8601TimeAndDate(), '2004-10-05T10:12:14.1234+00:00')
+            self.assertEqual(item1.foo, 24)
+            self.assertEqual(item1.bar, 'Zoom')
+            self.assertEqual(item1.baz.asISO8601TimeAndDate(), '2004-10-05T10:12:14.1234+00:00')
         else:
             self.fail("Transaction should have raised an exception")
 
@@ -659,12 +659,12 @@ class AttributeTests(unittest.TestCase):
             for o in x, y, z:
                 o.checkpoint()
 
-            self.assertEquals(x.withDefault, 42)
-            self.assertEquals(x.withoutDefault, None)
-            self.assertEquals(y.withDefault, 20)
-            self.assertEquals(y.withoutDefault, None)
-            self.assertEquals(z.withDefault, 42)
-            self.assertEquals(z.withoutDefault, 30)
+            self.assertEqual(x.withDefault, 42)
+            self.assertEqual(x.withoutDefault, None)
+            self.assertEqual(y.withDefault, 20)
+            self.assertEqual(y.withoutDefault, None)
+            self.assertEqual(z.withDefault, 42)
+            self.assertEqual(z.withoutDefault, 30)
         s.transact(testGetAttribute)
 
     def testIntegerAttribute_SQLiteBug(self):
@@ -680,7 +680,7 @@ class AttributeTests(unittest.TestCase):
                 store=s,
                 withoutDefault=input)
             output = s.findFirst(AttributefulItem).withoutDefault
-            self.assertEquals(input, output)
+            self.assertEqual(input, output)
             s.close()
 
     if sqlite_version_info < (3, 2, '7'):
@@ -699,12 +699,12 @@ class AttributeTests(unittest.TestCase):
             for o in x, y, z:
                 o.checkpoint()
 
-            self.assertEquals(
+            self.assertEqual(
                 list(s.query(AttributefulItem, AttributefulItem.withoutDefault != None,
                              sort=AttributefulItem.withoutDefault.desc)),
                 [z])
 
-            self.assertEquals(
+            self.assertEqual(
                 list(s.query(AttributefulItem, sort=AttributefulItem.withDefault.desc)),
                 [x, z, y])
 
@@ -722,7 +722,7 @@ class AttributeTests(unittest.TestCase):
 
             a = AttributefulItem(store=s)
             x = StricterItem(store=s, aRef=a)
-            self.assertEquals(x.aRef, a)
+            self.assertEqual(x.aRef, a)
 
             try:
                 x.aRef = None
@@ -738,8 +738,8 @@ class TestFindOrCreate(unittest.TestCase):
     def testCreate(self):
         s = store.Store()
         ai = s.findOrCreate(AttributefulItem)
-        self.assertEquals(ai.withDefault, 42)
-        self.assertEquals(ai.withoutDefault, None)
+        self.assertEqual(ai.withDefault, 42)
+        self.assertEqual(ai.withoutDefault, None)
 
     def testFind(self):
         s = store.Store()
@@ -764,24 +764,24 @@ class TestFindOrCreate(unittest.TestCase):
         ai3 = s.findOrCreate(AttributefulItem, l.append, withDefault=4321)
         ai4 = s.findOrCreate(AttributefulItem, l.append, withDefault=4321)
 
-        self.assertEquals(len(l), 2)
-        self.assertEquals(l, [ai1, ai3])
+        self.assertEqual(len(l), 2)
+        self.assertEqual(l, [ai1, ai3])
 
     def testFindFirst(self):
         s = store.Store()
         a0 = ai = AttributefulItem(store=s)
         ai2 = s.findFirst(AttributefulItem, AttributefulItem.withDefault == 42)
         shouldBeNone = s.findFirst(AttributefulItem, AttributefulItem.withDefault == 99)
-        self.assertEquals(ai, ai2)
-        self.assertEquals(shouldBeNone, None)
+        self.assertEqual(ai, ai2)
+        self.assertEqual(shouldBeNone, None)
 
         ai = AttributefulItem(store=s, withDefault=24)
         ai2 = s.findFirst(AttributefulItem, AttributefulItem.withDefault == 24)
-        self.assertEquals(ai, ai2)
+        self.assertEqual(ai, ai2)
 
         ai = AttributefulItem(store=s, withDefault=55)
         ai2 = s.findFirst(AttributefulItem)
-        self.assertEquals(a0, ai2)
+        self.assertEqual(a0, ai2)
 
 
 
@@ -832,10 +832,10 @@ class MassInsertDeleteTests(unittest.TestCase):
                                AttributefulItem.withoutDefault],
                               dataRows)
         items = list(self.store.query(AttributefulItem))
-        self.assertEquals(items[0].withDefault, 37)
-        self.assertEquals(items[0].withoutDefault, 93)
-        self.assertEquals(items[1].withDefault, 1)
-        self.assertEquals(items[1].withoutDefault, 2)
+        self.assertEqual(items[0].withDefault, 37)
+        self.assertEqual(items[0].withoutDefault, 93)
+        self.assertEqual(items[1].withDefault, 1)
+        self.assertEqual(items[1].withoutDefault, 2)
 
     def testTransactedBatchInsert(self):
         """
@@ -851,10 +851,10 @@ class MassInsertDeleteTests(unittest.TestCase):
                             dataRows)
 
         items = list(self.store.query(AttributefulItem))
-        self.assertEquals(items[0].withDefault, 37)
-        self.assertEquals(items[0].withoutDefault, 93)
-        self.assertEquals(items[1].withDefault, 1)
-        self.assertEquals(items[1].withoutDefault, 2)
+        self.assertEqual(items[0].withDefault, 37)
+        self.assertEqual(items[0].withoutDefault, 93)
+        self.assertEqual(items[1].withDefault, 1)
+        self.assertEqual(items[1].withoutDefault, 2)
 
     def testBatchInsertReference(self):
         """
@@ -862,9 +862,9 @@ class MassInsertDeleteTests(unittest.TestCase):
         """
         itemA = AttributefulItem(store=self.store)
         itemB = AttributefulItem(store=self.store)
-        dataRows = [(1, u"hello", extime.Time(),
+        dataRows = [(1, "hello", extime.Time(),
                      itemA, True, False, self.store),
-                    (2, u"hoorj", extime.Time(),
+                    (2, "hoorj", extime.Time(),
                      itemB, False, True, self.store)]
 
         self.store.batchInsert(TestItem,
@@ -875,10 +875,10 @@ class MassInsertDeleteTests(unittest.TestCase):
                                dataRows)
         items = list(self.store.query(TestItem))
 
-        self.assertEquals(items[0].other, itemA)
-        self.assertEquals(items[1].other, itemB)
-        self.assertEquals(items[0].store, self.store)
-        self.assertEquals(items[1].store, self.store)
+        self.assertEqual(items[0].other, itemA)
+        self.assertEqual(items[1].other, itemB)
+        self.assertEqual(items[0].store, self.store)
+        self.assertEqual(items[1].store, self.store)
 
     def testMemoryBatchInsert(self):
         """
@@ -892,8 +892,8 @@ class MassInsertDeleteTests(unittest.TestCase):
         Test that batchInsert does the right thing when only a few
         attributes are being set.
         """
-        dataRows = [(u"hello", 50, False, self.store),
-                    (u"hoorj", None, True, self.store)]
+        dataRows = [("hello", 50, False, self.store),
+                    ("hoorj", None, True, self.store)]
 
         self.store.batchInsert(TestItem,
                                [TestItem.bar,
@@ -903,37 +903,37 @@ class MassInsertDeleteTests(unittest.TestCase):
                                dataRows)
         items = list(self.store.query(TestItem))
 
-        self.assertEquals(items[0].other, None)
-        self.assertEquals(items[1].other, None)
-        self.assertEquals(items[0].foo, 50)
-        self.assertEquals(items[1].foo, None)
-        self.assertEquals(items[0].bar, u"hello")
-        self.assertEquals(items[1].bar, u"hoorj")
-        self.assertEquals(items[0].store, self.store)
-        self.assertEquals(items[1].store, self.store)
+        self.assertEqual(items[0].other, None)
+        self.assertEqual(items[1].other, None)
+        self.assertEqual(items[0].foo, 50)
+        self.assertEqual(items[1].foo, None)
+        self.assertEqual(items[0].bar, "hello")
+        self.assertEqual(items[1].bar, "hoorj")
+        self.assertEqual(items[0].store, self.store)
+        self.assertEqual(items[1].store, self.store)
 
     def testBatchDelete(self):
         """
         Ensure that unqualified batchDelete removes all the items of a
         certain class.
         """
-        for i in xrange(10):
+        for i in range(10):
             AttributefulItem(store=self.store, withoutDefault=i)
 
         self.store.query(AttributefulItem).deleteFromStore()
-        self.assertEquals(list(self.store.query(AttributefulItem)), [])
+        self.assertEqual(list(self.store.query(AttributefulItem)), [])
 
     def testBatchDeleteCondition(self):
         """
         Ensure that conditions for batchDelete are honored properly.
         """
-        for i in xrange(10):
+        for i in range(10):
             AttributefulItem(store=self.store, withoutDefault=i)
 
         self.store.query(AttributefulItem,
                               AttributefulItem.withoutDefault > 4
                          ).deleteFromStore()
-        self.assertEquals(self.store.query(AttributefulItem).count(), 5)
+        self.assertEqual(self.store.query(AttributefulItem).count(), 5)
 
     def testSlowBatchDelete(self):
         """
@@ -959,7 +959,7 @@ class MassInsertDeleteTests(unittest.TestCase):
         C{deleteFromStore} on a query with an order specified disregards the
         order.
         """
-        for i in xrange(10):
+        for i in range(10):
             AttributefulItem(store=self.store, withoutDefault=i)
         self.store.query(
             AttributefulItem,
@@ -973,11 +973,11 @@ class MassInsertDeleteTests(unittest.TestCase):
         not disregard the order.
         """
         options = self.store.querySQL('PRAGMA compile_options;')
-        if (u'ENABLE_UPDATE_DELETE_LIMIT',) not in options:
+        if ('ENABLE_UPDATE_DELETE_LIMIT',) not in options:
             raise unittest.SkipTest(
                 'SQLite compiled without SQLITE_ENABLE_UPDATE_DELETE_LIMIT')
 
-        for i in xrange(10):
+        for i in range(10):
             AttributefulItem(store=self.store, withoutDefault=i)
         self.store.query(
             AttributefulItem,
@@ -1017,7 +1017,7 @@ class ProcessConcurrencyTestCase(unittest.TestCase,
         if data == '1':
             # step 1: create an item
             cia = ConcurrentItemA(store=self.store,
-                                  anAttribute=u'aaa')
+                                  anAttribute='aaa')
             # then tell the subprocess to load it
             self.transport.write(str(cia.storeID)+'\n')
         elif data == '2':
@@ -1027,7 +1027,7 @@ class ProcessConcurrencyTestCase(unittest.TestCase,
 
     def errReceived(self, data):
         # we should never *really* get anything to stdout
-        print data
+        print(data)
 
     def processEnded(self, reason):
         # total correctness would have us checking the exit code too, but we
@@ -1067,7 +1067,7 @@ class ConcurrencyTestCase(unittest.TestCase):
 
         ConcurrentItemB(store=firstStore)
 
-        self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)
+        self.assertEqual(secondStore.query(ConcurrentItemA).count(), 1)
 
 
     def testNewItemType(self):
@@ -1083,7 +1083,7 @@ class ConcurrencyTestCase(unittest.TestCase):
         secondStore = store.Store(dbdir)
 
         ConcurrentItemA(store=firstStore)
-        self.assertEquals(secondStore.query(ConcurrentItemA).count(), 1)
+        self.assertEqual(secondStore.query(ConcurrentItemA).count(), 1)
 
 
 

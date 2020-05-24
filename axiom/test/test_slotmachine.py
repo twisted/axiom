@@ -60,29 +60,29 @@ class SlotMachineTest(unittest.TestCase):
         b.test = 1
         b.test = 2
 
-        self.assertEquals(b.test, 2)
+        self.assertEqual(b.test, 2)
         self.assertRaises(AttributeError, setattr, b, 'nottest', 'anything')
         self.assertRaises(AttributeError, getattr, b, 'nottest')
-        self.assertEquals(b.other, None)
+        self.assertEqual(b.other, None)
         b.other = 7
-        self.assertEquals(b.other, 7)
+        self.assertEqual(b.other, 7)
         self.assertRaises(AttributeError, setattr, b, 'other', 'anything')
 
-        self.assertEquals(b.nondescriptor, 'readable')
+        self.assertEqual(b.nondescriptor, 'readable')
         err = self.assertRaises(AttributeError,
                                 setattr, b, 'nondescriptor', 'writable')
-        self.assertEquals(str(err),
+        self.assertEqual(str(err),
                           "%r can't set attribute 'nondescriptor'"
                           % (type(b).__name__,))
-        self.assertEquals(b.nondescriptor, 'readable')
+        self.assertEqual(b.nondescriptor, 'readable')
 
-        self.assertEquals(b.method(), b)
+        self.assertEqual(b.method(), b)
         err = self.assertRaises(AttributeError,
                                 setattr, b, 'method', lambda: 5)
-        self.assertEquals(str(err),
+        self.assertEqual(str(err),
                           "%r can't set attribute 'method'"
                           % (type(b).__name__,))
-        self.assertEquals(b.method(), b)
+        self.assertEqual(b.method(), b)
 
     def testAttributesNotAllowed(self):
         b = B()
@@ -96,7 +96,7 @@ class SlotMachineTest(unittest.TestCase):
         b = B()
         b.initialized = 1
         self.assertRaises(AttributeError, setattr, b, 'initialized', 2)
-        self.assertEquals(b.initialized, 1)
+        self.assertEqual(b.initialized, 1)
 
 
     def testClassicMixin(self):
@@ -137,5 +137,5 @@ class SlotMachineTest(unittest.TestCase):
         """
         d = DefaultOverride()
         err = self.assertRaises(AttributeError, setattr, d, 'x', 23)
-        self.assertEquals(str(err), "'DefaultOverride' can't set attribute 'x'")
-        self.assertEquals(d.x, 5)
+        self.assertEqual(str(err), "'DefaultOverride' can't set attribute 'x'")
+        self.assertEqual(d.x, 5)

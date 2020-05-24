@@ -32,7 +32,7 @@ aware that a user's database contains only their own data.
 
 import warnings
 
-from zope.interface import implements, Interface
+from zope.interface import implementer, Interface
 
 from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword, IUsernameHashedPassword
@@ -49,7 +49,7 @@ from axiom.errors import (
 from axiom.scheduler import IScheduler
 from axiom import upgrade, iaxiom
 
-ANY_PROTOCOL = u'*'
+ANY_PROTOCOL = '*'
 
 def dflip(x):
     warnings.warn("Don't use dflip no more", stacklevel=2)
@@ -85,7 +85,7 @@ class IPreauthCredentials(Interface):
     """
 
 
-
+@implementer(IUsernamePassword, IUsernameHashedPassword)
 class Preauthenticated(object):
     """
     A credentials object of multiple types which has already been authenticated
@@ -94,7 +94,6 @@ class Preauthenticated(object):
     Credentials interfaces methods are implemented to behave as if the correct
     credentials had been supplied.
     """
-    implements(IUsernamePassword, IUsernameHashedPassword)
 
     def __init__(self, username):
         self.username = username
@@ -283,7 +282,7 @@ class LoginAccount(Item):
 
         @return: A deferred firing when the password has been changed.
         """
-        self.password = None if newPassword is None else unicode(newPassword)
+        self.password = None if newPassword is None else str(newPassword)
         return succeed(None)
 
 
@@ -297,7 +296,7 @@ class LoginAccount(Item):
         @return: A deferred firing when the password has been changed.
         @raise BadCredentials: If the current password did not match.
         """
-        if unicode(currentPassword) != self.password:
+        if str(currentPassword) != self.password:
             return fail(BadCredentials())
         return self.setPassword(newPassword)
 
@@ -417,7 +416,7 @@ def upgradeLoginAccount1To2(oldAccount):
             localpart=oldAccount.username,
             domain=oldAccount.domain,
             internal=False,
-            protocol=u'email',
+            protocol='email',
             account=acc,
             verified=True)
 
@@ -438,12 +437,12 @@ class SubStoreLoginMixin:
     def makeAvatars(self, domain, username):
         return SubStore.createNew(self.store, ('account', domain, username + '.axiom'))
 
+@implementer(IRealm, ICredentialsChecker)
 class LoginBase:
     """
     I am a database powerup which provides an interface to a collection of
     username/password pairs mapped to user application objects.
     """
-    implements(IRealm, ICredentialsChecker)
 
     credentialInterfaces = (IUsernamePassword, IUsernameHashedPassword)
 
@@ -463,7 +462,7 @@ class LoginBase:
 
 
     def addAccount(self, username, domain, password, avatars=None,
-                   protocol=u'email', disabled=0, internal=False,
+                   protocol='email', disabled=0, internal=False,
                    verified=True):
         """
         Create a user account, add it to this LoginBase, and return it.
@@ -495,11 +494,11 @@ class LoginBase:
 
         # unicode(None) == u'None', kids.
         if username is not None:
-            username = unicode(username)
+            username = str(username)
         if domain is not None:
-            domain = unicode(domain)
+            domain = str(domain)
         if password is not None:
-            password = unicode(password)
+            password = str(password)
 
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)
@@ -558,8 +557,8 @@ class LoginBase:
             self.failedLogins += 1
             raise MissingDomainPart(credentials.username)
 
-        username = unicode(username)
-        domain = unicode(domain)
+        username = str(username)
+        domain = str(domain)
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:
@@ -577,7 +576,7 @@ class LoginBase:
                     self.failedLogins += 1
                     raise BadCredentials()
             else:
-                if unicode(credentials.password) == acct.password:
+                if str(credentials.password) == acct.password:
                     return succeed(acct.storeID)
                 else:
                     self.failedLogins += 1
@@ -602,7 +601,7 @@ def getLoginMethods(store, protocol=None):
     them by protocol
     """
     if protocol is not None:
-        comp = OR(LoginMethod.protocol == u'*',
+        comp = OR(LoginMethod.protocol == '*',
                   LoginMethod.protocol == protocol)
     else:
         comp = None

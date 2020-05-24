@@ -1,6 +1,6 @@
 # -*- test-case-name: axiom.test.test_listversions -*-
 
-from zope.interface import classProvides
+from zope.interface import provider
 from twisted import plugin
 from twisted.python import usage, versions
 from axiom import iaxiom, item, attributes, plugins
@@ -8,18 +8,18 @@ from axiom.scripts import axiomatic
 from epsilon.extime import Time
 
 
+@provider(plugin.IPlugin, iaxiom.IAxiomaticCommand)
 class ListVersions(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     """
     Command for listing the version history of a store.
     """
 
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
     name = "list-version"
     description = "Display software package version history."
 
     def postOptions(self):
         for line in listVersionHistory(self.parent.getStore()):
-            print line
+            print(line)
 
 
 
@@ -95,8 +95,8 @@ def makeSoftwareVersion(store, version, systemVersion):
     """
     return store.findOrCreate(SoftwareVersion,
                               systemVersion=systemVersion,
-                              package=unicode(version.package),
-                              version=unicode(version.short()),
+                              package=str(version.package),
+                              version=str(version.short()),
                               major=version.major,
                               minor=version.minor,
                               micro=version.micro)
@@ -138,5 +138,5 @@ def checkSystemVersion(s, versions=None):
 
     if mostRecentVersionMap != currentVersionMap:
         currentSystemVersion = SystemVersion(store=s, creation=Time())
-        for v in currentVersionMap.itervalues():
+        for v in currentVersionMap.values():
             makeSoftwareVersion(s, v, currentSystemVersion)

@@ -10,4 +10,4 @@ for num in itertools.count():
         cur.execute("insert into foo values (?, ?)",
                     (n, "string-value-of-"+str(n)))
     con.commit()
-    print num, 'write pass complete', time.ctime()
+    print(num, 'write pass complete', time.ctime())

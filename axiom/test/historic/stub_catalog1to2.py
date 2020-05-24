@@ -16,11 +16,11 @@ def createDatabase(s):
     Populate the given Store with a Catalog and some Tags.
     """
     c = Catalog(store=s)
-    c.tag(c, u"internal")
-    c.tag(s, u"internal")
+    c.tag(c, "internal")
+    c.tag(s, "internal")
     i = Dummy(store=s)
-    c.tag(i, u"external")
-    c.tag(i, u"green")
+    c.tag(i, "external")
+    c.tag(i, "green")
 
 
 

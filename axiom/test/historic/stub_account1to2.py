@@ -5,7 +5,7 @@ from axiom.test.test_userbase import GarbageProtocolHandler
 def createDatabase(s):
     ls = LoginSystem(store=s)
     ls.installOn(s)
-    acc = ls.addAccount(u'test', u'example.com', 'asdf')
+    acc = ls.addAccount('test', 'example.com', 'asdf')
     ss = acc.avatars.open()
     gph = GarbageProtocolHandler(store=ss, garbage=7)
     gph.installOn(ss)
