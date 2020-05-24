@@ -6,6 +6,7 @@ import sys
 import glob
 import errno
 import signal
+import six
 
 from twisted.plugin import IPlugin, getPlugins
 from twisted.python import usage

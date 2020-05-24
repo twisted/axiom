@@ -3,6 +3,7 @@
 __metaclass__ = type
 
 import gc
+import six
 from zope.interface import implementer, Interface
 
 from inspect import getabsfile

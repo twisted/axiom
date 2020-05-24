@@ -1,5 +1,7 @@
 # -*- test-case-name: axiom.test.test_slotmachine -*-
 
+import six
+
 hyper = super
 
 _NOSLOT = object()

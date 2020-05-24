@@ -5,7 +5,7 @@ Utilities for performing repetitive tasks over potentially large sets
 of data over an extended period of time.
 """
 
-import weakref, datetime, os, sys
+import weakref, datetime, os, sys, six
 
 from zope.interface import implementer
 
