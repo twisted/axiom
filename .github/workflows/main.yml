@@ -14,7 +14,7 @@ jobs:
     strategy:
       matrix:
         python: [2.7, pypy2]
-        twisted: [twtrunk, twlatest, twlowest]
+        twisted: [twpy27, twlowest]
     steps:
       - uses: actions/checkout@v2
         with:
