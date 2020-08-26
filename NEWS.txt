@@ -1,3 +1,14 @@
+0.9.0 (2020-08-26):
+ Major:
+
+ - (#107) Passwords are now stored hashed; make use of the APIs introduced
+   0.8.0 to set or change passwords.
+
+ Minor:
+
+ - (#115) Axiom's internal schema now quotes all names to avoid collisions with
+   future SQLite reserved words.
+
 0.8.0 (2020-01-28):
  Major:
 
