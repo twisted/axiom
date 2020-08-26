@@ -33,7 +33,7 @@ aware that a user's database contains only their own data.
 import warnings
 from threading import Thread
 
-from zope.interface import implements, Interface
+from zope.interface import implementer, Interface
 
 from twisted.cred.portal import IRealm
 from twisted.cred.credentials import IUsernamePassword
@@ -47,7 +47,7 @@ from txpasslib.context import TxCryptContext
 from txpasslib.test.doubles import SynchronousReactorThreads
 
 from axiom.store import Store
-from axiom.item import Item, declareLegacyItem
+from axiom.item import Item, declareLegacyItem, empowerment
 from axiom.substore import SubStore
 from axiom.attributes import (
     text, integer, reference, boolean, AND, OR, inmemory)
@@ -93,6 +93,7 @@ class IPreauthCredentials(Interface):
 
 
 
+@implementer(IUsernamePassword)
 class Preauthenticated(object):
     """
     A credentials object of multiple types which has already been authenticated
@@ -101,8 +102,6 @@ class Preauthenticated(object):
     Credentials interfaces methods are implemented to behave as if the correct
     credentials had been supplied.
     """
-    implements(IUsernamePassword)
-
     def __init__(self, username):
         self.username = username
 
@@ -526,16 +525,16 @@ class SubStoreLoginMixin:
     def makeAvatars(self, domain, username):
         return SubStore.createNew(self.store, ('account', domain, username + '.axiom'))
 
+
+
+@implementer(IRealm, ICredentialsChecker)
+@empowerment(IRealm, ICredentialsChecker)
 class LoginBase:
     """
     I am a database powerup which provides an interface to a collection of
     username/password pairs mapped to user application objects.
     """
-    implements(IRealm, ICredentialsChecker)
-
     credentialInterfaces = (IUsernamePassword,)
-
-    powerupInterfaces = (IRealm, ICredentialsChecker)
 
 
     def _getCC(self):

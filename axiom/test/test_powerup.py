@@ -2,12 +2,12 @@
 from twisted.trial import unittest
 from twisted.python.components import registerAdapter
 
-from axiom.item import Item
+from axiom.item import Item, empowerment
 from axiom.store import Store
 from axiom.iaxiom import IPowerupIndirector
 from axiom.attributes import integer, inmemory, reference
 
-from zope.interface import Interface, implements, Attribute
+from zope.interface import Interface, implementer, Attribute
 
 
 class IValueHaver(Interface):
@@ -34,38 +34,35 @@ class SumContributor(Item):
 
     value = integer()
 
+@implementer(IValueHaver)
 class MinusThree(object):
-    implements(IValueHaver)
-
     def __init__(self, otherValueHaver):
         self.value = otherValueHaver.value - 3
 
+@implementer(IPowerupIndirector)
 class SubtractThree(Item):
     schemaVersion = 1
     typeName = 'test_powerup_indirection_subtractthree'
     valueHaver = reference()
-
-    implements(IPowerupIndirector)
 
     def indirect(self, iface):
         assert iface is IValueHaver, repr(iface)
         return MinusThree(self.valueHaver)
 
 
+@implementer(IValueHaver)
+@empowerment(IValueHaver)
 class PlusTwo(Item):
     """
     Example powerup with installation information.
     """
-    implements(IValueHaver)
-    powerupInterfaces = (IValueHaver,)
-
     value = integer(default=2)
 
+@implementer(IScalingFactor, IValueHaver)
 class PlusOneTimesFour(Item):
     """
     Example powerup with dynamic installation information.
     """
-    implements(IScalingFactor, IValueHaver)
     scale = integer(default=1)
     value = integer(default=4)
 

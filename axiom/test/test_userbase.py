@@ -5,7 +5,7 @@ Tests for L{axiom.userbase}.
 
 import datetime, StringIO, sys
 
-from zope.interface import Interface, implements
+from zope.interface import Interface, implementer
 from zope.interface.verify import verifyObject
 
 from twisted.trial import unittest
@@ -25,7 +25,7 @@ from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.scheduler import TimedEvent, _SubSchedulerParentHook
 from axiom import userbase
-from axiom.item import Item
+from axiom.item import Item, empowerment
 from axiom.attributes import integer
 from axiom.scripts import axiomatic
 from axiom import errors
@@ -35,14 +35,13 @@ from axiom.userbase import getTestContext
 class IGarbage(Interface):
     pass
 
+@implementer(IGarbage)
+@empowerment(IGarbage)
 class GarbageProtocolHandler(Item):
     schemaVersion = 1
     typeName = 'test_login_garbage'
 
-    powerupInterfaces = (IGarbage,)
     garbage = integer()
-
-    implements(IGarbage)
 
 SECRET = 'bananas'
 

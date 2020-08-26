@@ -4,7 +4,7 @@
 Axiom plugins for Twisted.
 """
 
-from zope.interface import classProvides
+from zope.interface import provider
 
 from twisted.plugin import IPlugin, getPlugins
 from twisted.python.usage import Options
@@ -28,12 +28,11 @@ class _CheckSystemVersion(Service):
 
 
 
+@provider(IPlugin, IServiceMaker)
 class AxiomaticStart(object):
     """
     L{IServiceMaker} plugin which gets an L{IService} from an Axiom store.
     """
-    classProvides(IPlugin, IServiceMaker)
-
     tapname = "axiomatic-start"
     description = "Run an Axiom database (use 'axiomatic start' instead)"
 
