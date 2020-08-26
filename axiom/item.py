@@ -3,7 +3,7 @@
 __metaclass__ = type
 
 import gc
-from zope.interface import implementer, implementer, Interface
+from zope.interface import implementer, Interface
 
 from inspect import getabsfile
 from weakref import WeakValueDictionary
