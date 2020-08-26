@@ -5,7 +5,7 @@ Tests for L{axiom.userbase}.
 
 import datetime, StringIO, sys
 
-from zope.interface import Interface, implementer
+from zope.interface import Interface
 from zope.interface.verify import verifyObject
 
 from twisted.trial import unittest
@@ -35,7 +35,6 @@ from axiom.userbase import getTestContext
 class IGarbage(Interface):
     pass
 
-@implementer(IGarbage)
 @empowerment(IGarbage)
 class GarbageProtocolHandler(Item):
     schemaVersion = 1

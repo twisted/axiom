@@ -57,7 +57,6 @@ class NullGrid(object):
 
 
 
-@implementer(IElectricityGrid)
 @empowerment(IElectricityGrid)
 class RealGrid(Item):
     """
@@ -200,8 +199,8 @@ class Breadbox(Item):
 
 
 
-@implementer(IBreadConsumer)
-@empowerment(IAppliance, IBreadConsumer)
+@empowerment(IAppliance)
+@empowerment(IBreadConsumer)
 class Toaster(Item):
     powerStrip = dependency.dependsOn(PowerStrip,
                                       lambda ps: ps.setForUSElectricity(),

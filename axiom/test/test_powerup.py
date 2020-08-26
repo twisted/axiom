@@ -50,7 +50,6 @@ class SubtractThree(Item):
         return MinusThree(self.valueHaver)
 
 
-@implementer(IValueHaver)
 @empowerment(IValueHaver)
 class PlusTwo(Item):
     """

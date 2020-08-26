@@ -527,8 +527,8 @@ class SubStoreLoginMixin:
 
 
 
-@implementer(IRealm, ICredentialsChecker)
-@empowerment(IRealm, ICredentialsChecker)
+@empowerment(IRealm)
+@empowerment(ICredentialsChecker)
 class LoginBase:
     """
     I am a database powerup which provides an interface to a collection of
