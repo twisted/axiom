@@ -1,3 +1,29 @@
+0.8.0 (2020-01-28):
+ Major:
+
+ - (#87) Axiom now creates tables with an explicit `INTEGER PRIMARY KEY`
+   column, which means that `VACUUM` will no longer corrupt the database.
+   `axiomatic upgrade` will migrate the existing tables in a store; as every
+   table must be copied, this may take a while on large stores.
+ - (#91) `axiom.userbase.LoginAccount` now has `setPassword` and
+   `replacePassword` methods. In a future version plaintext passwords will no
+   longer be stored at all, so applications must be migrated away from direct
+   `LoginAccount.password` use.
+ - (#89) `axiom.store.Store` takes a new parameter `journalMode`, and
+   `axiomatic` a corresponding `--journal-mode` argument. The SQLite journal
+   mode will be set to this value when the store is opened, and substores will
+   inherit the setting. The current default is `None` which sets no mode at
+   all, but this will change to `u'WAL'` in a future version.
+
+
+ Minor:
+
+ - (#69) The exception raised when a store's persisted schema does not match the
+   in-memory schema now shows the differences.
+ - (#68) ORDER BY is now suppressed for deleteFromStore with no LIMIT.
+ - (#88) There is a new @empowerment decorator for bestowing
+   `powerupInterfaces` on an `Item`.
+
 0.7.5 (2015-02-04):
  Major:
 

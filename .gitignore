@@ -7,3 +7,5 @@ apidocs/
 *.egg-info/
 .coverage
 .hypothesis/
+/axiom/_version.py
+/coverage.xml
