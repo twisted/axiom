@@ -1244,7 +1244,6 @@ class Store(Empowered):
                 if aFailure.check(errors.ItemUpgradeError):
                     log.err(aFailure.value.originalFailure, 'Item upgrade error')
                 log.err(aFailure, "upgrading %r failed" % (self,))
-                return aFailure
             d.addErrback(logUpgradeFailure)
         else:
             self._upgradeComplete = None
