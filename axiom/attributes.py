@@ -662,10 +662,10 @@ class AggregateComparison:
     def __init__(self, *conditions):
         self.conditions = conditions
         if self.operator is None:
-            raise NotImplementedError, ('%s cannot be used; you want AND or OR.'
+            raise NotImplementedError('%s cannot be used; you want AND or OR.'
                                         % self.__class__.__name__)
         if not conditions:
-            raise ValueError, ('%s condition requires at least one argument'
+            raise ValueError('%s condition requires at least one argument'
                                % self.operator)
 
     def getQuery(self, store):

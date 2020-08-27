@@ -85,7 +85,7 @@ class List(Item):
                 break
             if self[pos] == other:
                 return pos
-        raise ValueError, 'List.index(x): %r not in List' % other
+        raise ValueError('List.index(x): %r not in List' % other)
 
     def __len__(self):
         return self.length
