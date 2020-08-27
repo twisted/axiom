@@ -4,9 +4,6 @@
 Package for plugins for interfaces in Axiom.
 """
 
-from epsilon.hotfix import require
-require('twisted', 'plugin_package_paths')
-
 from twisted.plugin import pluginPackagePaths
 __path__.extend(pluginPackagePaths(__name__))
 __all__ = []
