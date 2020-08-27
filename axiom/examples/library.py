@@ -1,4 +1,5 @@
 
+from __future__ import print_function
 import random
 
 from axiom.item import Item
@@ -68,44 +69,44 @@ class LendingLibrary(Item):
 
     def displayBooks(self):
         for book in self.books():
-            print book.title,
+            print(book.title, end=' ')
             if book.lentTo is not None:
-                print 'lent to', '['+book.lentTo.name+']'
+                print('lent to', '['+book.lentTo.name+']')
             else:
-                print 'in library'
+                print('in library')
 
     def shuffleLending(self):
         for book in self.books():
             if book.lentTo is not None:
-                print book.lentTo.name, 'returned', book.title
+                print(book.lentTo.name, 'returned', book.title)
                 book.lentTo = None
         for book in self.books():
             if random.choice([True, False]):
                 borrower = random.choice(_borrowers)
-                print 'Lending', book.title, 'to', borrower
+                print('Lending', book.title, 'to', borrower)
                 book.lentTo = self.getBorrower(borrower)
 
 def main(s):
     for ll in s.query(LendingLibrary):
-        print 'found existing library'
+        print('found existing library')
         break
     else:
-        print 'creating new library'
+        print('creating new library')
         ll = LendingLibrary(store=s)
         ll.initialize()
     ll.displayBooks()
-    print '***'
+    print('***')
     ll.shuffleLending()
-    print '---'
+    print('---')
     ll.displayBooks()
-    print '***'
+    print('***')
     ll.shuffleLending()
-    print '---'
+    print('---')
 
-    print s.count(Book, AND (Book.author == u'Stephen King',
-                             Book.title == u'The Lions of al-Rassan'))
-    print s.count(Book, OR (Book.author == u'Stephen King',
-                            Book.title == u'The Lions of al-Rassan'))
+    print(s.count(Book, AND (Book.author == u'Stephen King',
+                             Book.title == u'The Lions of al-Rassan')))
+    print(s.count(Book, OR (Book.author == u'Stephen King',
+                            Book.title == u'The Lions of al-Rassan')))
 
 
 if __name__ == '__main__':
