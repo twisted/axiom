@@ -1,6 +1,6 @@
 # -*- test-case-name: axiom.test.test_listversions -*-
 
-from zope.interface import classProvides
+from zope.interface import provider
 from twisted import plugin
 from twisted.python import usage, versions
 from axiom import iaxiom, item, attributes, plugins
@@ -8,12 +8,11 @@ from axiom.scripts import axiomatic
 from epsilon.extime import Time
 
 
+@provider(plugin.IPlugin, iaxiom.IAxiomaticCommand)
 class ListVersions(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     """
     Command for listing the version history of a store.
     """
-
-    classProvides(plugin.IPlugin, iaxiom.IAxiomaticCommand)
     name = "list-version"
     description = "Display software package version history."
 

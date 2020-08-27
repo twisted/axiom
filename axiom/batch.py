@@ -7,7 +7,7 @@ of data over an extended period of time.
 
 import weakref, datetime, os, sys
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python import reflect, failure, log, procutils, util, runtime
 from twisted.internet import task, defer, reactor, error, protocol
@@ -903,6 +903,7 @@ class CallItemMethod(juice.Command):
                  ('method', juice.String())]
 
 
+@implementer(iaxiom.IBatchService)
 class BatchProcessingControllerService(service.Service):
     """
     Controls starting, stopping, and passing messages to the system process in
@@ -911,8 +912,6 @@ class BatchProcessingControllerService(service.Service):
     @ivar batchController: A reference to the L{ProcessController} for
         interacting with the batch process, if one exists.  Otherwise C{None}.
     """
-    implements(iaxiom.IBatchService)
-
     batchController = None
 
     def __init__(self, store):
@@ -983,6 +982,7 @@ class BatchProcessingControllerService(service.Service):
 
 
 
+@implementer(iaxiom.IBatchService)
 class _SubStoreBatchChannel(object):
     """
     SubStore adapter for passing messages to the batch processing system
@@ -990,8 +990,6 @@ class _SubStoreBatchChannel(object):
 
     SubStores are adaptable to L{iaxiom.IBatchService} via this adapter.
     """
-    implements(iaxiom.IBatchService)
-
     def __init__(self, substore):
         self.storepath = substore.dbdir
         self.service = iaxiom.IBatchService(substore.parent)

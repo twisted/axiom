@@ -3,7 +3,7 @@
 __metaclass__ = type
 
 import gc
-from zope.interface import implements, implementer, Interface
+from zope.interface import implementer, Interface
 
 from inspect import getabsfile
 from weakref import WeakValueDictionary
@@ -105,12 +105,13 @@ class MetaItem(slotmachine.SchemaMetaMachine):
 def noop():
     pass
 
+
+
+@implementer(IColumn)
 class _StoreIDComparer(Comparable):
     """
     See Comparable's docstring for the explanation of the requirements of my implementation.
     """
-    implements(IColumn)
-
     def __init__(self, type):
         self.type = type
 
@@ -956,6 +957,7 @@ class Item(Empowered, slotmachine._Strict):
 
 
 
+@implementer(IColumn)
 class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
                          _MatchingOperationMuxer, _OrderingMixin):
     """
@@ -963,8 +965,6 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
     name built with a table alias name instead of the underlying column's real
     table name.
     """
-    implements(IColumn)
-
     def __init__(self, placeholder, column):
         self.type = placeholder
         self.column = column

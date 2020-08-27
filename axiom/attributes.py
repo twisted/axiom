@@ -7,7 +7,7 @@ from decimal import Decimal
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python import filepath
 from twisted.python.deprecate import deprecated
@@ -178,12 +178,12 @@ class Comparable(_ContainableMixin, _ComparisonOperatorMuxer,
 
 
 
+@implementer(IOrdering)
 class SimpleOrdering:
     """
     Currently this class is mostly internal.  More documentation will follow as
     its interface is finalized.
     """
-    implements(IOrdering)
 
     # maybe this will be a useful public API, for the query something
     # something.
@@ -222,12 +222,11 @@ class SimpleOrdering:
             return NotImplemented
 
 
+@implementer(IOrdering)
 class CompoundOrdering:
     """
     List of SimpleOrdering instances.
     """
-    implements(IOrdering)
-
     def __init__(self, seq):
         self.simpleOrderings = list(seq)
 
@@ -276,9 +275,8 @@ class CompoundOrdering:
 
 
 
+@implementer(IOrdering)
 class UnspecifiedOrdering:
-    implements(IOrdering)
-
     def __init__(self, null):
         pass
 
@@ -301,6 +299,9 @@ def compoundIndex(*columns):
     for column in columns:
         column.compoundIndexes.append(columns)
 
+
+
+@implementer(IColumn)
 class SQLAttribute(inmemory, Comparable):
     """
     Abstract superclass of all attributes.
@@ -312,8 +313,6 @@ class SQLAttribute(inmemory, Comparable):
 
     @ivar default: The value used for this attribute, if no value is specified.
     """
-    implements(IColumn)
-
     sqltype = None
 
     def __init__(self, doc='', indexed=False, default=None, allowNone=True, defaultFactory=None):
@@ -502,8 +501,9 @@ class SQLAttribute(inmemory, Comparable):
                 st._rejectChanges -= 1
 
 
+
+@implementer(IComparison)
 class TwoAttributeComparison:
-    implements(IComparison)
     def __init__(self, leftAttribute, operationString, rightAttribute):
         self.leftAttribute = leftAttribute
         self.operationString = operationString
@@ -532,8 +532,9 @@ class TwoAttributeComparison:
                          self.rightAttribute.fullyQualifiedName()))
 
 
+
+@implementer(IComparison)
 class AttributeValueComparison:
-    implements(IComparison)
     def __init__(self, attribute, operationString, value):
         self.attribute = attribute
         self.operationString = operationString
@@ -554,8 +555,10 @@ class AttributeValueComparison:
                          self.operationString,
                          repr(self.value)))
 
+
+
+@implementer(IComparison)
 class NullComparison:
-    implements(IComparison)
     def __init__(self, attribute, negate=False):
         self.attribute = attribute
         self.negate = negate
@@ -609,8 +612,9 @@ class LikeColumn(LikeFragment):
         return [self.attribute.type]
 
 
+
+@implementer(IComparison)
 class LikeComparison:
-    implements(IComparison)
     # Not AggregateComparison or AttributeValueComparison because there is a
     # different, optimized syntax for 'or'.  WTF is wrong with you, SQL??
 
@@ -647,13 +651,12 @@ class LikeComparison:
 
 
 
+@implementer(IComparison)
 class AggregateComparison:
     """
     Abstract base class for compound comparisons that aggregate other
     comparisons - currently only used for AND and OR comparisons.
     """
-
-    implements(IComparison)
     operator = None
 
     def __init__(self, *conditions):
@@ -689,9 +692,8 @@ class AggregateComparison:
 
 
 
+@implementer(IComparison)
 class SequenceComparison:
-    implements(IComparison)
-
     def __init__(self, attribute, container, negate):
         self.attribute = attribute
         self.container = container
@@ -795,13 +797,13 @@ class OR(AggregateComparison):
     operator = 'OR'
 
 
+
+@implementer(IComparison)
 class TableOrderComparisonWrapper(object):
     """
     Wrap any other L{IComparison} and override its L{getInvolvedTables} method
     to specify the same tables but in an explicitly specified order.
     """
-    implements(IComparison)
-
     tables = None
     comparison = None
 
