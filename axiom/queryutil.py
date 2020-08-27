@@ -3,6 +3,7 @@
 import operator
 
 from axiom.attributes import AND, OR
+from six.moves import zip
 
 def contains(startAttribute,
              endAttribute,

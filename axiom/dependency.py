@@ -13,6 +13,8 @@ from epsilon.structlike import record
 from axiom.item import Item
 from axiom.attributes import reference, boolean, AND
 from axiom.errors import ItemNotFound, DependencyError, UnsatisfiedRequirement
+from six.moves import map
+from six.moves import zip
 
 #There is probably a cleaner way to do this.
 _globalDependencyMap = {}
@@ -104,7 +106,7 @@ def installOn(self, target):
 
 def _installOn(self, target, __explicitlyInstalled=False):
     depBlob = _globalDependencyMap.get(self.__class__, [])
-    dependencies, itemCustomizers, refs = (map(list, zip(*depBlob))
+    dependencies, itemCustomizers, refs = (list(map(list, zip(*depBlob)))
                                          or ([], [], []))
     #See if any of our dependencies have been installed already
     for dc in self.store.query(_DependencyConnector,

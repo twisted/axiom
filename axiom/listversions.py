@@ -6,6 +6,7 @@ from twisted.python import usage, versions
 from axiom import iaxiom, item, attributes, plugins
 from axiom.scripts import axiomatic
 from epsilon.extime import Time
+import six
 
 
 @provider(plugin.IPlugin, iaxiom.IAxiomaticCommand)
@@ -137,5 +138,5 @@ def checkSystemVersion(s, versions=None):
 
     if mostRecentVersionMap != currentVersionMap:
         currentSystemVersion = SystemVersion(store=s, creation=Time())
-        for v in currentVersionMap.itervalues():
+        for v in six.itervalues(currentVersionMap):
             makeSoftwareVersion(s, v, currentSystemVersion)

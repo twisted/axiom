@@ -22,6 +22,8 @@ from axiom.attributes import (
     SQLAttribute, _ComparisonOperatorMuxer, _MatchingOperationMuxer,
     _OrderingMixin, _ContainableMixin, Comparable, compare, inmemory,
     reference, text, integer, AND, _cascadingDeletes, _disallows)
+import six
+from six.moves import zip
 
 _typeNameToMostRecentClass = WeakValueDictionary()
 
@@ -462,11 +464,8 @@ def allowDeletion(store, tableClass, comparisonFactory):
 
 
 
-class Item(Empowered, slotmachine._Strict):
+class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
     # Python-Special Attributes
-    __metaclass__ = MetaItem
-
-    # Axiom-Special Attributes
     __dirty__ = inmemory()
     __legacy__ = False
 
@@ -597,7 +596,7 @@ class Item(Empowered, slotmachine._Strict):
                 if name not in kw:
                     kw[name] = attr.computeDefault()
 
-        for k, v in kw.iteritems():
+        for k, v in six.iteritems(kw):
             setattr(self, k, v)
 
         if tostore != None:
@@ -924,7 +923,7 @@ class Item(Empowered, slotmachine._Strict):
         # XXX no point in caching for every possible combination of attribute
         # values - probably.  check out how prepared statements are used in
         # python sometime.
-        dirty = self.__dirty__.items()
+        dirty = list(self.__dirty__.items())
         if not dirty:
             raise RuntimeError("Non-dirty item trying to generate SQL.")
         dirty.sort()

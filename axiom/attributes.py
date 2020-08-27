@@ -2,6 +2,9 @@
 
 import os
 
+import six
+from six.moves import map
+
 from decimal import Decimal
 
 from epsilon import hotfix
@@ -1283,7 +1286,7 @@ class AbstractFixedPointDecimal(integer):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if isinstance(pyval, (int, long)):
+        if isinstance(pyval, six.integer_types):
             pyval = Decimal(pyval)
         if isinstance(pyval, Decimal):
             # Python < 2.5.2 compatibility:

@@ -5,6 +5,8 @@
 This module holds the Axiom Store class and related classes, such as queries.
 """
 from epsilon import hotfix
+import six
+from six.moves import map
 hotfix.require('twisted', 'filepath_copyTo')
 
 import time, os, itertools, warnings, sys, operator, weakref
@@ -305,12 +307,12 @@ class BaseQuery:
             # statement does not.  this smells like a bug in sqlite's parser to
             # me, but I don't know my SQL syntax standards well enough to be
             # sure -glyph
-            if not isinstance(self.limit, (int, long)):
+            if not isinstance(self.limit, six.integer_types):
                 raise TypeError("limit must be an integer: %r" % (self.limit,))
             limitClause.append('LIMIT')
             limitClause.append(str(self.limit))
             if self.offset is not None:
-                if not isinstance(self.offset, (int, long)):
+                if not isinstance(self.offset, six.integer_types):
                     raise TypeError("offset must be an integer: %r" % (self.offset,))
                 limitClause.append('OFFSET')
                 limitClause.append(str(self.offset))
@@ -1323,7 +1325,7 @@ class Store(Empowered):
 
         # Now that we have persistedSchema, loop over everything again and
         # prepare old types.
-        for (typename, version), typeID in self.typenameAndVersionToID.iteritems():
+        for (typename, version), typeID in six.iteritems(self.typenameAndVersionToID):
             cls = _typeNameToMostRecentClass.get(typename)
 
             if cls is not None:
@@ -1405,7 +1407,7 @@ class Store(Empowered):
         positional argument function to call on the new item if it is new.
         """
         andargs = []
-        for k, v in attrs.iteritems():
+        for k, v in six.iteritems(attrs):
             col = getattr(userItemClass, k)
             andargs.append(col == v)
 
@@ -1489,7 +1491,7 @@ class Store(Empowered):
         # to use typeID instead of that tuple, which may be possible.  Probably
         # only represents a very tiny possible speedup.
         typeIDToNameAndVersion = {}
-        for key, value in self.typenameAndVersionToID.iteritems():
+        for key, value in six.iteritems(self.typenameAndVersionToID):
             typeIDToNameAndVersion[value] = key
 
         # Indexing attribute, ordering by it, and getting rid of row_offset
@@ -2245,7 +2247,7 @@ class Store(Empowered):
         corresponding to the given storeID can be located in the database.
         """
 
-        if not isinstance(storeID, (int, long)):
+        if not isinstance(storeID, six.integer_types):
             raise TypeError("storeID *must* be an int or long, not %r" % (
                     type(storeID).__name__,))
         if storeID == STORE_SELF_ID:
