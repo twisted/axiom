@@ -239,11 +239,11 @@ class List(axiomatic.AxiomaticSubCommand):
         acc = None
         for acc in self.store.query(userbase.LoginMethod):
             if acc.domain is None:
-                print(acc.localpart, end=' ')
+                print(acc.localpart, end='')
             else:
-                print(acc.localpart + '@' + acc.domain, end=' ')
+                print(acc.localpart + '@' + acc.domain, end='')
             if acc.account.disabled:
-                print('[DISABLED]')
+                print(' [DISABLED]')
             else:
                 print()
         if acc is None:
