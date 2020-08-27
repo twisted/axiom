@@ -13,7 +13,6 @@ class ListVersions(usage.Options, axiomatic.AxiomaticSubCommandMixin):
     """
     Command for listing the version history of a store.
     """
-
     name = "list-version"
     description = "Display software package version history."
 

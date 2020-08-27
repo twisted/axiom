@@ -59,14 +59,15 @@ def _mkdirIfNotExists(dirname):
     os.makedirs(dirname)
     return True
 
+
+
 @implementer(iaxiom.IAtomicFile)
-class AtomicFile(six.BytesIO):
+class AtomicFile(file):
     """I am a file which is moved from temporary to permanent storage when it
     is closed.
 
     After I'm closed, I will have a 'finalpath' property saying where I went.
     """
-
     def __init__(self, tempname, destpath):
         """
         Create an AtomicFile.  (Note: AtomicFiles can only be opened in
@@ -778,6 +779,8 @@ class MultipleItemQuery(BaseQuery):
         """
         return _MultipleItemDistinctQuery(self)
 
+
+
 @implementer(iaxiom.IQuery)
 class _DistinctQuery(object):
     """
@@ -785,7 +788,6 @@ class _DistinctQuery(object):
 
     Results from this query depend on the query it was initialized with.
     """
-
     def __init__(self, query):
         """
         Create a distinct query, based on another query.
@@ -1491,9 +1493,7 @@ class Store(Empowered):
         # Indexing attribute, ordering by it, and getting rid of row_offset
         # from the schema and the sorted() here doesn't seem to be any faster
         # than doing this.
-        persistedSchema = sorted(self.querySchemaSQL(
-            "SELECT attribute, type_id, sqltype, indexed, "
-            "pythontype, docstring FROM *DATABASE*.axiom_attributes "))
+        persistedSchema = sorted(self.querySchemaSQL(_schema.PERSISTED_SCHEMA))
 
         # This is trivially (but measurably!) faster than getattr(attributes,
         # pythontype).

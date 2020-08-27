@@ -227,7 +227,6 @@ class CompoundOrdering:
     """
     List of SimpleOrdering instances.
     """
-
     def __init__(self, seq):
         self.simpleOrderings = list(seq)
 
@@ -275,9 +274,9 @@ class CompoundOrdering:
         return x
 
 
+
 @implementer(IOrdering)
 class UnspecifiedOrdering:
-
     def __init__(self, null):
         pass
 
@@ -300,6 +299,8 @@ def compoundIndex(*columns):
     for column in columns:
         column.compoundIndexes.append(columns)
 
+
+
 @implementer(IColumn)
 class SQLAttribute(inmemory, Comparable):
     """
@@ -312,7 +313,6 @@ class SQLAttribute(inmemory, Comparable):
 
     @ivar default: The value used for this attribute, if no value is specified.
     """
-
     sqltype = None
 
     def __init__(self, doc='', indexed=False, default=None, allowNone=True, defaultFactory=None):
@@ -652,7 +652,6 @@ class AggregateComparison:
     Abstract base class for compound comparisons that aggregate other
     comparisons - currently only used for AND and OR comparisons.
     """
-
     operator = None
 
     def __init__(self, *conditions):
@@ -798,7 +797,6 @@ class TableOrderComparisonWrapper(object):
     Wrap any other L{IComparison} and override its L{getInvolvedTables} method
     to specify the same tables but in an explicitly specified order.
     """
-
     tables = None
     comparison = None
 

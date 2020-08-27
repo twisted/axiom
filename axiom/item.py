@@ -106,12 +106,13 @@ class MetaItem(slotmachine.SchemaMetaMachine):
 def noop():
     pass
 
+
+
 @implementer(IColumn)
 class _StoreIDComparer(Comparable):
     """
     See Comparable's docstring for the explanation of the requirements of my implementation.
     """
-
     def __init__(self, type):
         self.type = type
 
@@ -961,7 +962,6 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
     name built with a table alias name instead of the underlying column's real
     table name.
     """
-
     def __init__(self, placeholder, column):
         self.type = placeholder
         self.column = column

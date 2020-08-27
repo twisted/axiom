@@ -19,8 +19,7 @@ class AccountUpgradeTest(stubloader.StubbedTest):
         def loggedIn(xxx_todo_changeme):
             (ifc, av, lgo) = xxx_todo_changeme
             assert av.garbage == 7
-            # Bug in cooperator?  this triggers an exception.
-            # return svc.stopService()
+            return av.store.whenFullyUpgraded()
         d = p.login(
             UsernamePassword('test@example.com', SECRET), None, IGarbage)
         return d.addCallback(loggedIn)

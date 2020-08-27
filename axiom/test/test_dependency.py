@@ -7,7 +7,7 @@ from twisted.trial import unittest
 from axiom import dependency
 from axiom.store import Store
 from axiom.substore import SubStore
-from axiom.item import Item
+from axiom.item import Item, empowerment
 from axiom.errors import UnsatisfiedRequirement
 from axiom.attributes import text, integer, reference, inmemory
 
@@ -36,7 +36,6 @@ class NullGrid(object):
     This is a null electricity grid.  It is provided as a default grid in the
     case where a site store is not present.
     """
-
     def __init__(self, siteStore):
         """
         Create a null grid with a reference to the site store.
@@ -56,15 +55,13 @@ class NullGrid(object):
         return FAKE_POWER
 
 
-@implementer(IElectricityGrid)
+
+@empowerment(IElectricityGrid)
 class RealGrid(Item):
     """
     A power grid for the power utility; this is an item which should be
     installed on a site store.
     """
-
-    powerupInterfaces = (IElectricityGrid,)
-
     totalWattage = integer(default=10000000,
                            doc="""
                            Total wattage of the entire electricity grid.  (This
@@ -199,10 +196,11 @@ class Breadbox(Item):
     def dispenseBread(self, amt):
         self.slices -= amt
 
-@implementer(IBreadConsumer)
-class Toaster(Item):
-    powerupInterfaces = (IAppliance, IBreadConsumer)
 
+
+@empowerment(IAppliance)
+@empowerment(IBreadConsumer)
+class Toaster(Item):
     powerStrip = dependency.dependsOn(PowerStrip,
                                       lambda ps: ps.setForUSElectricity(),
                                       doc="the power source for this toaster")

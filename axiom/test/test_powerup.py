@@ -2,7 +2,7 @@
 from twisted.trial import unittest
 from twisted.python.components import registerAdapter
 
-from axiom.item import Item
+from axiom.item import Item, empowerment
 from axiom.store import Store
 from axiom.iaxiom import IPowerupIndirector
 from axiom.attributes import integer, inmemory, reference
@@ -50,13 +50,11 @@ class SubtractThree(Item):
         return MinusThree(self.valueHaver)
 
 
-@implementer(IValueHaver)
+@empowerment(IValueHaver)
 class PlusTwo(Item):
     """
     Example powerup with installation information.
     """
-    powerupInterfaces = (IValueHaver,)
-
     value = integer(default=2)
 
 @implementer(IScalingFactor, IValueHaver)

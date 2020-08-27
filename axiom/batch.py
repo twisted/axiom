@@ -910,7 +910,6 @@ class BatchProcessingControllerService(service.Service):
     @ivar batchController: A reference to the L{ProcessController} for
         interacting with the batch process, if one exists.  Otherwise C{None}.
     """
-
     batchController = None
 
     def __init__(self, store):
@@ -988,7 +987,6 @@ class _SubStoreBatchChannel(object):
 
     SubStores are adaptable to L{iaxiom.IBatchService} via this adapter.
     """
-
     def __init__(self, substore):
         self.storepath = substore.dbdir
         self.service = iaxiom.IBatchService(substore.parent)

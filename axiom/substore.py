@@ -21,7 +21,6 @@ class SubStore(Item):
     storepath = path()
     substore = inmemory()
 
-    @classmethod
     def createNew(cls, store, pathSegments):
         """
         Create a new SubStore, allocating a new file space for it.

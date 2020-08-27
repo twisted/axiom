@@ -231,7 +231,6 @@ class _SiteScheduler(SchedulerMixin, Service, object):
     """
     Adapter from a site store to L{IScheduler}.
     """
-
     timer = None
     callLater = reactor.callLater
     now = Time
@@ -297,7 +296,6 @@ class _UserScheduler(SchedulerMixin, Service, object):
     """
     Adapter from a non-site store to L{IScheduler}.
     """
-
     def __init__(self, store):
         self.store = store
 
@@ -368,7 +366,6 @@ class _SchedulerCompatMixin(object):
 
     @see: L{IScheduler}
     """
-
     def forwardToReal(name):
         def get(self):
             return getattr(IScheduler(self.store), name)
@@ -412,7 +409,6 @@ class Scheduler(Item, _SchedulerCompatMixin):
     This is deprecated and present only for backwards compatibility.  Adapt
     the store to L{IScheduler} instead.
     """
-
     typeName = 'axiom_scheduler'
     schemaVersion = 2
 

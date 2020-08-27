@@ -2,6 +2,8 @@
 branch = True
 source =
     axiom
+omit =
+    */axiom/test/historic/stub_*.py
 
 [report]
 exclude_lines =

@@ -39,7 +39,6 @@ class RecorderService(Item):
     This is used by tests to make sure services get started when they should
     be.
     """
-
     started = boolean(
         doc="""
         A flag which is initially false and set to true once C{startService} is

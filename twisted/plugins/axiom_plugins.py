@@ -32,7 +32,6 @@ class AxiomaticStart(object):
     """
     L{IServiceMaker} plugin which gets an L{IService} from an Axiom store.
     """
-
     tapname = "axiomatic-start"
     description = "Run an Axiom database (use 'axiomatic start' instead)"
 
