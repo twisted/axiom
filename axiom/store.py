@@ -1451,7 +1451,7 @@ class Store(Empowered):
                 tmpbase = self.filesdir
         else:
             tmpbase = self.dbdir
-        tmpname = tmpbase.child('temp').child(str(tempCounter.next()) + ".tmp")
+        tmpname = tmpbase.child('temp').child(str(next(tempCounter)) + ".tmp")
         return AtomicFile(tmpname.path, self.newFilePath(*path))
 
     def newDirectory(self, *path):
