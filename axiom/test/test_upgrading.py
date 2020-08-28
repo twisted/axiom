@@ -220,7 +220,7 @@ class SwordUpgradeTest(SchemaUpgradeTest):
                     ok = True
                 else:
                     unrelatedMessages.append(msgstr)
-            self.failUnless(ok, "No messages related to upgrading: %r" % (unrelatedMessages,))
+            self.failUnless(ok, "No messages related to upgrading: {!r}".format(unrelatedMessages))
             s = self.openStore()
             def afterUpgrade(noLogMessages):
                 for nmsgdict in noLogMessages:
@@ -663,7 +663,7 @@ class DuringUpgradeTests(unittest.TestCase):
         referee = referrer.referee
         self.assertTrue(
             isinstance(referee, two_upgrades_new.Referee),
-            "%r is a %r but should be %r" % (
+            "{!r} is a {!r} but should be {!r}".format(
                 referee, type(referee), two_upgrades_new.Referee))
 
 

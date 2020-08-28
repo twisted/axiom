@@ -194,7 +194,7 @@ class SchedulerMixin:
             self._transientSchedule(toWhen, self.now())
             break
         else:
-            raise ValueError("%r is not scheduled to run at %r" % (runnable, fromWhen))
+            raise ValueError("{!r} is not scheduled to run at {!r}".format(runnable, fromWhen))
 
 
     def unscheduleFirst(self, runnable):
