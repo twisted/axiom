@@ -174,7 +174,7 @@ class BadReferenceTestCase(TestCase):
         newReferee = referent.ref
         self.assertTrue(
             isinstance(newReferee, UpgradedItem),
-            "%r was instance of %r, expected %r" % (newReferee,
+            "{!r} was instance of {!r}, expected {!r}".format(newReferee,
                                                     type(newReferee),
                                                     UpgradedItem))
 

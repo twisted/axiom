@@ -285,8 +285,8 @@ class StartTests(TestCase):
             else:
                 # Nope, not there, give up.
                 raise SkipTest(
-                    "Could not find axiomatic script on path or at %s" % (
-                        axiomatic.path,))
+                    "Could not find axiomatic script on path or at {}".format(
+                        axiomatic.path))
         return axiomatic
 
 
@@ -439,7 +439,7 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
         """
         Report the given unexpected stderr data.
         """
-        msg("Received stderr from axiomatic: %r" % (bytes,))
+        msg("Received stderr from axiomatic: {!r}".format(bytes))
 
 
     def outReceived(self, bytes):
@@ -448,7 +448,7 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
         reactor has been installed successfully, firing the completion
         L{Deferred} if so.
         """
-        msg("Received stdout from axiomatic: %r" % (bytes,))
+        msg("Received stdout from axiomatic: {!r}".format(bytes))
         self._output += bytes
         if not self._success:
             for line in self._output.splitlines():

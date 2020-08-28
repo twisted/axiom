@@ -172,7 +172,7 @@ class _ReliableListener(item.Item):
     """)
 
     def __repr__(self):
-        return '<ReliableListener %s %r #%r>' % ({iaxiom.REMOTE: 'remote',
+        return '<ReliableListener {} {!r} #{!r}>'.format({iaxiom.REMOTE: 'remote',
                                                   iaxiom.LOCAL: 'local'}[self.style],
                                                  self.listener,
                                                  self.storeID)
@@ -180,7 +180,7 @@ class _ReliableListener(item.Item):
 
     def addItem(self, item):
         assert type(item) is self.processor.workUnitType, \
-               "Adding work unit of type %r to listener for type %r" % (
+               "Adding work unit of type {!r} to listener for type {!r}".format(
             type(item), self.processor.workUnitType)
         if item.storeID >= self.backwardMark and item.storeID <= self.forwardMark:
             _ReliableTracker(store=self.store,
@@ -190,7 +190,7 @@ class _ReliableListener(item.Item):
 
     def _forwardWork(self, workUnitType):
         if VERBOSE:
-            log.msg("%r looking forward from %r" % (self, self.forwardMark,))
+            log.msg("{!r} looking forward from {!r}".format(self, self.forwardMark))
         return self.store.query(
             workUnitType,
             workUnitType.storeID > self.forwardMark,
@@ -200,7 +200,7 @@ class _ReliableListener(item.Item):
 
     def _backwardWork(self, workUnitType):
         if VERBOSE:
-            log.msg("%r looking backward from %r" % (self, self.backwardMark,))
+            log.msg("{!r} looking backward from {!r}".format(self, self.backwardMark))
         if self.backwardMark == 0:
             return []
         return self.store.query(
@@ -218,13 +218,13 @@ class _ReliableListener(item.Item):
 
     def _doOneWork(self, workUnit, failureType):
         if VERBOSE:
-            log.msg("Processing a unit of work: %r" % (workUnit,))
+            log.msg("Processing a unit of work: {!r}".format(workUnit))
         try:
             self.listener.processItem(workUnit)
         except:
             f = failure.Failure()
             if VERBOSE:
-                log.msg("Processing failed: %s" % (f.getErrorMessage(),))
+                log.msg("Processing failed: {}".format(f.getErrorMessage()))
                 log.err(f)
             raise failureType(self, workUnit, f)
 
@@ -259,7 +259,7 @@ class _ReliableListener(item.Item):
         if first:
             raise _NoWorkUnits()
         if VERBOSE:
-            log.msg("%r.step() returning False" % (self,))
+            log.msg("{!r}.step() returning False".format(self))
         return False
 
 
@@ -277,21 +277,21 @@ class _BatchProcessorMixin:
                                          sort=_ReliableListener.lastRun.ascending):
             if not first:
                 if VERBOSE:
-                    log.msg("Found more work to do, returning True from %r.step()" % (self,))
+                    log.msg("Found more work to do, returning True from {!r}.step()".format(self))
                 return True
             listener.lastRun = now
             try:
                 if listener.step():
                     if VERBOSE:
-                        log.msg("%r.step() reported more work to do, returning True from %r.step()" % (listener, self))
+                        log.msg("{!r}.step() reported more work to do, returning True from {!r}.step()".format(listener, self))
                     return True
             except _NoWorkUnits:
                 if VERBOSE:
-                    log.msg("%r.step() reported no work units" % (listener,))
+                    log.msg("{!r}.step() reported no work units".format(listener))
             else:
                 first = False
         if VERBOSE:
-            log.msg("No listeners left with work, returning False from %r.step()" % (self,))
+            log.msg("No listeners left with work, returning False from {!r}.step()".format(self))
         return False
 
 
@@ -673,10 +673,10 @@ class ProcessController(six.with_metaclass(modal.ModalType)):
         args = [
             sys.executable,
             twistd,
-            '--logfile=%s' % (self.logPath,)]
+            '--logfile={}'.format(self.logPath)]
 
         if not runtime.platform.isWindows():
-            args.append('--pidfile=%s' % (self.pidPath,))
+            args.append('--pidfile={}'.format(self.pidPath))
 
         args.extend(['-noy',
                      self.tacPath])
@@ -1091,10 +1091,10 @@ class BatchProcessingProtocol(JuiceChild):
                 del self.subStores[path]
 
         try:
-            paths = set([p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")])
+            paths = {p.path for p in self.siteStore.query(substore.SubStore).getColumn("storepath")}
         except eaxiom.SQLError as e:
             # Generally, database is locked.
-            log.msg("SubStore query failed with SQLError: %r" % (e,))
+            log.msg("SubStore query failed with SQLError: {!r}".format(e))
         except:
             # WTF?
             log.msg("SubStore query failed with bad error:")
@@ -1110,7 +1110,7 @@ class BatchProcessingProtocol(JuiceChild):
                     s = store.Store(added, debug=False)
                 except eaxiom.SQLError as e:
                     # Generally, database is locked.
-                    log.msg("Opening sub-Store failed with SQLError: %r" % (e,))
+                    log.msg("Opening sub-Store failed with SQLError: {!r}".format(e))
                 except:
                     log.msg("Opening sub-Store failed with bad error:")
                     log.err()
@@ -1181,11 +1181,11 @@ class BatchProcessingService(service.Service):
                 ran = True
                 item = items.pop()
                 if VERBOSE:
-                    log.msg("Stepping processor %r (suspended is %r)" % (item, self.suspended))
+                    log.msg("Stepping processor {!r} (suspended is {!r})".format(item, self.suspended))
                 try:
                     itemHasMore = item.store.transact(item.step, style=self.style, skip=self.suspended)
                 except _ProcessingFailure as e:
-                    log.msg("%r failed while processing %r:" % (e.reliableListener, e.workUnit))
+                    log.msg("{!r} failed while processing {!r}:".format(e.reliableListener, e.workUnit))
                     log.err(e.failure)
                     e.mark()
 

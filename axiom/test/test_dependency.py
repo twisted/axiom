@@ -288,7 +288,7 @@ class DependencyTest(unittest.TestCase):
         self.assertEquals(ps.voltage, 110)
         self.assertEquals(e.breadFactory, bb)
         self.assertEquals(set(dependency.installedRequirements(e, foo)),
-                          set([ps, bb]))
+                          {ps, bb})
         self.assertEquals(list(dependency.installedDependents(ps, foo)), [e])
 
     def test_basicUninstall(self):
@@ -334,9 +334,9 @@ class DependencyTest(unittest.TestCase):
         self.assertEquals(list(self.store.query(PowerStrip)), [ps])
         #XXX does ordering matter?
         self.assertEquals(set(dependency.installedDependents(ps, foo)),
-                          set([e, f]))
+                          {e, f})
         self.assertEquals(set(dependency.installedRequirements(e, foo)),
-                          set([bb, ps]))
+                          {bb, ps})
         self.assertEquals(list(dependency.installedRequirements(f, foo)),
                           [ps])
 

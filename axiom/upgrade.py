@@ -171,16 +171,16 @@ class _StoreUpgrade(object):
                 if not upgradedAnything:
                     self._oldTypesRemaining.pop(0)
                     if didAny:
-                        msg("%s finished upgrading %s" % (store.dbdir.path, qual(t0)))
+                        msg("{} finished upgrading {}".format(store.dbdir.path, qual(t0)))
                     continue
                 elif not didAny:
                     didAny = True
-                    msg("%s beginning upgrade..." % (store.dbdir.path,))
+                    msg("{} beginning upgrade...".format(store.dbdir.path))
 
                 yield None
 
             if didAny:
-                msg("%s completely upgraded." % (store.dbdir.path,))
+                msg("{} completely upgraded.".format(store.dbdir.path))
 
 
 
@@ -215,8 +215,8 @@ def registerAttributeCopyingUpgrader(itemType, fromVersion, toVersion, postCopy=
     """
     def upgrader(old):
         newitem = old.upgradeVersion(itemType.typeName, fromVersion, toVersion,
-                                     **dict((str(name), getattr(old, name))
-                                            for (name, _) in old.getSchema()))
+                                     **{str(name): getattr(old, name)
+                                            for (name, _) in old.getSchema()})
         if postCopy is not None:
             postCopy(newitem)
         return newitem
@@ -279,7 +279,7 @@ def _upgradeTableOid(store, table, createTable, postCreate=lambda: None):
     store.executeSchemaSQL(
         'INSERT INTO *DATABASE*.{0} '
         'SELECT oid, * FROM *DATABASE*.{0}_temp'.format(table))
-    store.executeSchemaSQL('DROP TABLE *DATABASE*.{0}_temp'.format(table))
+    store.executeSchemaSQL('DROP TABLE *DATABASE*.{}_temp'.format(table))
     postCreate()
 
 

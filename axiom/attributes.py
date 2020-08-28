@@ -216,6 +216,13 @@ class SimpleOrdering:
             return NotImplemented
 
 
+    def __eq__(self, other):
+        return type(other) == type(self) and \
+            other.attribute.classname == self.attribute.classname and \
+            other.attribute == self.attribute and \
+            other.direction == self.direction
+
+
     def __radd__(self, other):
         if isinstance(other, SimpleOrdering):
             return CompoundOrdering([other, self])

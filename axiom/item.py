@@ -86,7 +86,7 @@ class MetaItem(slotmachine.SchemaMetaMachine):
                     " detected for type %r (imported from %r)" % (
                         T.typeName, relmod))
 
-            raise RuntimeError("2 definitions of axiom typename %r: %r %r" % (
+            raise RuntimeError("2 definitions of axiom typename {!r}: {!r} {!r}".format(
                     T.typeName, T, _typeNameToMostRecentClass[T.typeName]))
         _typeNameToMostRecentClass[T.typeName] = T
         return T
@@ -302,7 +302,7 @@ class Empowered(object):
                                               _PowerupConnector.powerup == powerup)):
                 cable.deleteFromStore()
                 return
-            raise ValueError("Not powered up for %r with %r" % (interface,
+            raise ValueError("Not powered up for {!r} with {!r}".format(interface,
                                                                 powerup))
 
 
@@ -684,7 +684,7 @@ class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
         Return a dictionary of all attributes which will be/have been/are being
         stored in the database.
         """
-        return dict((k, getattr(self, k)) for (k, attr) in self.getSchema())
+        return {k: getattr(self, k) for (k, attr) in self.getSchema()}
 
 
     def touch(self):
@@ -753,7 +753,7 @@ class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
         """
 
         if self.store is None:
-            raise NotInStore("You can't checkpoint %r: not in a store" % (self,))
+            raise NotInStore("You can't checkpoint {!r}: not in a store".format(self))
 
 
         if self.__deleting:
@@ -820,7 +820,7 @@ class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
         # right now there is only ever one acceptable series of arguments here
         # but it is useful to pass them anyway to make sure the code is
         # functioning as expected
-        assert typename == self.typeName, '%r != %r' % (typename, self.typeName)
+        assert typename == self.typeName, '{!r} != {!r}'.format(typename, self.typeName)
         assert oldversion == self.schemaVersion
         key = typename, newversion
         T = None
@@ -896,7 +896,7 @@ class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
     def _baseInsertSQL(cls, st):
         if cls not in st.typeToInsertSQLCache:
             attrs = list(cls.getSchema())
-            qs = ', '.join((['?']*(len(attrs)+1)))
+            qs = ', '.join(['?']*(len(attrs)+1))
             st.typeToInsertSQLCache[cls] = (
                 'INSERT INTO '+
                 st.getTableName(cls) + ' (' + ', '.join(
@@ -969,15 +969,15 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
         self.column = column
 
     def __repr__(self):
-        return '<Placeholder %r>' % (self.column,)
+        return '<Placeholder {!r}>'.format(self.column)
 
 
     def __get__(self, inst):
         return self.column.__get__(inst)
 
     def fullyQualifiedName(self):
-        return self.column.fullyQualifiedName() + '.<placeholder:%s>' % (
-            self.type._placeholderCount,)
+        return self.column.fullyQualifiedName() + '.<placeholder:{}>'.format(
+            self.type._placeholderCount)
 
 
     def compare(self, other, op):
@@ -993,7 +993,7 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
             "Placeholder.getTableAlias() must be called "
             "before Placeholder.attribute.getColumnName()")
 
-        return '%s.%s' % (self.type._placeholderTableAlias,
+        return '{}.{}'.format(self.type._placeholderTableAlias,
                           self.column.getShortColumnName(store))
 
     def infilter(self, pyval, oself, store):
@@ -1120,7 +1120,7 @@ def declareLegacyItem(typeName, schemaVersion, attributes, dummyBases=()):
     result = type(str('DummyItem<%s,%d>' % (typeName, schemaVersion)),
                   realBases,
                   attributes)
-    assert result is not None, 'wtf, %r' % (type,)
+    assert result is not None, 'wtf, {!r}'.format(type)
     _legacyTypes[(typeName, schemaVersion)] = result
     return result
 
