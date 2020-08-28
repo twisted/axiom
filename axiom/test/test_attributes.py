@@ -238,6 +238,23 @@ class BadAttributeTest(TestCase):
         self.assertEquals(str(err), "'FunkyItem' can't set attribute 'name'")
 
 
+
+class OrderingTestItem(Item):
+    a = integer()
+
+
+class OrderingTestSecondItem(Item):
+    a = integer()
+
+
+class  SimpleOrderingTest(TestCase):
+    def test_compare(self):
+        self.assert_(OrderingTestItem.a.ascending == OrderingTestItem.a.ascending)
+        self.assert_(OrderingTestItem.a.ascending != OrderingTestItem.a.descending)
+        self.assert_(OrderingTestItem.a.ascending != OrderingTestSecondItem.a.ascending)
+
+
+
 class WhiteboxComparableTest(TestCase):
     def test_likeRejectsIllegalOperations(self):
         """
