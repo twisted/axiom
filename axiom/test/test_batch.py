@@ -623,7 +623,7 @@ class RemoteTestCase(unittest.TestCase):
         # listeners, it should not take any more than six iterations to
         # completely process all work.
         for i in xrange(BATCH_WORK_UNITS * 2):
-            task.next()
+            next(task)
 
 
         self.assertEquals(
