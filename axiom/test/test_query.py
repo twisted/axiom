@@ -604,7 +604,7 @@ class MultipleQuery(TestCase):
 
             self.assertEquals(query.count(), 3)
 
-            result = iter(query).next()
+            result = next(iter(query))
 
             self.assertEquals(len(result), 2)
 
@@ -706,7 +706,7 @@ class MultipleQuery(TestCase):
 
             self.assertEquals(query.count(), 2)
 
-            self.assertEquals(tuple(b.name for b in iter(query).next()),
+            self.assertEquals(tuple(b.name for b in next(iter(query))),
                               (u"Pops", u"Dad", u"Bro"))
         s.transact(entesten)
         s.close()
@@ -728,7 +728,7 @@ class MultipleQuery(TestCase):
             results = iter(query)
 
             for i in range(3):
-                result = results.next()
+                result = next(results)
                 self.assertEquals(len(result), 1)
                 c, = result
                 self.assertTrue(isinstance(c, C), "%s is not a C" % c)
@@ -1560,7 +1560,7 @@ class PlaceholderTestCase(TestCase):
         value = 0
         involvedTables = (p.attr > value).getInvolvedTables()
         self.assertEquals(len(involvedTables), 1)
-        theTable = iter(involvedTables).next()
+        theTable = next(iter(involvedTables))
         self.assertEquals(theTable.getTableName(s),
                           PlaceholderTestItem.getTableName(s))
         self.assertEquals(theTable.getTableAlias(s, ()),
