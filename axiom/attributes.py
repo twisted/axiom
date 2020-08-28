@@ -899,7 +899,7 @@ class integer(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        requireType(self, pyval, inttyperepr, int, long)
+        requireType(self, pyval, inttyperepr, *six.integer_types)
         if not LARGEST_NEGATIVE <= pyval <= LARGEST_POSITIVE:
             raise ConstraintError(
                 self, inttyperepr, pyval)
