@@ -1,6 +1,6 @@
 # -*- test-case-name: axiom.test.historic.test_subStoreStartupService1to2 -*-
 
-from zope.interface import implements
+from zope.interface import implementer
 from twisted.application.service import IService
 
 from axiom.item import Item
@@ -9,6 +9,7 @@ from axiom.substore import SubStore, SubStoreStartupService
 
 from axiom.test.historic.stubloader import saveStub
 
+@implementer(IService)
 class DummyService(Item):
     """
     Service which does nothing but mark itself as run, if it's ever run.  After
@@ -16,7 +17,6 @@ class DummyService(Item):
     """
     typeName = 'substore_service_upgrade_stub_service'
     everStarted = boolean(default=False)
-    implements(IService)
 
     name = property(lambda : "sucky-service")
     running = property(lambda : False)

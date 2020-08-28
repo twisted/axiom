@@ -6,7 +6,7 @@ Tests for L{axiom.scripts.axiomatic}.
 
 import sys, os, signal, StringIO
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.python.log import msg
 from twisted.python.filepath import FilePath
@@ -32,14 +32,13 @@ from twisted.plugins.axiom_plugins import AxiomaticStart
 from axiom.test.reactorimporthelper import SomeItem
 
 
+@implementer(IService)
 class RecorderService(Item):
     """
     Minimal L{IService} implementation which remembers if it was ever started.
     This is used by tests to make sure services get started when they should
     be.
     """
-    implements(IService)
-
     started = boolean(
         doc="""
         A flag which is initially false and set to true once C{startService} is
