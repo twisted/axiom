@@ -1,4 +1,5 @@
 # -*- test-case-name: axiomatic.test.test_axiomatic -*-
+from __future__ import print_function
 from zope.interface import alsoProvides, noLongerProvides
 
 import os
@@ -89,7 +90,7 @@ class Status(usage.Options, PIDMixin):
     def postOptions(self):
         dbdir = self.parent.getStoreDirectory()
         serverpid = self.signalServer(0)
-        print 'A server is running from the Axiom database %r, PID %d.' % (dbdir, serverpid)
+        print('A server is running from the Axiom database %r, PID %d.' % (dbdir, serverpid))
 
 
 

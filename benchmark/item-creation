@@ -5,6 +5,7 @@
 # statistic, the number of seconds it takes to create an Item of such a
 # type.
 
+from __future__ import print_function
 import sys, time
 
 from axiom.store import Store
@@ -32,7 +33,7 @@ def benchmark(numAttributes):
 def main(argv):
     if len(argv) != 2:
         raise SystemExit("Usage: %s <number of attributes>" % (argv[0],))
-    print benchmark(int(argv[1]))
+    print(benchmark(int(argv[1])))
 
 
 if __name__ == '__main__':

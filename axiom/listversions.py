@@ -1,5 +1,6 @@
 # -*- test-case-name: axiom.test.test_listversions -*-
 
+from __future__ import print_function
 from zope.interface import provider
 from twisted import plugin
 from twisted.python import usage, versions
@@ -18,7 +19,7 @@ class ListVersions(usage.Options, axiomatic.AxiomaticSubCommandMixin):
 
     def postOptions(self):
         for line in listVersionHistory(self.parent.getStore()):
-            print line
+            print(line)
 
 
 

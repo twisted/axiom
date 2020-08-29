@@ -1,5 +1,6 @@
 # Copyright 2008 Divmod, Inc.  See LICENSE for details
 
+from __future__ import print_function
 import sys
 import os
 
@@ -1027,7 +1028,7 @@ class ProcessConcurrencyTestCase(unittest.TestCase,
 
     def errReceived(self, data):
         # we should never *really* get anything to stdout
-        print data
+        print(data)
 
     def processEnded(self, reason):
         # total correctness would have us checking the exit code too, but we

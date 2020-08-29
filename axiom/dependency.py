@@ -4,6 +4,7 @@
 A dependency management system for items.
 """
 
+from __future__ import print_function
 import sys, itertools
 
 from zope.interface.advice import addClassAdvisor
@@ -65,8 +66,8 @@ def dependsOn(itemType, itemCustomizer=None, doc='',
 
 def _dependsOn_advice(cls):
     if cls in _globalDependencyMap:
-        print "Double advising of %s. dependency map from first time: %s" % (
-            cls, _globalDependencyMap[cls])
+        print("Double advising of %s. dependency map from first time: %s" % (
+            cls, _globalDependencyMap[cls]))
         #bail if we end up here twice, somehow
         return cls
     for itemType, itemCustomizer, ref in cls.__dict__[
