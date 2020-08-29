@@ -944,7 +944,7 @@ class AttributeQuery(BaseQuery):
         dbval = rslt[0][0]
         if dbval is None:
             if default is _noDefault:
-                raise ValueError, '%s() on table with no items'%(which)
+                raise ValueError('%s() on table with no items'%(which))
             else:
                 return default
         return self.attribute.outfilter(dbval, _FakeItemForFilter(self.store))
