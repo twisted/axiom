@@ -5,6 +5,7 @@
 # create.  Reports one statistic, the number of seconds it takes to open a
 # store.
 
+from __future__ import print_function
 import os, sys, time, tempfile
 
 from axiom.store import Store
@@ -34,7 +35,7 @@ def benchmark(numItemTypes, numAttributes):
 def main(argv):
     if len(argv) != 3:
         raise SystemExit("Usage: %s <number of item types> <number of attributes>" % (argv[0],))
-    print benchmark(int(argv[1]), int(argv[2]))
+    print(benchmark(int(argv[1]), int(argv[2])))
 
 
 if __name__ == '__main__':

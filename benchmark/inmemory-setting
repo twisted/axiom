@@ -5,6 +5,7 @@
 # change the value of an in-memory attribute.
 
 
+from __future__ import print_function
 import sys, time
 
 from axiom.store import Store
@@ -39,7 +40,7 @@ def benchmark():
 def main(argv):
     if len(argv) != 1:
         raise SystemExit("Usage: %s <number of attributes>")
-    print benchmark()
+    print(benchmark())
 
 
 if __name__ == '__main__':

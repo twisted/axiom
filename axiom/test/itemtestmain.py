@@ -1,3 +1,4 @@
+from __future__ import print_function
 import sys
 
 from axiom import store
@@ -9,7 +10,7 @@ def main(storePath, itemID):
 
     st = store.Store(filepath.FilePath(storePath))
     item = st.getItemByID(itemID)
-    print item.plain
+    print(item.plain)
 
 if __name__ == '__main__':
     main(storePath=sys.argv[1], itemID=int(sys.argv[2]))
