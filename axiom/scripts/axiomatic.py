@@ -14,6 +14,8 @@ from twisted.python.runtime import platform
 from twisted.scripts import twistd
 
 from axiom.iaxiom import IAxiomaticCommand
+from six.moves import input
+import six
 
 class AxiomaticSubCommandMixin(object):
     store = property(lambda self: self.parent.getStore())
@@ -46,14 +48,13 @@ class AxiomaticSubCommand(usage.Options, AxiomaticSubCommandMixin):
 
 
 
-class AxiomaticCommand(usage.Options, AxiomaticSubCommandMixin):
+class AxiomaticCommand(six.with_metaclass(_AxiomaticCommandMeta, usage.Options, AxiomaticSubCommandMixin)):
     """
     L{twisted.python.usage.Options} subclass for Axiomatic plugin commands.
 
     Subclass this to have your class automatically provide the necessary
     interfaces to be picked up by axiomatic.
     """
-    __metaclass__ = _AxiomaticCommandMeta
 
 noLongerProvides(AxiomaticCommand, IPlugin)
 noLongerProvides(AxiomaticCommand, IAxiomaticCommand)
@@ -180,7 +181,7 @@ class Options(usage.Options):
     store = None
 
     def usedb(self, potentialdb):
-        yn = raw_input("Use database %r? (Y/n) " % (potentialdb,))
+        yn = input("Use database %r? (Y/n) " % (potentialdb,))
         if yn.lower() in ('y', 'yes', ''):
             self['dbdir'] = potentialdb
         else:

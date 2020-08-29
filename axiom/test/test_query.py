@@ -10,6 +10,7 @@ from axiom.item import Item, Placeholder
 from axiom import errors
 from axiom.attributes import (
     reference, text, bytes, integer, AND, OR, TableOrderComparisonWrapper)
+from six.moves import map
 
 class A(Item):
     schemaVersion = 1
@@ -1157,7 +1158,7 @@ class SetMembershipQuery(QueryingTestCase):
                 D.four.getColumnName(self.store),
                 C.name.getColumnName(self.store)))
         self.assertEquals(
-            map(str, comparison.getArgs(self.store)),
+            list(map(str, comparison.getArgs(self.store))),
             [value])
 
 

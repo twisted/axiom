@@ -1,3 +1,4 @@
+import six
 # -*- test-case-name: axiom.test.test_slotmachine -*-
 
 hyper = super
@@ -115,7 +116,7 @@ class SchemaMetaMachine(_SlotMetaMachine):
         attrs = dictionary['__attributes__'] = []
         name = dictionary['__name__']
         moduleName = dictionary['__module__']
-        dictitems = dictionary.items()
+        dictitems = list(dictionary.items())
         dictitems.sort()
         for k, v in dictitems:
             if isinstance(v, Attribute):
@@ -143,7 +144,7 @@ class _Strict(object):
         except KeyError:
             allowed = type(self)._Strict__setattr__allowed = {}
             for cls in type(self).__mro__:
-                for attrName, slot in cls.__dict__.iteritems():
+                for attrName, slot in six.iteritems(cls.__dict__):
                     if attrName in allowed:
                         # It was found earlier in the mro, overriding
                         # whatever this is.  Ignore it and move on.
@@ -174,8 +175,8 @@ class _Strict(object):
             "{!r} can't set attribute {!r}".format(self.__class__.__name__, name))
 
 
-class SchemaMachine(_Strict):
-    __metaclass__ = SchemaMetaMachine
+class SchemaMachine(six.with_metaclass(SchemaMetaMachine, _Strict)):
+    pass
 
-class SlotMachine(_Strict):
-    __metaclass__ = _SlotMetaMachine
+class SlotMachine(six.with_metaclass(_SlotMetaMachine, _Strict)):
+    pass

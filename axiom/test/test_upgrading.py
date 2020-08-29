@@ -25,6 +25,7 @@ from axiom.store import Store
 from axiom.substore import SubStore
 from axiom.plugins.axiom_plugins import Upgrade
 from axiom.test.util import CommandStub
+import six
 
 
 
@@ -45,7 +46,7 @@ def axiomInvalidate(itemClass):
     """
     # Note, be very careful not to use comparison on attributes here.  For
     # example, do not use list.remove(), since it is equality based. -exarkun
-    for cascades in attributes._cascadingDeletes.itervalues():
+    for cascades in six.itervalues(attributes._cascadingDeletes):
         for i in xrange(len(cascades) - 1, -1, -1):
             if cascades[i].type is itemClass:
                 del cascades[i]

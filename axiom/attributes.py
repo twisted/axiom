@@ -2,6 +2,9 @@
 
 import os
 
+import six
+from six.moves import map
+
 from decimal import Decimal
 
 from epsilon import hotfix
@@ -903,7 +906,7 @@ class integer(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        requireType(self, pyval, inttyperepr, int, long)
+        requireType(self, pyval, inttyperepr, *six.integer_types)
         if not LARGEST_NEGATIVE <= pyval <= LARGEST_POSITIVE:
             raise ConstraintError(
                 self, inttyperepr, pyval)
@@ -1290,7 +1293,7 @@ class AbstractFixedPointDecimal(integer):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if isinstance(pyval, (int, long)):
+        if isinstance(pyval, six.integer_types):
             pyval = Decimal(pyval)
         if isinstance(pyval, Decimal):
             # Python < 2.5.2 compatibility:

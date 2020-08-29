@@ -19,6 +19,7 @@ from axiom import iaxiom, errors as eaxiom, item, attributes
 from axiom.scheduler import Scheduler, SubScheduler
 from axiom.upgrade import registerUpgrader, registerDeletionUpgrader
 from axiom.dependency import installOn
+import six
 
 VERBOSE = False
 
@@ -548,7 +549,7 @@ def _childProcTerminated(self, err):
     del self.waitingForProcess
 
 
-class ProcessController(object):
+class ProcessController(six.with_metaclass(modal.ModalType)):
     """
     Stateful class which tracks a Juice connection to a child process.
 
@@ -625,8 +626,6 @@ class ProcessController(object):
     case where process shutdown was explicitly requested via
     stopProcess().
     """
-
-    __metaclass__ = modal.ModalType
 
     initialMode = 'stopped'
     modeAttribute = 'mode'
