@@ -4,6 +4,7 @@
 """
 This module holds the Axiom Store class and related classes, such as queries.
 """
+from __future__ import print_function
 from epsilon import hotfix
 hotfix.require('twisted', 'filepath_copyTo')
 
@@ -427,24 +428,6 @@ class BaseQuery:
         Iterate the results of this query.
         """
         return self._selectStuff('SELECT')
-
-
-    _selfiter = None
-    def next(self):
-        """
-        This method is deprecated, a holdover from when queries were iterators,
-        rather than iterables.
-
-        @return: one element of massaged data.
-        """
-        if self._selfiter is None:
-            warnings.warn(
-                "Calling 'next' directly on a query is deprecated. "
-                "Perhaps you want to use iter(query).next(), or something "
-                "more expressive like store.findFirst or store.findOrCreate?",
-                DeprecationWarning, stacklevel=2)
-            self._selfiter = self.__iter__()
-        return self._selfiter.next()
 
 
 
@@ -1308,8 +1291,8 @@ class Store(Empowered):
 
         for oid, module, typename, version in self.querySchemaSQL(_schema.ALL_TYPES):
             if self.debug:
-                print
-                print 'SCHEMA:', oid, module, typename, version
+                print()
+                print('SCHEMA:', oid, module, typename, version)
             if typename not in _typeNameToMostRecentClass:
                 try:
                     namedAny(module)
@@ -1451,7 +1434,7 @@ class Store(Empowered):
                 tmpbase = self.filesdir
         else:
             tmpbase = self.dbdir
-        tmpname = tmpbase.child('temp').child(str(tempCounter.next()) + ".tmp")
+        tmpname = tmpbase.child('temp').child(str(next(tempCounter)) + ".tmp")
         return AtomicFile(tmpname.path, self.newFilePath(*path))
 
     def newDirectory(self, *path):
@@ -1863,7 +1846,7 @@ class Store(Empowered):
 
     def _begin(self):
         if self.debug:
-            print '<'*10, 'BEGIN', '>'*10
+            print('<'*10, 'BEGIN', '>'*10)
         self.cursor.execute("BEGIN IMMEDIATE TRANSACTION")
         self._setupTxnState()
 
@@ -1882,7 +1865,7 @@ class Store(Empowered):
 
     def _commit(self):
         if self.debug:
-            print '*'*10, 'COMMIT', '*'*10
+            print('*'*10, 'COMMIT', '*'*10)
         # self.connection.commit()
         self.cursor.execute("COMMIT")
         log.msg(interface=iaxiom.IStatEvent, stat_commits=1)
@@ -1900,7 +1883,7 @@ class Store(Empowered):
 
     def _rollback(self):
         if self.debug:
-            print '>'*10, 'ROLLBACK', '<'*10
+            print('>'*10, 'ROLLBACK', '<'*10)
         # self.connection.rollback()
         self.cursor.execute("ROLLBACK")
         log.msg(interface=iaxiom.IStatEvent, stat_rollbacks=1)
@@ -1954,13 +1937,13 @@ class Store(Empowered):
         self.cursor = self.connection = None
         if self.debug and _report:
             if not self.queryTimes:
-                print 'no queries'
+                print('no queries')
             else:
-                print 'query:', self.avgms(self.queryTimes)
+                print('query:', self.avgms(self.queryTimes))
             if not self.execTimes:
-                print 'no execs'
+                print('no execs')
             else:
-                print 'exec:', self.avgms(self.execTimes)
+                print('exec:', self.avgms(self.execTimes))
 
     def avgms(self, l):
         return 'count: %d avg: %dus' % (len(l),
@@ -2339,7 +2322,7 @@ class Store(Empowered):
 
     def _queryandfetch(self, sql, args):
         if self.debug:
-            print '**', sql, '--', ', '.join(map(str, args))
+            print('**', sql, '--', ', '.join(map(str, args)))
         self.cursor.execute(sql, args)
         before = time.time()
         result = list(self.cursor)
@@ -2349,8 +2332,8 @@ class Store(Empowered):
             log.msg(sql)
             # import traceback; traceback.print_stack()
         if self.debug:
-            print '  lastrow:', self.cursor.lastRowID()
-            print '  result:', result
+            print('  lastrow:', self.cursor.lastRowID())
+            print('  result:', result)
         return result
 
 

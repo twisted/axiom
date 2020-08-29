@@ -114,7 +114,7 @@ class Preauthenticated(object):
 
 
     def __repr__(self):
-        return '<Preauthenticated: %s>' % (self.username,)
+        return '<Preauthenticated: {}>'.format(self.username)
 
 
 

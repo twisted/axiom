@@ -5,6 +5,7 @@
 # have already been queried for once.
 
 
+from __future__ import print_function
 import sys, time
 
 from zope.interface import Interface
@@ -51,7 +52,7 @@ def benchmark():
 def main(argv):
     if len(argv) != 1:
         raise SystemExit("Usage: %s")
-    print benchmark()
+    print(benchmark())
 
 
 if __name__ == '__main__':

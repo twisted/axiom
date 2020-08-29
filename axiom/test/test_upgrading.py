@@ -178,7 +178,8 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         choose(toonewapp)
         self.assertRaises(errors.NoUpgradePathAvailable, self.openStore)
 
-    def testUpgradeWithMissingVersion(self):
+
+    def test_upgradeWithMissingVersion(self):
         playerID, swordID = self._testTwoObjectUpgrade()
         choose(morenewapp)
         s = self.openStore()
@@ -188,6 +189,24 @@ class SwordUpgradeTest(SchemaUpgradeTest):
             sword = s.getItemByID(swordID, autoUpgrade=False)
             self._testPlayerAndSwordState(player, sword)
         return s.whenFullyUpgraded().addCallback(afterUpgrade)
+
+
+    def test_upgradeWithMissingVersionAuto1(self):
+        playerID, swordID = self._testTwoObjectUpgrade()
+        choose(morenewapp)
+        s = self.openStore()
+        player = s.getItemByID(playerID)
+        sword = s.getItemByID(swordID)
+        self._testPlayerAndSwordState(player, sword)
+
+
+    def test_upgradeWithMissingVersionAuto2(self):
+        playerID, swordID = self._testTwoObjectUpgrade()
+        choose(morenewapp)
+        s = self.openStore()
+        sword = s.getItemByID(swordID)
+        player = s.getItemByID(playerID)
+        self._testPlayerAndSwordState(player, sword)
 
 
     def test_upgradeSkipVersion(self):
@@ -205,6 +224,33 @@ class SwordUpgradeTest(SchemaUpgradeTest):
         return s.whenFullyUpgraded().addCallback(afterUpgrade)
 
 
+    def test_upgradeSkipVersionAuto1(self):
+        """
+        Verify that an upgrader registered to skip a version can execute properly.
+
+        Auto-upgrade version, order #1.
+        """
+        playerID, swordID = self._testTwoObjectUpgrade()
+        choose(onestepapp)
+        s = self.openStore()
+        player = s.getItemByID(playerID)
+        sword = s.getItemByID(swordID)
+        self._testPlayerAndSwordState(player, sword)
+
+
+    def test_upgradeSkipVersionAuto2(self):
+        """
+        Verify that an upgrader registered to skip a version can execute properly.
+
+        Auto-upgrade version, order #2.
+        """
+        playerID, swordID = self._testTwoObjectUpgrade()
+        choose(onestepapp)
+        s = self.openStore()
+        sword = s.getItemByID(swordID)
+        player = s.getItemByID(playerID)
+        self._testPlayerAndSwordState(player, sword)
+
 
     def test_loggingAtAppropriateTimes(self):
         """
@@ -220,7 +266,7 @@ class SwordUpgradeTest(SchemaUpgradeTest):
                     ok = True
                 else:
                     unrelatedMessages.append(msgstr)
-            self.failUnless(ok, "No messages related to upgrading: %r" % (unrelatedMessages,))
+            self.failUnless(ok, "No messages related to upgrading: {!r}".format(unrelatedMessages))
             s = self.openStore()
             def afterUpgrade(noLogMessages):
                 for nmsgdict in noLogMessages:
@@ -663,7 +709,7 @@ class DuringUpgradeTests(unittest.TestCase):
         referee = referrer.referee
         self.assertTrue(
             isinstance(referee, two_upgrades_new.Referee),
-            "%r is a %r but should be %r" % (
+            "{!r} is a {!r} but should be {!r}".format(
                 referee, type(referee), two_upgrades_new.Referee))
 
 

@@ -3,6 +3,7 @@
 # Benchmark of batch Item deletion.  Accepts no parameters.  Reports one
 # statistic, the number of milliseconds it takes to batch delete an Item.
 
+from __future__ import print_function
 import sys, time
 
 from axiom.store import Store
@@ -38,7 +39,7 @@ def benchmark():
 def main(argv):
     if len(argv) != 1:
         raise SystemExit("Usage: %s" % (argv[0],))
-    print benchmark()
+    print(benchmark())
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+from __future__ import print_function
 from axiom import item, attributes
 
 class Bucket(item.Item):
@@ -27,7 +28,7 @@ class Chicken(item.Item):
 
     epistemologicalBasisForCrossingTheRoad = attributes.text()
     def what(self):
-        print 'chicken!'
+        print('chicken!')
 
 class Biscuit(item.Item):
     typeName = 'biscuit'
@@ -35,7 +36,7 @@ class Biscuit(item.Item):
 
     fluffiness = attributes.integer()
     def what(self):
-        print 'biscuits!'
+        print('biscuits!')
 
 
 from axiom.store import Store
