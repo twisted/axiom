@@ -9,7 +9,7 @@ import sys, itertools
 
 from zope.interface.advice import addClassAdvisor
 
-from epsilon.structlike import record
+import attr
 
 from axiom.item import Item
 from axiom.attributes import reference, boolean, AND
@@ -250,10 +250,8 @@ def onlyInstallPowerups(self, target):
 
 
 
-class requiresFromSite(
-    record('powerupInterface defaultFactory siteDefaultFactory',
-           defaultFactory=None,
-           siteDefaultFactory=None)):
+@attr.s(eq=False)
+class requiresFromSite(object):
     """
     A read-only descriptor that will return the site store's powerup for a
     given item.
@@ -270,6 +268,9 @@ class requiresFromSite(
     and returns a value for this descriptor.  This is invoked in cases where
     this descriptor is retrieved from an item in a store without a parent.
     """
+    powerupInterface = attr.ib()
+    defaultFactory = attr.ib(default=None)
+    siteDefaultFactory = attr.ib(default=None)
 
     def _invokeFactory(self, defaultFactory, siteStore):
         if defaultFactory is None:
@@ -289,4 +290,3 @@ class requiresFromSite(
         else:
             pi = self._invokeFactory(self.siteDefaultFactory, oself.store)
         return pi
-

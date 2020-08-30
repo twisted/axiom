@@ -5,10 +5,9 @@
 This module holds the Axiom Store class and related classes, such as queries.
 """
 from __future__ import print_function
-from epsilon import hotfix
+
 import six
 from six.moves import map
-hotfix.require('twisted', 'filepath_copyTo')
 
 import time, os, itertools, warnings, sys, operator, weakref
 
@@ -19,10 +18,8 @@ from twisted.python.failure import Failure
 from twisted.python import filepath
 from twisted.internet import defer
 from twisted.python.reflect import namedAny
-from twisted.application.service import IService, IServiceCollection
-
-from epsilon.pending import PendingEvent
-from epsilon.cooperator import SchedulingService
+from twisted.application.service import IService, IServiceCollection, Service
+from twisted.internet.task import Cooperator
 
 from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 from axiom import item
@@ -109,6 +106,20 @@ class AtomicFile(file):
 
 _noItem = object()              # tag for optional argument to getItemByID
                                 # default
+
+
+class SchedulingService(Service):
+    """
+    Simple L{IService} implementation.
+    """
+    def __init__(self):
+        self.coop = Cooperator(started=False)
+
+    def startService(self):
+        self.coop.start()
+
+    def stopService(self):
+        self.coop.stop()
 
 
 
@@ -1226,18 +1237,14 @@ class Store(Empowered):
         # _startup may have found some things which we must now upgrade.
         if self._upgradeManager.upgradesPending:
             # Automatically upgrade when possible.
-            self._upgradeComplete = PendingEvent()
-            d = self._upgradeService.addIterator(self._upgradeManager.upgradeEverything())
+            self._upgradeComplete = self._upgradeService.coop.cooperate(
+                self._upgradeManager.upgradeEverything())
+            d = self._upgradeComplete.whenDone()
             def logUpgradeFailure(aFailure):
                 if aFailure.check(errors.ItemUpgradeError):
                     log.err(aFailure.value.originalFailure, 'Item upgrade error')
                 log.err(aFailure, "upgrading %r failed" % (self,))
-                return aFailure
             d.addErrback(logUpgradeFailure)
-            def finishHim(resultOrFailure):
-                self._upgradeComplete.callback(resultOrFailure)
-                self._upgradeComplete = None
-            d.addBoth(finishHim)
         else:
             self._upgradeComplete = None
 
@@ -1582,7 +1589,7 @@ class Store(Empowered):
         Return a Deferred which fires when this Store has been fully upgraded.
         """
         if self._upgradeComplete is not None:
-            return self._upgradeComplete.deferred()
+            return self._upgradeComplete.whenDone()
         else:
             return defer.succeed(None)
 

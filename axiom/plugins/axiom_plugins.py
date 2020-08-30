@@ -18,9 +18,6 @@ from twisted.python import usage, filepath, log
 from twisted.python.reflect import qual
 from twisted.plugin import IPlugin
 
-from epsilon.hotfix import require
-require('twisted', 'filepath_copyTo')
-
 import axiom
 from axiom import store, attributes, userbase, dependency, errors
 from axiom.substore import SubStore
