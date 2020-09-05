@@ -1,5 +1,5 @@
 from twisted.trial.unittest import TestCase
-import importlib
+import six
 
 class UnavailableTypeTestCase(TestCase):
     def testUnavailable(self):
@@ -20,8 +20,8 @@ class UnavailableTypeTestCase(TestCase):
         theStore = store.Store(storedir)
         makeItem()(store=theStore)
 
-        item = importlib.reload(item)
-        store = importlib.reload(store)
+        item = six.moves.reload_module.reload(item)
+        store = six.moves.reload_module.reload(store)
 
         store.Store(storedir)
 

@@ -918,7 +918,7 @@ class bytes(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if isinstance(pyval, str):
+        if isinstance(pyval, six.binary_type):
             raise ConstraintError(self, "str or other byte buffer", pyval)
         return buffer(pyval)
 
@@ -973,7 +973,7 @@ class text(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if not isinstance(pyval, str) or '\0' in pyval:
+        if not isinstance(pyval, six.string_types) or '\0' in pyval:
             raise ConstraintError(
                 self, "unicode string without NULL bytes", pyval)
         return pyval
