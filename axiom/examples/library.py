@@ -1,4 +1,5 @@
 
+from __future__ import print_function
 import random
 
 from axiom.item import Item
@@ -102,10 +103,10 @@ def main(s):
     ll.shuffleLending()
     print('---')
 
-    print(s.count(Book, AND (Book.author == 'Stephen King',
-                             Book.title == 'The Lions of al-Rassan')))
-    print(s.count(Book, OR (Book.author == 'Stephen King',
-                            Book.title == 'The Lions of al-Rassan')))
+    print(s.count(Book, AND (Book.author == u'Stephen King',
+                             Book.title == u'The Lions of al-Rassan')))
+    print(s.count(Book, OR (Book.author == u'Stephen King',
+                            Book.title == u'The Lions of al-Rassan')))
 
 
 if __name__ == '__main__':

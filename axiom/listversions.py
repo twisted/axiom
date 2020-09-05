@@ -1,11 +1,13 @@
 # -*- test-case-name: axiom.test.test_listversions -*-
 
+from __future__ import print_function
 from zope.interface import provider
 from twisted import plugin
 from twisted.python import usage, versions
 from axiom import iaxiom, item, attributes, plugins
 from axiom.scripts import axiomatic
 from epsilon.extime import Time
+import six
 
 
 @provider(plugin.IPlugin, iaxiom.IAxiomaticCommand)
@@ -137,5 +139,5 @@ def checkSystemVersion(s, versions=None):
 
     if mostRecentVersionMap != currentVersionMap:
         currentSystemVersion = SystemVersion(store=s, creation=Time())
-        for v in currentVersionMap.values():
+        for v in six.itervalues(currentVersionMap):
             makeSoftwareVersion(s, v, currentSystemVersion)

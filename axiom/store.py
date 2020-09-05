@@ -4,8 +4,10 @@
 """
 This module holds the Axiom Store class and related classes, such as queries.
 """
-from epsilon import hotfix
-hotfix.require('twisted', 'filepath_copyTo')
+from __future__ import print_function
+
+import six
+from six.moves import map
 
 import time, os, itertools, warnings, sys, operator, weakref, six
 
@@ -16,10 +18,8 @@ from twisted.python.failure import Failure
 from twisted.python import filepath
 from twisted.internet import defer
 from twisted.python.reflect import namedAny
-from twisted.application.service import IService, IServiceCollection
-
-from epsilon.pending import PendingEvent
-from epsilon.cooperator import SchedulingService
+from twisted.application.service import IService, IServiceCollection, Service
+from twisted.internet.task import Cooperator
 
 from axiom import _schema, attributes, upgrade, _fincache, iaxiom, errors
 from axiom import item
@@ -106,6 +106,20 @@ class AtomicFile(file):
 
 _noItem = object()              # tag for optional argument to getItemByID
                                 # default
+
+
+class SchedulingService(Service):
+    """
+    Simple L{IService} implementation.
+    """
+    def __init__(self):
+        self.coop = Cooperator(started=False)
+
+    def startService(self):
+        self.coop.start()
+
+    def stopService(self):
+        self.coop.stop()
 
 
 
@@ -304,12 +318,12 @@ class BaseQuery:
             # statement does not.  this smells like a bug in sqlite's parser to
             # me, but I don't know my SQL syntax standards well enough to be
             # sure -glyph
-            if not isinstance(self.limit, int):
+            if not isinstance(self.limit, six.integer_types):
                 raise TypeError("limit must be an integer: %r" % (self.limit,))
             limitClause.append('LIMIT')
             limitClause.append(str(self.limit))
             if self.offset is not None:
-                if not isinstance(self.offset, int):
+                if not isinstance(self.offset, six.integer_types):
                     raise TypeError("offset must be an integer: %r" % (self.offset,))
                 limitClause.append('OFFSET')
                 limitClause.append(str(self.offset))
@@ -426,24 +440,6 @@ class BaseQuery:
         Iterate the results of this query.
         """
         return self._selectStuff('SELECT')
-
-
-    _selfiter = None
-    def __next__(self):
-        """
-        This method is deprecated, a holdover from when queries were iterators,
-        rather than iterables.
-
-        @return: one element of massaged data.
-        """
-        if self._selfiter is None:
-            warnings.warn(
-                "Calling 'next' directly on a query is deprecated. "
-                "Perhaps you want to use iter(query).next(), or something "
-                "more expressive like store.findFirst or store.findOrCreate?",
-                DeprecationWarning, stacklevel=2)
-            self._selfiter = self.__iter__()
-        return next(self._selfiter)
 
 
 
@@ -1239,18 +1235,14 @@ class Store(Empowered):
         # _startup may have found some things which we must now upgrade.
         if self._upgradeManager.upgradesPending:
             # Automatically upgrade when possible.
-            self._upgradeComplete = PendingEvent()
-            d = self._upgradeService.addIterator(self._upgradeManager.upgradeEverything())
+            self._upgradeComplete = self._upgradeService.coop.cooperate(
+                self._upgradeManager.upgradeEverything())
+            d = self._upgradeComplete.whenDone()
             def logUpgradeFailure(aFailure):
                 if aFailure.check(errors.ItemUpgradeError):
                     log.err(aFailure.value.originalFailure, 'Item upgrade error')
                 log.err(aFailure, "upgrading %r failed" % (self,))
-                return aFailure
             d.addErrback(logUpgradeFailure)
-            def finishHim(resultOrFailure):
-                self._upgradeComplete.callback(resultOrFailure)
-                self._upgradeComplete = None
-            d.addBoth(finishHim)
         else:
             self._upgradeComplete = None
 
@@ -1321,7 +1313,7 @@ class Store(Empowered):
 
         # Now that we have persistedSchema, loop over everything again and
         # prepare old types.
-        for (typename, version), typeID in self.typenameAndVersionToID.items():
+        for (typename, version), typeID in six.iteritems(self.typenameAndVersionToID):
             cls = _typeNameToMostRecentClass.get(typename)
 
             if cls is not None:
@@ -1403,7 +1395,7 @@ class Store(Empowered):
         positional argument function to call on the new item if it is new.
         """
         andargs = []
-        for k, v in attrs.items():
+        for k, v in six.iteritems(attrs):
             col = getattr(userItemClass, k)
             andargs.append(col == v)
 
@@ -1487,7 +1479,7 @@ class Store(Empowered):
         # to use typeID instead of that tuple, which may be possible.  Probably
         # only represents a very tiny possible speedup.
         typeIDToNameAndVersion = {}
-        for key, value in self.typenameAndVersionToID.items():
+        for key, value in six.iteritems(self.typenameAndVersionToID):
             typeIDToNameAndVersion[value] = key
 
         # Indexing attribute, ordering by it, and getting rid of row_offset
@@ -1595,7 +1587,7 @@ class Store(Empowered):
         Return a Deferred which fires when this Store has been fully upgraded.
         """
         if self._upgradeComplete is not None:
-            return self._upgradeComplete.deferred()
+            return self._upgradeComplete.whenDone()
         else:
             return defer.succeed(None)
 
@@ -2243,7 +2235,7 @@ class Store(Empowered):
         corresponding to the given storeID can be located in the database.
         """
 
-        if not isinstance(storeID, int):
+        if not isinstance(storeID, six.integer_types):
             raise TypeError("storeID *must* be an int or long, not %r" % (
                     type(storeID).__name__,))
         if storeID == STORE_SELF_ID:

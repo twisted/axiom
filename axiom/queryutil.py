@@ -3,6 +3,7 @@
 import operator
 
 from axiom.attributes import AND, OR
+from six.moves import zip
 
 def contains(startAttribute,
              endAttribute,
@@ -99,7 +100,7 @@ def _tupleCompare(tuple1, ineq, tuple2,
     orholder = []
     for limit in range(len(tuple1)):
         eqconstraint = [
-            eq(elem1, elem2) for elem1, elem2 in zip(tuple1, tuple2)[:limit]]
+            eq(elem1, elem2) for elem1, elem2 in list(zip(tuple1, tuple2))[:limit]]
         ineqconstraint = ineq(tuple1[limit], tuple2[limit])
         orholder.append(ander(*(eqconstraint + [ineqconstraint])))
     return orer(*orholder)

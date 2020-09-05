@@ -1,4 +1,5 @@
 # -*- test-case-name: axiomatic.test.test_axiomatic -*-
+from __future__ import print_function
 from zope.interface import alsoProvides, noLongerProvides
 
 import os
@@ -14,6 +15,8 @@ from twisted.python.runtime import platform
 from twisted.scripts import twistd
 
 from axiom.iaxiom import IAxiomaticCommand
+from six.moves import input
+import six
 
 class AxiomaticSubCommandMixin(object):
     store = property(lambda self: self.parent.getStore())

@@ -622,7 +622,7 @@ class RemoteTestCase(unittest.TestCase):
         # Loop 6 (BATCH_WORK_UNITS * 2) times - three items times two
         # listeners, it should not take any more than six iterations to
         # completely process all work.
-        for i in range(BATCH_WORK_UNITS * 2):
+        for i in xrange(BATCH_WORK_UNITS * 2):
             next(task)
 
 

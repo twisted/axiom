@@ -1,5 +1,6 @@
 # -*- test-case-name: axiom.test.historic.test_processor1to2 -*-
 
+from __future__ import print_function
 from axiom.item import Item
 from axiom.attributes import text
 from axiom.batch import processor

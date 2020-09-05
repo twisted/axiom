@@ -10,6 +10,7 @@ from axiom.item import Item, Placeholder
 from axiom import errors
 from axiom.attributes import (
     reference, text, bytes, integer, AND, OR, TableOrderComparisonWrapper)
+from six.moves import map
 
 class A(Item):
     schemaVersion = 1
@@ -72,7 +73,7 @@ class BasicQuery(TestCase):
         comparison = (A.reftoc == B.storeID)
         self.assertEqual(
             comparison.getQuery(s),
-            '(%s.[reftoc] = %s.oid)' % (
+            '({}.[reftoc] = {}.oid)'.format(
                 A.getTableName(s),
                 B.getTableName(s)))
         self.assertEqual(comparison.getArgs(s), [])
@@ -88,7 +89,7 @@ class BasicQuery(TestCase):
         comparison = (B.storeID == A.reftoc)
         self.assertEqual(
             comparison.getQuery(s),
-            '(%s.oid = %s.[reftoc])' % (
+            '({}.oid = {}.[reftoc])'.format(
                 B.getTableName(s),
                 A.getTableName(s)))
         self.assertEqual(comparison.getArgs(s), [])
@@ -104,8 +105,8 @@ class BasicQuery(TestCase):
         sql, args = query._sqlAndArgs('SELECT', '*')
         self.assertEqual(
             sql,
-            'SELECT * FROM %s' % (A.getTableName(s),))
-        self.assertEqual(args, [])
+            'SELECT * FROM {}'.format(A.getTableName(s)))
+        self.assertEquals(args, [])
 
 
     def test_simpleIntegerComparison(self):
@@ -118,7 +119,7 @@ class BasicQuery(TestCase):
         sql, args = query._sqlAndArgs('SELECT', '*')
         self.assertEqual(
             sql,
-            'SELECT * FROM %s WHERE (%s.[amount] = ?)' % (
+            'SELECT * FROM {} WHERE ({}.[amount] = ?)'.format(
                 E.getTableName(s),
                 E.getTableName(s)))
         self.assertEqual(args, [0])
@@ -134,7 +135,7 @@ class BasicQuery(TestCase):
         sql, args = query._sqlAndArgs('SELECT', '*')
         self.assertEqual(
             sql,
-            'SELECT * FROM %s WHERE (%s.[reftoc] = %s.oid)' % (
+            'SELECT * FROM {} WHERE ({}.[reftoc] = {}.oid)'.format(
                 A.getTableName(s),
                 A.getTableName(s),
                 A.getTableName(s)))
@@ -152,7 +153,7 @@ class BasicQuery(TestCase):
         sql, args = query._sqlAndArgs('SELECT', '*')
         self.assertEqual(
             sql,
-            'SELECT * FROM %s WHERE (%s.oid = %s.[reftoc])' % (
+            'SELECT * FROM {} WHERE ({}.oid = {}.[reftoc])'.format(
                 A.getTableName(s),
                 A.getTableName(s),
                 A.getTableName(s)))
@@ -645,8 +646,8 @@ class MultipleQuery(TestCase):
                                      offset=offset, limit=limit )
                     expectedCount = min((totalCombinations-offset), limit)
                     actualCount = query.count()
-                    self.assertEqual(actualCount, expectedCount,
-                                      "Got %s results with offset %s, limit %s" % (
+                    self.assertEquals(actualCount, expectedCount,
+                                      "Got {} results with offset {}, limit {}".format(
                                       actualCount, offset, limit))
 
         s.transact(entesten)
@@ -706,8 +707,8 @@ class MultipleQuery(TestCase):
 
             self.assertEqual(query.count(), 2)
 
-            self.assertEqual(tuple(b.name for b in next(iter(query))),
-                              ("Pops", "Dad", "Bro"))
+            self.assertEquals(tuple(b.name for b in next(iter(query))),
+                              (u"Pops", u"Dad", u"Bro"))
         s.transact(entesten)
         s.close()
 
@@ -729,7 +730,7 @@ class MultipleQuery(TestCase):
 
             for i in range(3):
                 result = next(results)
-                self.assertEqual(len(result), 1)
+                self.assertEquals(len(result), 1)
                 c, = result
                 self.assertTrue(isinstance(c, C), "%s is not a C" % c)
                 self.assertEqual(c.name, "C.%s" % i, i)
@@ -1030,12 +1031,12 @@ class AndOrQueries(QueryingTestCase):
         just that argument.
         """
         self.assertQuery(
-            AND(A.type == 'Narf!'),
-            '((%s = ?))' % (A.type.getColumnName(self.store),),
+            AND(A.type == u'Narf!'),
+            '(({} = ?))'.format(A.type.getColumnName(self.store)),
             ['Narf!'])
         self.assertQuery(
-            OR(A.type == 'Narf!'),
-            '((%s = ?))' % (A.type.getColumnName(self.store),),
+            OR(A.type == u'Narf!'),
+            '(({} = ?))'.format(A.type.getColumnName(self.store)),
             ['Narf!'])
         self.assertEqual(self.query(D, AND(D.one == 'd1.one')), [self.d1])
         self.assertEqual(self.query(D, OR(D.one == 'd1.one')), [self.d1])
@@ -1088,9 +1089,9 @@ class SetMembershipQuery(QueryingTestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(self.store),
-            '%s IN (?, ?, ?)' % (
-                C.name.getColumnName(self.store),))
-        self.assertEqual(
+            '{} IN (?, ?, ?)'.format(
+                C.name.getColumnName(self.store)))
+        self.assertEquals(
             comparison.getArgs(self.store),
             values)
 
@@ -1105,7 +1106,7 @@ class SetMembershipQuery(QueryingTestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(self.store),
-            '%s IN (%s)' % (
+            '{} IN ({})'.format(
                 C.name.getColumnName(self.store),
                 A.type.getColumnName(self.store)))
         self.assertEqual(
@@ -1123,7 +1124,7 @@ class SetMembershipQuery(QueryingTestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(self.store),
-            '%s IN (SELECT %s FROM %s)' % (
+            '{} IN (SELECT {} FROM {})'.format(
                 C.name.getColumnName(self.store),
                 A.type.getColumnName(self.store),
                 A.getTableName(self.store)))
@@ -1148,7 +1149,7 @@ class SetMembershipQuery(QueryingTestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(self.store),
-            '%s IN (SELECT %s FROM %s, %s WHERE ((%s = ?) AND (%s = %s)))' % (
+            '{} IN (SELECT {} FROM {}, {} WHERE (({} = ?) AND ({} = {})))'.format(
                 C.name.getColumnName(self.store),
                 D.one.getColumnName(self.store),
                 D.getTableName(self.store),
@@ -1156,7 +1157,7 @@ class SetMembershipQuery(QueryingTestCase):
                 D.id.getColumnName(self.store),
                 D.four.getColumnName(self.store),
                 C.name.getColumnName(self.store)))
-        self.assertEqual(
+        self.assertEquals(
             list(map(str, comparison.getArgs(self.store))),
             [value])
 
@@ -1179,7 +1180,7 @@ class SetMembershipQuery(QueryingTestCase):
         C(store=s, name='y')
         cz = C(store=s, name='z')
 
-        self.assertEqual(list(s.query(C, C.name.oneOf(set(['x', 'z', 'a'])), sort=C.name.ascending)),
+        self.assertEquals(list(s.query(C, C.name.oneOf({u'x', u'z', u'a'}), sort=C.name.ascending)),
                           [cx, cz])
 
 
@@ -1212,11 +1213,11 @@ class WildcardQueries(QueryingTestCase):
     def testOneString(self):
         self.assertQuery(
             D.one.like('foobar%'),
-            '(%s LIKE (?))' % (D.one.getColumnName(self.store),),
+            '({} LIKE (?))'.format(D.one.getColumnName(self.store)),
             ['foobar%'])
         self.assertQuery(
             D.one.notLike('foobar%'),
-            '(%s NOT LIKE (?))' % (D.one.getColumnName(self.store),),
+            '({} NOT LIKE (?))'.format(D.one.getColumnName(self.store)),
             ['foobar%'])
         self.assertEqual(self.query(D, D.four.like('d1.four')), [self.d1])
         self.assertEqual(self.query(D, D.four.notLike('d%.four')), [])
@@ -1224,14 +1225,14 @@ class WildcardQueries(QueryingTestCase):
     def testOneColumn(self):
         self.assertQuery(
             D.one.like(D.two),
-            '(%s LIKE (%s))' % (D.one.getColumnName(self.store),
+            '({} LIKE ({}))'.format(D.one.getColumnName(self.store),
                                 D.two.getColumnName(self.store)))
         self.assertEqual(self.query(D, D.one.like(D.two)), [])
 
     def testOneColumnAndStrings(self):
         self.assertQuery(
-            D.four.like('%', D.id, '%four'),
-            '(%s LIKE (? || %s || ?))' % (D.four.getColumnName(self.store),
+            D.four.like(u'%', D.id, u'%four'),
+            '({} LIKE (? || {} || ?))'.format(D.four.getColumnName(self.store),
                                           D.id.getColumnName(self.store)),
             ['%', '%four'])
         q = self.query(D, D.four.like('%', D.id, '%four'))
@@ -1241,7 +1242,7 @@ class WildcardQueries(QueryingTestCase):
     def testMultipleColumns(self):
         self.assertQuery(
             D.one.like(D.two, '%', D.three),
-            '(%s LIKE (%s || ? || %s))' % (D.one.getColumnName(self.store),
+            '({} LIKE ({} || ? || {}))'.format(D.one.getColumnName(self.store),
                                            D.two.getColumnName(self.store),
                                            D.three.getColumnName(self.store)),
             ['%'])
@@ -1251,12 +1252,12 @@ class WildcardQueries(QueryingTestCase):
 
     def testStartsEndsWith(self):
         self.assertQuery(
-            D.four.startswith('foo'),
-            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
+            D.four.startswith(u'foo'),
+            '({} LIKE (?))'.format(D.four.getColumnName(self.store)),
             ['foo%'])
         self.assertQuery(
-            D.four.endswith('foo'),
-            '(%s LIKE (?))' % (D.four.getColumnName(self.store),),
+            D.four.endswith(u'foo'),
+            '({} LIKE (?))'.format(D.four.getColumnName(self.store)),
             ['%foo'])
         self.assertEqual(
             self.query(D, D.four.startswith('d1')), [self.d1])
@@ -1435,9 +1436,9 @@ class PlaceholderTestCase(TestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(s),
-            '(%s LIKE (placeholder_0.[attr]))' % (
-                PlaceholderTestItem.attr.getColumnName(s),))
-        self.assertEqual(
+            '({} LIKE (placeholder_0.[attr]))'.format(
+                PlaceholderTestItem.attr.getColumnName(s)))
+        self.assertEquals(
             comparison.getArgs(s),
             [])
 
@@ -1458,8 +1459,8 @@ class PlaceholderTestCase(TestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(s),
-            '%s IN (?, ?, ?)' % (p.attr.getColumnName(s),))
-        self.assertEqual(
+            '{} IN (?, ?, ?)'.format(p.attr.getColumnName(s)))
+        self.assertEquals(
             comparison.getArgs(s),
             value)
 
@@ -1480,8 +1481,8 @@ class PlaceholderTestCase(TestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(s),
-            '%s NOT IN (?, ?, ?)' % (p.attr.getColumnName(s),))
-        self.assertEqual(
+            '{} NOT IN (?, ?, ?)'.format(p.attr.getColumnName(s)))
+        self.assertEquals(
             comparison.getArgs(s),
             value)
 
@@ -1501,7 +1502,7 @@ class PlaceholderTestCase(TestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(s),
-            '%s IN (%s)' % (PlaceholderTestItem.attr.getColumnName(s),
+            '{} IN ({})'.format(PlaceholderTestItem.attr.getColumnName(s),
                             p.attr.getColumnName(s)))
         self.assertEqual(
             comparison.getArgs(s),
@@ -1523,7 +1524,7 @@ class PlaceholderTestCase(TestCase):
         self.assertTrue(IComparison.providedBy(comparison))
         self.assertEqual(
             comparison.getQuery(s),
-            '%s NOT IN (%s)' % (PlaceholderTestItem.attr.getColumnName(s),
+            '{} NOT IN ({})'.format(PlaceholderTestItem.attr.getColumnName(s),
                             p.attr.getColumnName(s)))
         self.assertEqual(
             comparison.getArgs(s),
@@ -1559,9 +1560,9 @@ class PlaceholderTestCase(TestCase):
         p = Placeholder(PlaceholderTestItem)
         value = 0
         involvedTables = (p.attr > value).getInvolvedTables()
-        self.assertEqual(len(involvedTables), 1)
+        self.assertEquals(len(involvedTables), 1)
         theTable = next(iter(involvedTables))
-        self.assertEqual(theTable.getTableName(s),
+        self.assertEquals(theTable.getTableName(s),
                           PlaceholderTestItem.getTableName(s))
         self.assertEqual(theTable.getTableAlias(s, ()),
                           'placeholder_0')
@@ -1613,8 +1614,8 @@ class PlaceholderTestCase(TestCase):
         sql, args = ItemQuery(s, p)._sqlAndArgs('SELECT', '*')
         self.assertEqual(
             sql,
-            'SELECT * FROM %s AS placeholder_0' % (
-                PlaceholderTestItem.getTableName(s),))
+            'SELECT * FROM {} AS placeholder_0'.format(
+                PlaceholderTestItem.getTableName(s)))
 
 
     def test_placeholderMultiQuery(self):
@@ -1630,7 +1631,7 @@ class PlaceholderTestCase(TestCase):
         tableName = PlaceholderTestItem.getTableName(s)
         self.assertEqual(
             sql,
-            'SELECT * FROM %s AS placeholder_0, %s AS placeholder_1' % (
+            'SELECT * FROM {} AS placeholder_0, {} AS placeholder_1'.format(
                 tableName, tableName))
 
 

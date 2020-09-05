@@ -1,5 +1,6 @@
 # -*- test-case-name: axiom.test -*-
 from axiom._version import __version__
+from six.moves import map
 
 def asTwistedVersion(packageName, versionString):
     from twisted.python import versions

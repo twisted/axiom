@@ -1,3 +1,4 @@
+from __future__ import print_function
 from axiom import item, attributes
 
 class Bucket(item.Item):

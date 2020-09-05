@@ -11,6 +11,7 @@ from axiom.item import Item
 from axiom.attributes import path, inmemory, reference
 
 from axiom.upgrade import registerUpgrader
+import six
 
 @implementer(IPowerupIndirector)
 class SubStore(Item):
@@ -25,9 +26,9 @@ class SubStore(Item):
         """
         Create a new SubStore, allocating a new file space for it.
         """
-        if isinstance(pathSegments, str):
+        if isinstance(pathSegments, six.string_types):
             raise ValueError(
-                'Received %r instead of a sequence' % (pathSegments,))
+                'Received {!r} instead of a sequence'.format(pathSegments))
         if store.dbdir is None:
             self = cls(store=store, storepath=None)
         else:

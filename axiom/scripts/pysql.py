@@ -5,6 +5,7 @@ import traceback
 from pprint import pprint
 
 from axiom._pysqlite2 import Connection
+from six.moves import input
 
 con = Connection.fromDatabaseName(sys.argv[1])
 cur = con.cursor()

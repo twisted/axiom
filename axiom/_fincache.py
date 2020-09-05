@@ -105,7 +105,7 @@ class FinalizingCache:
             # get() for an explanation of why this might happen.
             if self.data[key]() is not None:
                 raise CacheInconsistency(
-                    "Duplicate cache key: %r %r %r" % (
+                    "Duplicate cache key: {!r} {!r} {!r}".format(
                         key, value, self.data[key]))
         except KeyError:
             pass
@@ -158,7 +158,7 @@ class FinalizingCache:
             # and raise CacheFault (which is a KeyError subclass).
             del self.data[key]
             raise CacheFault(
-                "FinalizingCache has %r but its value is no more." % (key,))
+                "FinalizingCache has {!r} but its value is no more.".format(key))
         log.msg(interface=iaxiom.IStatEvent, stat_cache_hits=1, key=key)
         return o
 

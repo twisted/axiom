@@ -283,12 +283,12 @@ class DependencyTest(unittest.TestCase):
         bb = self.store.findUnique(Breadbox, default=None)
         self.failIfIdentical(ps, None)
         self.failIfIdentical(bb, None)
-        self.assertEqual(e.powerStrip, ps)
-        self.assertEqual(ps.voltage, 110)
-        self.assertEqual(e.breadFactory, bb)
-        self.assertEqual(set(dependency.installedRequirements(e, foo)),
-                          set([ps, bb]))
-        self.assertEqual(list(dependency.installedDependents(ps, foo)), [e])
+        self.assertEquals(e.powerStrip, ps)
+        self.assertEquals(ps.voltage, 110)
+        self.assertEquals(e.breadFactory, bb)
+        self.assertEquals(set(dependency.installedRequirements(e, foo)),
+                          {ps, bb})
+        self.assertEquals(list(dependency.installedDependents(ps, foo)), [e])
 
     def test_basicUninstall(self):
         """
@@ -332,11 +332,11 @@ class DependencyTest(unittest.TestCase):
 
         self.assertEqual(list(self.store.query(PowerStrip)), [ps])
         #XXX does ordering matter?
-        self.assertEqual(set(dependency.installedDependents(ps, foo)),
-                          set([e, f]))
-        self.assertEqual(set(dependency.installedRequirements(e, foo)),
-                          set([bb, ps]))
-        self.assertEqual(list(dependency.installedRequirements(f, foo)),
+        self.assertEquals(set(dependency.installedDependents(ps, foo)),
+                          {e, f})
+        self.assertEquals(set(dependency.installedRequirements(e, foo)),
+                          {bb, ps})
+        self.assertEquals(list(dependency.installedRequirements(f, foo)),
                           [ps])
 
         dependency.uninstallFrom(e, foo)

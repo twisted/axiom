@@ -4,15 +4,18 @@
 A dependency management system for items.
 """
 
-import sys, itertools, six
+from __future__ import print_function
+import sys, itertools
 
 from zope.interface.advice import addClassAdvisor
 
-from epsilon.structlike import record
+import attr
 
 from axiom.item import Item
 from axiom.attributes import reference, boolean, AND
 from axiom.errors import ItemNotFound, DependencyError, UnsatisfiedRequirement
+from six.moves import map
+from six.moves import zip
 
 #There is probably a cleaner way to do this.
 _globalDependencyMap = {}
@@ -104,7 +107,7 @@ def installOn(self, target):
 
 def _installOn(self, target, __explicitlyInstalled=False):
     depBlob = _globalDependencyMap.get(self.__class__, [])
-    dependencies, itemCustomizers, refs = (list(map(list, list(zip(*depBlob))))
+    dependencies, itemCustomizers, refs = (list(map(list, zip(*depBlob)))
                                          or ([], [], []))
     #See if any of our dependencies have been installed already
     for dc in self.store.query(_DependencyConnector,
@@ -247,10 +250,8 @@ def onlyInstallPowerups(self, target):
 
 
 
-class requiresFromSite(
-    record('powerupInterface defaultFactory siteDefaultFactory',
-           defaultFactory=None,
-           siteDefaultFactory=None)):
+@attr.s(eq=False)
+class requiresFromSite(object):
     """
     A read-only descriptor that will return the site store's powerup for a
     given item.
@@ -267,6 +268,9 @@ class requiresFromSite(
     and returns a value for this descriptor.  This is invoked in cases where
     this descriptor is retrieved from an item in a store without a parent.
     """
+    powerupInterface = attr.ib()
+    defaultFactory = attr.ib(default=None)
+    siteDefaultFactory = attr.ib(default=None)
 
     def _invokeFactory(self, defaultFactory, siteStore):
         if defaultFactory is None:
@@ -286,4 +290,3 @@ class requiresFromSite(
         else:
             pi = self._invokeFactory(self.siteDefaultFactory, oself.store)
         return pi
-

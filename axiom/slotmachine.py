@@ -1,3 +1,4 @@
+import six
 # -*- test-case-name: axiom.test.test_slotmachine -*-
 
 import six
@@ -81,7 +82,7 @@ class Attribute(object):
         yield attrname
 
     def __get__(self, oself, type=None):
-        assert oself is None, "%s: should be masked" % (self.name,)
+        assert oself is None, "{}: should be masked".format(self.name)
         return self
 
 _RAISE = object()
@@ -103,7 +104,7 @@ class SetOnce(Attribute):
         if not hasattr(iself, self.trueattr):
             setattr(iself, self.trueattr, value)
         else:
-            raise AttributeError('%s.%s may only be set once' % (
+            raise AttributeError('{}.{} may only be set once'.format(
                     type(iself).__name__, self.name))
 
     def __get__(self, iself, type=None):
@@ -145,7 +146,7 @@ class _Strict(object):
         except KeyError:
             allowed = type(self)._Strict__setattr__allowed = {}
             for cls in type(self).__mro__:
-                for attrName, slot in cls.__dict__.items():
+                for attrName, slot in six.iteritems(cls.__dict__):
                     if attrName in allowed:
                         # It was found earlier in the mro, overriding
                         # whatever this is.  Ignore it and move on.
@@ -173,7 +174,7 @@ class _Strict(object):
         # It wasn't found in the setter cache or it was found to be None,
         # indicating a non-data descriptor which cannot be set.
         raise AttributeError(
-            "%r can't set attribute %r" % (self.__class__.__name__, name))
+            "{!r} can't set attribute {!r}".format(self.__class__.__name__, name))
 
 
 class SchemaMachine(six.with_metaclass(SchemaMetaMachine, _Strict)):

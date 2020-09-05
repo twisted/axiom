@@ -35,8 +35,8 @@ class CrossTransactionIteration(TestCase):
         b2 = SingleColumnSortHelper(store=s, mainColumn=2)
         b3 = SingleColumnSortHelper(store=s, mainColumn=3)
         itr = s.transact(lambda : iter(s.query(SingleColumnSortHelper).paginate()))
-        self.assertIdentical(s.transact(itr.__next__), b1)
-        self.assertEqual(s.transact(lambda : (next(itr), next(itr))),
+        self.assertIdentical(s.transact(itr.next), b1)
+        self.assertEquals(s.transact(lambda : (next(itr), next(itr))),
                           (b2, b3))
         self.assertRaises(StopIteration, lambda : s.transact(itr.__next__))
 

@@ -71,7 +71,7 @@ class SQLError(RuntimeError):
         self.sql, self.args, self.underlying = self.args
 
     def __str__(self):
-        return "<SQLError: %r(%r) caused %s: %s>" % (
+        return "<SQLError: {!r}({!r}) caused {}: {}>".format(
             self.sql, self.args,
             self.underlying.__class__, self.underlying)
 

@@ -4,6 +4,7 @@
 Plugins provided by Axiom for Axiom.
 """
 
+from __future__ import print_function
 import getpass
 import code, os, traceback, sys
 try:
@@ -16,9 +17,6 @@ from zope.interface import directlyProvides
 from twisted.python import usage, filepath, log
 from twisted.python.reflect import qual
 from twisted.plugin import IPlugin
-
-from epsilon.hotfix import require
-require('twisted', 'filepath_copyTo')
 
 import axiom
 from axiom import store, attributes, userbase, dependency, errors
@@ -238,11 +236,11 @@ class List(axiomatic.AxiomaticSubCommand):
         acc = None
         for acc in self.store.query(userbase.LoginMethod):
             if acc.domain is None:
-                print(acc.localpart, end=' ')
+                print(acc.localpart, end='')
             else:
-                print(acc.localpart + '@' + acc.domain, end=' ')
+                print(acc.localpart + '@' + acc.domain, end='')
             if acc.account.disabled:
-                print('[DISABLED]')
+                print(' [DISABLED]')
             else:
                 print()
         if acc is None:

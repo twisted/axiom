@@ -532,8 +532,8 @@ class MissingService(unittest.TestCase):
     def _testSchedule(self, scheduler):
         t1 = TestEvent(store=scheduler.store)
         scheduler.schedule(t1, Time.fromPOSIXTimestamp(0))
-        self.assertFalse(self.calls,
-                    "Should not have had any calls: %r" % (self.calls,))
+        self.failIf(self.calls,
+                    "Should not have had any calls: {!r}".format(self.calls))
         self.assertIdentical(
             scheduler._getNextEvent(Time.fromPOSIXTimestamp(1)).runnable, t1)
 
