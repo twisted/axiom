@@ -87,7 +87,7 @@ def choose(module=None):
         axiomInvalidateModule(old)
 
     if module is not None:
-        six.moves.reload_module.reload(module)
+        six.moves.reload_module(module)
 
 oldapp = loadSchemaModule('axiom.test.oldapp')
 
@@ -509,14 +509,14 @@ class PathUpgrade(SchemaUpgradeTest):
         versions in the specified module.
         """
         axiomInvalidateModule(module)
-        six.moves.reload_module.reload(oldpath)
+        six.moves.reload_module(oldpath)
         self.openStore()
         nfp = self.currentStore.newFilePath("pathname")
         oldpath.Path(store=self.currentStore,
                      thePath=nfp)
         self.closeStore()
         axiomInvalidateModule(oldpath)
-        six.moves.reload_module.reload(module)
+        six.moves.reload_module(module)
         self.openStore()
         self.startStoreService()
         return nfp, self.currentStore.whenFullyUpgraded()
@@ -570,7 +570,7 @@ class DeletionTest(SchemaUpgradeTest):
         is deleted in the course of B's upgrade, you should still get a
         reference to B.
         """
-        six.moves.reload_module.reload(oldcirc)
+        six.moves.reload_module(oldcirc)
         self.openStore()
         b = oldcirc.B(a=oldcirc.A(store=self.currentStore),
                       store=self.currentStore)
@@ -579,7 +579,7 @@ class DeletionTest(SchemaUpgradeTest):
         self.closeStore()
 
         axiomInvalidateModule(oldcirc)
-        six.moves.reload_module.reload(newcirc)
+        six.moves.reload_module(newcirc)
 
         self.openStore()
         origA = self.currentStore.findUnique(newcirc.A)
@@ -594,7 +594,7 @@ class DeletionTest(SchemaUpgradeTest):
         Powerups deleted during upgrades should be omitted from the results of
         powerupsFor.
         """
-        six.moves.reload_module.reload(oldobsolete)
+        six.moves.reload_module(oldobsolete)
         self.openStore()
         o = oldobsolete.Obsolete(store=self.currentStore)
         self.currentStore.powerUp(o, IObsolete)
@@ -603,7 +603,7 @@ class DeletionTest(SchemaUpgradeTest):
         self.closeStore()
 
         axiomInvalidateModule(oldobsolete)
-        six.moves.reload_module.reload(newobsolete)
+        six.moves.reload_module(newobsolete)
         self.openStore()
         self.assertEqual(list(self.currentStore.powerupsFor(IObsolete)), [])
         self.closeStore()
@@ -614,7 +614,7 @@ class DeletionTest(SchemaUpgradeTest):
         Powerups deleted during upgrades should be omitted from the results of
         powerupsFor.
         """
-        six.moves.reload_module.reload(oldobsolete)
+        six.moves.reload_module(oldobsolete)
         self.openStore()
         o = oldobsolete.Obsolete(store=self.currentStore)
         self.currentStore.powerUp(o, IObsolete)
@@ -623,7 +623,7 @@ class DeletionTest(SchemaUpgradeTest):
         self.closeStore()
 
         axiomInvalidateModule(oldobsolete)
-        six.moves.reload_module.reload(newobsolete)
+        six.moves.reload_module(newobsolete)
         self.openStore()
         self.assertEqual(IObsolete(self.currentStore, None), None)
         self.closeStore()

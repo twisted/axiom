@@ -20,8 +20,8 @@ class UnavailableTypeTestCase(TestCase):
         theStore = store.Store(storedir)
         makeItem()(store=theStore)
 
-        item = six.moves.reload_module.reload(item)
-        store = six.moves.reload_module.reload(store)
+        item = six.moves.reload_module(item)
+        store = six.moves.reload_module(store)
 
         store.Store(storedir)
 
