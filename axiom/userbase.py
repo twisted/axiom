@@ -32,6 +32,7 @@ aware that a user's database contains only their own data.
 
 import warnings
 from threading import Thread
+import six
 
 from zope.interface import implementer, Interface
 
@@ -464,7 +465,7 @@ def upgradeLoginAccount1To2(oldAccount):
     password = oldAccount.password
     if password is not None:
         try:
-            password = password.decode('ascii')
+            password = six.ensure_str(password)
         except UnicodeDecodeError:
             password = None
 
@@ -510,7 +511,7 @@ def upgradeLoginAccount2To3(oldAccount):
     if oldAccount.password is None:
         passwordHash = None
     else:
-        passwordHash = _globalCC.hash(oldAccount.password).decode('ascii')
+        passwordHash = six.ensure_str(_globalCC.hash(oldAccount.password))
     return oldAccount.upgradeVersion(
         'login', 2, 3,
         passwordHash=passwordHash,
@@ -590,14 +591,14 @@ class LoginBase:
 
         # unicode(None) == u'None', kids.
         if username is not None:
-            username = str(username)
+            username = six.ensure_str(username)
         if domain is not None:
-            domain = unicode(domain)
+            domain = six.ensure_str(domain)
         if password is None:
             passwordHash = None
         else:
-            password = unicode(password)
-            passwordHash = _globalCC.hash(password).decode('ascii')
+            password = six.ensure_str(password)
+            passwordHash = six.ensure_str(_globalCC.hash(password))
 
         if self.accountByAddress(username, domain) is not None:
             raise DuplicateUser(username, domain)
@@ -663,8 +664,8 @@ class LoginBase:
             self.failedLogins += 1
             raise MissingDomainPart(credentials.username)
 
-        username = str(username)
-        domain = str(domain)
+        username = six.ensure_str(username)
+        domain = six.ensure_str(domain)
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:

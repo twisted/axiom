@@ -345,7 +345,7 @@ class Empowered(object):
             yield inMemoryPowerup
         if self.store is None:
             return
-        name = str(qual(interface), 'ascii')
+        name = qual(interface)
         for cable in self.store.query(
             _PowerupConnector,
             AND(_PowerupConnector.interface == name,

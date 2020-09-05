@@ -8,7 +8,7 @@ class ProcessorUpgradeTest(StubbedTest):
     def setUp(self):
         # Ick, we need to catch the run event of DummyProcessor, and I can't
         # think of another way to do it.
-        self.dummyRun = DummyProcessor.run.__func__
+        self.dummyRun = DummyProcessor.run
         self.calledBack = Deferred()
         def dummyRun(calledOn):
             self.calledBack.callback(calledOn)

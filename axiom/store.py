@@ -62,7 +62,7 @@ def _mkdirIfNotExists(dirname):
 
 
 @implementer(iaxiom.IAtomicFile)
-class AtomicFile(file):
+class AtomicFile(six.BytesIO):
     """I am a file which is moved from temporary to permanent storage when it
     is closed.
 
@@ -1867,7 +1867,7 @@ class Store(Empowered):
             self.transaction = set()
             self.touched = set()
         self.autocommit = False
-        for sub in list(self._attachedChildren.values()):
+        for sub in self._attachedChildren.values():
             sub._setupTxnState()
 
     def _commit(self):
@@ -1925,7 +1925,7 @@ class Store(Empowered):
                 if attr in self.attrToColumnNameCache:
                     del self.attrToColumnNameCache[attr]
 
-        for sub in list(self._attachedChildren.values()):
+        for sub in self._attachedChildren.values():
             sub._inMemoryRollback()
 
 
@@ -2043,11 +2043,12 @@ class Store(Empowered):
 
         @return: a string
         """
-        if attribute not in self.attrToColumnNameCache:
-            self.attrToColumnNameCache[attribute] = '.'.join(
+        name = attribute.fullyQualifiedName()
+        if name not in self.attrToColumnNameCache:
+            self.attrToColumnNameCache[name] = '.'.join(
                 (self.getTableName(attribute.type),
                  self.getShortColumnName(attribute)))
-        return self.attrToColumnNameCache[attribute]
+        return self.attrToColumnNameCache[name]
 
 
     def getTypeID(self, tableClass):
