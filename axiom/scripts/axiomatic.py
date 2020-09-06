@@ -99,9 +99,9 @@ class Status(usage.Options, PIDMixin):
 class Start(twistd.ServerOptions):
     run = staticmethod(twistd.run)
 
-    def subCommands():
+    @property
+    def subCommands(self):
         raise AttributeError()
-    subCommands = property(subCommands)
 
 
     def getArguments(self, store, args):
@@ -205,7 +205,7 @@ class Options(usage.Options):
         from axiom.store import Store
         jm = self['journal-mode']
         if jm is not None:
-            jm = jm.decode('ascii')
+            jm = six.ensure_str(jm)
         if self.store is None:
             self.store = Store(
                 self.getStoreDirectory(), debug=self['debug'], journalMode=jm)

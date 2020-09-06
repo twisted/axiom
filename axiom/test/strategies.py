@@ -50,7 +50,7 @@ def timestamps(*a, **kw):
     """
     Strategy for generating L{epsilon.extime.Time} objects.
     """
-    return st.builds(Time.fromDatetime, st.datetimes(timezones=[], *a, **kw))
+    return st.builds(Time.fromDatetime, st.datetimes(*a, **kw))
 
 
 

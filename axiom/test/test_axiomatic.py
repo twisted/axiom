@@ -4,7 +4,7 @@
 Tests for L{axiom.scripts.axiomatic}.
 """
 
-import sys, os, signal, io
+import sys, os, signal, io, six
 
 from zope.interface import implementer
 
@@ -112,7 +112,7 @@ class StartTests(TestCase):
         else:
             pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
         restArg = [
-            "axiomatic-start", "--dbdir", dbdir.path, "--journal-mode", "WAL"]
+            "axiomatic-start", "--dbdir", dbdir.path, "--journal-mode", b"WAL"]
 
         self.assertEqual(
             start.getArguments(store, []),
@@ -449,7 +449,7 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
         L{Deferred} if so.
         """
         msg("Received stdout from axiomatic: {!r}".format(bytes))
-        self._output += bytes
+        self._output += six.ensure_str(bytes)
         if not self._success:
             for line in self._output.splitlines():
                 for expectedLine in self._expected:
