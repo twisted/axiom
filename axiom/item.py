@@ -571,7 +571,7 @@ class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
         """
         attrs = ", ".join("{n}={v}".format(n=name, v=attr.reprFor(self))
                           for name, attr in sorted(self.getSchema()))
-        template = b"{s.__name__}({attrs}, storeID={s.storeID})@{id:#x}"
+        template = "{s.__name__}({attrs}, storeID={s.storeID})@{id:#x}"
         return template.format(s=self, attrs=attrs, id=id(self))
 
 

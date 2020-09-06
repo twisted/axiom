@@ -7,7 +7,6 @@ This module holds the Axiom Store class and related classes, such as queries.
 from __future__ import print_function
 
 import six
-from six.moves import map
 
 import time, os, itertools, warnings, sys, operator, weakref, six
 
@@ -79,7 +78,7 @@ class AtomicFile(six.BytesIO):
         called.
         """
         self._destpath = destpath
-        file.__init__(self, tempname, 'w+b')
+        super().__init__(self, tempname, 'w+b')
 
     def close(self):
         """
@@ -90,7 +89,7 @@ class AtomicFile(six.BytesIO):
         """
         now = time.time()
         try:
-            file.close(self)
+            super().close(self)
             _mkdirIfNotExists(self._destpath.dirname())
             self.finalpath = self._destpath
             os.rename(self.name, self.finalpath.path)

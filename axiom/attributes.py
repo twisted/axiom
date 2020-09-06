@@ -918,7 +918,7 @@ class bytes(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if isinstance(pyval, six.binary_type):
+        if not isinstance(pyval, six.binary_type):
             raise ConstraintError(self, "str or other byte buffer", pyval)
         return buffer(pyval)
 
