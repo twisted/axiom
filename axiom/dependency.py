@@ -14,8 +14,8 @@ import attr
 from axiom.item import Item
 from axiom.attributes import reference, boolean, AND
 from axiom.errors import ItemNotFound, DependencyError, UnsatisfiedRequirement
-from six.moves import map
-from six.moves import zip
+import six
+from six.moves import map, zip
 
 #There is probably a cleaner way to do this.
 _globalDependencyMap = {}

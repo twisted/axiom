@@ -510,4 +510,4 @@ class AxiomaticTests(TestCase):
         options = axiomatic.Options()
         options['dbdir'] = self.mktemp()
         options['journal-mode'] = 'WAL'
-        self.assertEqual(options.getStore().journalMode, 'WAL')
+        self.assertEqual(options.getStore().journalMode, u'WAL')

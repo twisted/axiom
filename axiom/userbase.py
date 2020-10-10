@@ -591,13 +591,13 @@ class LoginBase:
 
         # unicode(None) == u'None', kids.
         if username is not None:
-            username = six.ensure_str(username)
+            username = six.ensure_text(username)
         if domain is not None:
-            domain = six.ensure_str(domain)
+            domain = six.ensure_text(domain)
         if password is None:
             passwordHash = None
         else:
-            password = six.ensure_str(password)
+            password = six.ensure_text(password)
             passwordHash = six.ensure_str(_globalCC.hash(password))
 
         if self.accountByAddress(username, domain) is not None:
@@ -664,8 +664,8 @@ class LoginBase:
             self.failedLogins += 1
             raise MissingDomainPart(credentials.username)
 
-        username = six.ensure_str(username)
-        domain = six.ensure_str(domain)
+        username = six.ensure_text(username)
+        domain = six.ensure_text(domain)
 
         acct = self.accountByAddress(username, domain)
         if acct is not None:

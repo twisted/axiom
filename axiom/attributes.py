@@ -984,13 +984,13 @@ class text(SQLAttribute):
 
 
 class textlist(text):
-    delimiter = '\u001f'
+    delimiter = u'\u001f'
 
     # Once upon a time, textlist encoded the list in such a way that caused []
     # to be indistinguishable from [u'']. This value is now used as a
     # placeholder at the head of the list, to avoid this problem in a way that
     # is almost completely backwards-compatible with older databases.
-    guard = '\u0002'
+    guard = u'\u0002'
 
     def outfilter(self, dbval, oself):
         unicodeString = super(textlist, self).outfilter(dbval, oself)

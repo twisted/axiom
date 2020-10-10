@@ -25,6 +25,7 @@ from axiom.attributes import (
     reference, text, integer, AND, _cascadingDeletes, _disallows)
 import six
 from six.moves import zip
+from functools import total_ordering
 
 _typeNameToMostRecentClass = WeakValueDictionary()
 
@@ -48,6 +49,7 @@ class CantInstantiateItem(RuntimeError):
     """You can't instantiate Item directly.  Make a subclass.
     """
 
+@total_ordering
 class MetaItem(slotmachine.SchemaMetaMachine):
     """Simple metaclass for Item that adds Item (and its subclasses) to
     _typeNameToMostRecentClass mapping.
@@ -99,10 +101,15 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         in SQL generation, which is beneficial for debugging and performance
         purposes.
         """
-        if isinstance(other, MetaItem):
+        # cmp is only available on Python 2
+        if six.PY2 and isinstance(other, MetaItem):
             return cmp((self.typeName, self.schemaVersion),
                        (other.typeName, other.schemaVersion))
         return NotImplemented
+
+    def __lt__(self, other):
+        # This plus total_ordering gets us comparisons in Python 3
+        return (self.typeName, self.schemaVersion) < (other.typeName, other.schemaVersion)
 
 
 def noop():

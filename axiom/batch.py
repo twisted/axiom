@@ -110,7 +110,7 @@ class BatchProcessingError(item.Item):
     The item which actually failed to be processed.
     """)
 
-    error = attributes.bytes(doc="""
+    error = attributes.text(doc="""
     The error message which was associated with this failure.
     """)
 
@@ -504,7 +504,7 @@ def processor(forType):
             """, default=None),
 
             # MAGIC NUMBERS AREN'T THEY WONDERFUL?
-            'busyInterval': attributes.integer(doc="", default=MILLI / 10),
+            'busyInterval': attributes.integer(doc="", default=MILLI // 10),
             }
         _processors[forType] = processor = item.MetaItem(
             attrs['__name__'],
