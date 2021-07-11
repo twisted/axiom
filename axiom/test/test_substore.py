@@ -57,7 +57,7 @@ class SubStoreTest(unittest.TestCase):
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
-        ssd = SubStored(store=s2, a='hello world', b='what, its text')
+        ssd = SubStored(store=s2, a=u'hello world', b=b'what, its text')
         oid = ss.storeID
         oid2 = ssd.storeID
 
@@ -69,8 +69,8 @@ class SubStoreTest(unittest.TestCase):
         reopens2 = reopenss.open()
         reopenssd = reopens2.getItemByID(oid2)
 
-        self.assertEqual(reopenssd.a, 'hello world')
-        self.assertEqual(reopenssd.b, 'what, its text')
+        self.assertEqual(reopenssd.a, u'hello world')
+        self.assertEqual(reopenssd.b, b'what, its text')
 
 
     def test_oneThingMemory(self):
@@ -81,7 +81,7 @@ class SubStoreTest(unittest.TestCase):
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
-        ssd = SubStored(store=s2, a='hello world', b='what, its text')
+        ssd = SubStored(store=s2, a=u'hello world', b=b'what, its text')
         oid = ss.storeID
         oid2 = ssd.storeID
 
@@ -89,8 +89,8 @@ class SubStoreTest(unittest.TestCase):
         self.assertIdentical(s.getItemByID(oid), ss)
         self.assertIdentical(ss.open(), s2)
         item = s2.getItemByID(oid2)
-        self.assertEqual(item.a, 'hello world')
-        self.assertEqual(item.b, 'what, its text')
+        self.assertEqual(item.a, u'hello world')
+        self.assertEqual(item.b, b'what, its text')
 
 
     def test_hereTodayGoneTomorrow(self):
@@ -101,7 +101,7 @@ class SubStoreTest(unittest.TestCase):
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
-        ssd = SubStored(store=s2, a='hello world', b='what, its text')
+        ssd = SubStored(store=s2, a=u'hello world', b=b'what, its text')
         oid = ss.storeID
         oid2 = ssd.storeID
         s2.close()
@@ -111,8 +111,8 @@ class SubStoreTest(unittest.TestCase):
         ss = s.getItemByID(oid)
         s2 = ss.open()
         item = s2.getItemByID(oid2)
-        self.assertEqual(item.a, 'hello world')
-        self.assertEqual(item.b, 'what, its text')
+        self.assertEqual(item.a, u'hello world')
+        self.assertEqual(item.b, b'what, its text')
 
 
     def test_memorySubstoreFile(self):
@@ -125,7 +125,7 @@ class SubStoreTest(unittest.TestCase):
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
         f = s2.newFile("test.txt")
-        f.write("yay")
+        f.write(b"yay")
         f.close()
         self.assertEqual(open(f.finalpath.path).read(), "yay")
 
