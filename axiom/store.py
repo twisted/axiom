@@ -61,7 +61,7 @@ def _mkdirIfNotExists(dirname):
 
 
 @implementer(iaxiom.IAtomicFile)
-class AtomicFile(six.BytesIO):
+class AtomicFile(six.BytesIO, object):
     """I am a file which is moved from temporary to permanent storage when it
     is closed.
 
