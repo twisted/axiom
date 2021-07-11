@@ -107,7 +107,7 @@ class _MatchingOperationMuxer:
                 likeParts.append(LikeValue(other))
 
         if allValues:
-            likeParts = [LikeValue(''.join(others))]
+            likeParts = [LikeValue(type(firstOther)().join(others))]
 
         return LikeComparison(self, negate, likeParts)
 
