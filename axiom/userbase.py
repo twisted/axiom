@@ -337,7 +337,9 @@ class LoginAccount(Item):
         realm = self.store.findUnique(LoginSystem)
 
         def _hashed(hash):
-            self.passwordHash = hash.decode('ascii')
+            # apparently txpasslib gives us bytes hashes on py2, text hashes on
+            # py3; let's make those consistent.
+            self.passwordHash = hash.decode('ascii') if isinstance(hash, bytes) else hash
 
         return realm._getCC().hash(newPassword).addCallback(_hashed)
 
