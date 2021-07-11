@@ -923,6 +923,12 @@ class bytes(SQLAttribute):
         return pyval
 
 
+    def outfilter(self, dbval, oself):
+        if dbval is None:
+            return None
+        return bytes(dbval)
+
+
     @deprecated(Version("Axiom", 0, 7, 5))
     def like(self, *others):
         return super(SQLAttribute, self).like(*others)
