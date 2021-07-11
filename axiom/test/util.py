@@ -3,6 +3,8 @@
 Helpers for writing Axiom tests.
 """
 
+import sys
+
 import six
 
 from twisted.python.filepath import FilePath
