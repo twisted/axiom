@@ -1167,7 +1167,9 @@ class Store(Empowered):
         self.typeToDeleteSQLCache = {}
 
         self.typeToTableNameCache = {}
-        self.attrToColumnNameCache = {}
+        self.attrNameToColumnNameCache = {}  # map fully-qualified attribute
+                                             # names (native str?) to database
+                                             # column names
 
         self._upgradeManager = upgrade._StoreUpgrade(self)
 
@@ -1921,11 +1923,13 @@ class Store(Empowered):
                           self.typeToTableNameCache) :
                 if tableClass in cache:
                     del cache[tableClass]
-            if tableClass.storeID in self.attrToColumnNameCache:
-                del self.attrToColumnNameCache[tableClass.storeID]
+            qualifiedStoreIDName = tableClass.storeID.fullyQualifiedName()
+            if qualifiedStoreIDName in self.attrNameToColumnNameCache:
+                del self.attrNameToColumnNameCache[qualifiedStoreIDName]
             for name, attr in tableClass.getSchema():
-                if attr in self.attrToColumnNameCache:
-                    del self.attrToColumnNameCache[attr]
+                attrFQN = attr.fullyQualifiedName()
+                if attrFQN in self.attrNameToColumnNameCache:
+                    del self.attrNameToColumnNameCache[attrFQN]
 
         for sub in self._attachedChildren.values():
             sub._inMemoryRollback()
@@ -2046,11 +2050,11 @@ class Store(Empowered):
         @return: a string
         """
         name = attribute.fullyQualifiedName()
-        if name not in self.attrToColumnNameCache:
-            self.attrToColumnNameCache[name] = '.'.join(
+        if name not in self.attrNameToColumnNameCache:
+            self.attrNameToColumnNameCache[name] = '.'.join(
                 (self.getTableName(attribute.type),
                  self.getShortColumnName(attribute)))
-        return self.attrToColumnNameCache[name]
+        return self.attrNameToColumnNameCache[name]
 
 
     def getTypeID(self, tableClass):
