@@ -1014,6 +1014,7 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
 
 _placeholderCount = 0
 
+@total_ordering
 class Placeholder(object):
     """
     Wrap an existing L{Item} type to provide a different name for it.
@@ -1051,6 +1052,24 @@ class Placeholder(object):
         _placeholderCount += 1
 
         self.existingInStore = self._placeholderItemClass.existingInStore
+
+
+    def __lt__(self, other):
+        """
+        Provide a deterministic sort order between Placeholder instances.
+        """
+        if isinstance(other, Placeholder):
+            return self._placeholderCount < other._placeholderCount
+        return NotImplemented
+
+
+    def __eq__(self, other):
+        """
+        Provide a deterministic sort order between Placeholder instances.
+        """
+        if isinstance(other, Placeholder):
+            return self._placeholderCount == other._placeholderCount
+        return NotImplemented
 
 
     def __cmp__(self, other):

@@ -1077,7 +1077,8 @@ class AndOrQueries(QueryingTestCase):
                              D.one == b'd2.one',
                              D.one == b'd3.one'))
         e = [self.d1, self.d2, self.d3]
-        self.assertEqual(sorted(q), sorted(e))
+        self.assertEqual(sorted(q, key=lambda d: d.one),
+                         sorted(e, key=lambda d: d.one))
 
 
 class SetMembershipQuery(QueryingTestCase):
@@ -1240,7 +1241,8 @@ class WildcardQueries(QueryingTestCase):
             ['%', '%four'])
         q = self.query(D, D.four.like('%', D.id, '%four'))
         e = [self.d1, self.d2, self.d3]
-        self.assertEqual(sorted(q), sorted(e))
+        self.assertEqual(sorted(q, key=lambda d: d.id),
+                         sorted(e, key=lambda d: d.id))
 
     def testMultipleColumns(self):
         self.assertQuery(
