@@ -4,6 +4,7 @@ Helpers for writing Axiom tests.
 """
 
 import sys
+import io
 
 import six
 

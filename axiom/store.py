@@ -78,7 +78,7 @@ class AtomicFile(six.BytesIO):
         called.
         """
         self._destpath = destpath
-        super().__init__(self, tempname, 'w+b')
+        super(AtomicFile, self).__init__(tempname, 'w+b')
 
     def close(self):
         """
@@ -94,7 +94,7 @@ class AtomicFile(six.BytesIO):
             self.finalpath = self._destpath
             os.rename(self.name, self.finalpath.path)
             os.utime(self.finalpath.path, (now, now))
-        except:
+        except Exception:
             return defer.fail()
         return defer.succeed(self.finalpath)
 

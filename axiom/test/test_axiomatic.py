@@ -196,13 +196,13 @@ class StartTests(TestCase):
         # does.  We could try running them both and comparing, but then we'd
         # still want to do some sanity check against one of them in case we end
         # up getting the twistd version incorrectly somehow... -exarkun
-        self.assertIn("--reactor", output)
+        self.assertIn("--reactor", output.getvalue())
         if not platform.isWindows():
             # This isn't an option on Windows, so it shouldn't be there.
-            self.assertIn("--uid", output)
+            self.assertIn("--uid", output.getvalue())
 
         # Also, we don't want to see twistd plugins here.
-        self.assertNotIn("axiomatic-start", output)
+        self.assertNotIn("axiomatic-start", output.getvalue())
 
 
 
