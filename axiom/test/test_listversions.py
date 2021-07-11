@@ -5,7 +5,7 @@
 Tests for Axiom store version history.
 """
 
-import sys, io
+import io
 from twisted.trial import unittest
 from twisted.python.versions import Version
 
@@ -16,7 +16,7 @@ from axiom.listversions import (getSystemVersions,
                                 checkSystemVersion)
 
 from axiom.scripts.axiomatic import Options as AxiomaticOptions
-from axiom.test.util import CommandStubMixin
+from axiom.test.util import CommandStubMixin, callWithStdoutRedirect
 from axiom.plugins.axiom_plugins import ListVersions
 
 class SystemVersionTests(unittest.TestCase, CommandStubMixin):
@@ -98,12 +98,10 @@ class SystemVersionTests(unittest.TestCase, CommandStubMixin):
         """
         checkSystemVersion(self.store)
 
-        out = io.StringIO()
-        self.patch(sys, 'stdout', out)
         lv = ListVersions()
         lv.parent = self
-        lv.parseOptions([])
-        result = out.getvalue()
+        ignored, output = callWithStdoutRedirect(lv.parseOptions, [])
+        result = output.getvalue()
         self.assertSubstring("axiom: " + axiom_version.short(), result)
 
 
