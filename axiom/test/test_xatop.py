@@ -3,6 +3,7 @@
 from __future__ import print_function
 import sys
 import os
+import six
 
 from twisted.trial import unittest
 from twisted.internet import protocol, defer
@@ -1015,13 +1016,13 @@ class ProcessConcurrencyTestCase(unittest.TestCase,
     ok = 0
 
     def outReceived(self, data):
-        if data == '1':
+        if data == b'1':
             # step 1: create an item
             cia = ConcurrentItemA(store=self.store,
                                   anAttribute='aaa')
             # then tell the subprocess to load it
-            self.transport.write(str(cia.storeID)+'\n')
-        elif data == '2':
+            self.transport.write((six.text_type(cia.storeID) + u'\n').encode("ascii"))
+        elif data == b'2':
             # step 2: the subprocess has notified us that it has successfully
             # completed
             self.ok = 1
