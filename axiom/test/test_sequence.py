@@ -6,7 +6,11 @@ from axiom.item import Item
 from axiom.sequence import List
 from axiom.store import Store
 
+from functools import total_ordering
+from operator import lt, eq
 
+
+@total_ordering
 class SomeItem(Item):
     schemaVersion = 1
     typeName = 'test_sequence_some_item'
@@ -19,6 +23,16 @@ class SomeItem(Item):
         if not isinstance(other, self.__class__):
             return cmp(super(SomeItem, self), other)
         return cmp(self.foo, other.foo)
+
+    def __lt__(self, other):
+        if not isinstance(other, self.__class__):
+            return lt(super(SomeItem, self), other)
+        return lt(self.foo, other.foo)
+
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return eq(super(SomeItem, self), other)
+        return eq(self.foo, other.foo)
 
 class SequenceTestCase(unittest.TestCase):
     def setUp(self):
@@ -501,42 +515,21 @@ class TestMutableSequenceOperations(SequenceTestCase):
                                   self.i4])
 
         seq_randomize()
-        seq.sort(lambda x,y: cmp(y,x))
+        seq.sort(key=lambda each: -each.foo)
         self.assertContents(seq, [self.i4,
                                   self.i3,
                                   self.i2,
                                   self.i1,
                                   self.i0])
 
-        def strangecmp(x, y):
-            xfoo, yfoo = x.foo, y.foo
-            if xfoo < 3:
-                xfoo += 100
-            if yfoo < 3:
-                yfoo += 100
-            return cmp(xfoo, yfoo)
         seq_randomize()
-        seq.sort(strangecmp)
-        self.assertContents(seq, [self.i3,
-                                  self.i4,
-                                  self.i0,
-                                  self.i1,
-                                  self.i2])
-
-        seq_randomize()
-        seq.sort(None, lambda x:x, True)
+        seq.sort(reverse=True)
         self.assertContents(seq, [self.i4,
                                   self.i3,
                                   self.i2,
                                   self.i1,
                                   self.i0])
         seq_randomize()
-        seq.sort(strangecmp, lambda x:x, True)
-        self.assertContents(seq, [self.i2,
-                                  self.i1,
-                                  self.i0,
-                                  self.i4,
-                                  self.i3])
 
     def test_count(self):
         seq = List(store=self.store)

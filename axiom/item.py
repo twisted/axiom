@@ -107,9 +107,24 @@ class MetaItem(slotmachine.SchemaMetaMachine):
                        (other.typeName, other.schemaVersion))
         return NotImplemented
 
+
     def __lt__(self, other):
-        # This plus total_ordering gets us comparisons in Python 3
+        # This plus __eq__ and total_ordering gets us comparisons in Python 3
+        if not isinstance(other, MetaItem):
+            return NotImplemented
         return (self.typeName, self.schemaVersion) < (other.typeName, other.schemaVersion)
+
+    def __eq__(self, other):
+        if not isinstance(other, MetaItem):
+            return NotImplemented
+        return (self.typeName, self.schemaVersion) == (other.typeName, other.schemaVersion)
+
+    def __hash__(self):
+        """
+        Since we've defined an ordering, we have to implement hashability for py3 as well.
+        """
+        return hash((self.typeName, self.schemaVersion)) + 7
+
 
 
 def noop():

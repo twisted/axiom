@@ -155,12 +155,12 @@ class List(Item):
             length += 1
         self.length = length
 
-    def sort(self, *args):
+    def sort(self, *args, **kwargs):
         # We want to sort by value, not sort by _ListItem.  We could
         # accomplish this by having _ListItem.__cmp__ do something
         # with self._value, but that seemed wrong. This was easier.
         values = [li._value for li in self._queryListItems()]
-        values.sort(*args)
+        values.sort(*args, **kwargs)
         index = 0
         for li in self._queryListItems():
             # XXX: Well, can it?
