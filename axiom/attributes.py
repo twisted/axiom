@@ -926,7 +926,7 @@ class bytes(SQLAttribute):
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
-        return bytes(dbval)
+        return six.binary_type(dbval)
 
 
     @deprecated(Version("Axiom", 0, 7, 5))
