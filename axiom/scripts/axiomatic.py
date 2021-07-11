@@ -22,10 +22,14 @@ class AxiomaticSubCommandMixin(object):
     store = property(lambda self: self.parent.getStore())
 
     def decodeCommandLine(self, cmdline):
-        """Turn a byte string from the command line into a unicode string.
         """
+        Turn whatever type the command line was (possibly text in py3, possibly
+        bytes in py2) into a text string.
+        """
+        if isinstance(cmdline, six.text_type):
+            return cmdline
         codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
-        return str(cmdline, codec)
+        return six.text_type(cmdline, codec)
 
 
 
