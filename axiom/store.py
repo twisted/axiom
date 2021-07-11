@@ -89,7 +89,7 @@ class AtomicFile(six.BytesIO):
         """
         now = time.time()
         try:
-            super().close(self)
+            super(AtomicFile, self).close(self)
             _mkdirIfNotExists(self._destpath.dirname())
             self.finalpath = self._destpath
             os.rename(self.name, self.finalpath.path)
