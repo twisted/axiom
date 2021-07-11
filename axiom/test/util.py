@@ -156,3 +156,24 @@ class QueryCounter:
             result = self.counter
             self.counter = save
         return result
+
+
+def callWithStdoutRedirect(f, *a, **kw):
+    """
+    Redirect stdout and invoke C{f}.
+
+    @returns: C{(returnValue, stdout})
+    """
+    if six.PY3:
+        output = io.StringIO()
+    else:
+        # We need to emulate stdio implicit encoding goofiness on python 2,
+        # because some things write text to stdout and some things write bytes
+        import StringIO
+        output = StringIO.StringIO()
+    sys.stdout, stdout = output, sys.stdout
+    try:
+        result = f(*a, **kw)
+    finally:
+        sys.stdout = stdout
+    return result, output

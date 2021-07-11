@@ -27,6 +27,7 @@ from axiom.attributes import boolean
 from axiom.scripts import axiomatic
 from axiom.listversions import SystemVersion
 from axiom.iaxiom import IAxiomaticCommand
+from axiom.test.util import callWithStdoutRedirect
 from twisted.plugins.axiom_plugins import AxiomaticStart
 
 from axiom.test.reactorimporthelper import SomeItem
@@ -187,12 +188,7 @@ class StartTests(TestCase):
         """
         start = axiomatic.Start()
         start.run = None
-        original = sys.stdout
-        sys.stdout = stdout = io.StringIO()
-        try:
-            self.assertRaises(SystemExit, start.parseOptions, ["--help"])
-        finally:
-            sys.stdout = original
+        result, output = callWithStdoutRedirect(self.assertRaises, SystemExit, start.parseOptions, ["--help"])
 
         # Some random options that should be present.  This is a bad test
         # because we don't control what C{opt_help} actually does and we don't
@@ -200,13 +196,13 @@ class StartTests(TestCase):
         # does.  We could try running them both and comparing, but then we'd
         # still want to do some sanity check against one of them in case we end
         # up getting the twistd version incorrectly somehow... -exarkun
-        self.assertIn("--reactor", stdout.getvalue())
+        self.assertIn("--reactor", output)
         if not platform.isWindows():
             # This isn't an option on Windows, so it shouldn't be there.
-            self.assertIn("--uid", stdout.getvalue())
+            self.assertIn("--uid", output)
 
         # Also, we don't want to see twistd plugins here.
-        self.assertNotIn("axiomatic-start", stdout.getvalue())
+        self.assertNotIn("axiomatic-start", output)
 
 
 

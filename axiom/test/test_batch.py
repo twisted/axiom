@@ -94,7 +94,8 @@ class BatchTestCase(unittest.TestCase):
         proc.addReliableListener(listenerB)
         expected = [listenerA, listenerB]
         listeners = list(proc.getReliableListeners())
-        self.assertEqual(sorted(expected), sorted(listeners))
+        self.assertEqual(sorted(expected, key=lambda wl: wl.storeID),
+                         sorted(listeners, key=lambda wl: wl.storeID))
 
         proc.removeReliableListener(listenerA)
         self.assertEqual(list(proc.getReliableListeners()), [listenerB])
