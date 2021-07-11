@@ -358,7 +358,7 @@ class StoreTests(unittest.TestCase):
 
             # Write out the source.
             modulePath = importPath.child(moduleName + ".py")
-            modulePath.setContent("""\
+            modulePath.setContent(b"""\
 from axiom.item import Item
 from axiom.attributes import integer
 
@@ -370,7 +370,7 @@ class Unloaded(Item):
         # loaded in this process, create a store containing instances of the
         # Unloaded types.
         script = filepath.FilePath(self.mktemp())
-        script.setContent("""\
+        script.setContent(b"""\
 from sys import argv
 from twisted.python.reflect import namedAny
 from axiom.store import Store
