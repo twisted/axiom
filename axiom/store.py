@@ -8,7 +8,7 @@ from __future__ import print_function
 
 import six
 
-import time, os, itertools, warnings, sys, operator, weakref, six
+import time, os, itertools, warnings, sys, operator, weakref, six, io
 
 from zope.interface import implementer
 
@@ -61,7 +61,7 @@ def _mkdirIfNotExists(dirname):
 
 
 @implementer(iaxiom.IAtomicFile)
-class AtomicFile(six.BytesIO, object):
+class AtomicFile(io.FileIO, object):
     """I am a file which is moved from temporary to permanent storage when it
     is closed.
 
@@ -78,7 +78,7 @@ class AtomicFile(six.BytesIO, object):
         called.
         """
         self._destpath = destpath
-        super(AtomicFile, self).__init__(tempname, 'w+b')
+        super(AtomicFile, self).__init__(tempname, 'w+')
 
     def close(self):
         """
@@ -89,7 +89,7 @@ class AtomicFile(six.BytesIO, object):
         """
         now = time.time()
         try:
-            super(AtomicFile, self).close(self)
+            super(AtomicFile, self).close()
             _mkdirIfNotExists(self._destpath.dirname())
             self.finalpath = self._destpath
             os.rename(self.name, self.finalpath.path)
