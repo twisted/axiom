@@ -1752,13 +1752,13 @@ class Store(Empowered):
         indices = {}
         schema = [attr for (name, attr) in itemType.getSchema()]
         for i, attr in enumerate(itemAttributes):
-            indices[attr] = i
+            indices[attr.attrname] = i
         for row in dataRows:
             oid = self.store.executeSchemaSQL(
                 _schema.CREATE_OBJECT, [self.store.getTypeID(itemType)])
             insertArgs = [oid]
             for attr in schema:
-                i = indices.get(attr, _NEEDS_DEFAULT)
+                i = indices.get(attr.attrname, _NEEDS_DEFAULT)
                 if i is _NEEDS_DEFAULT:
                     pyval = attr.default
                 else:
