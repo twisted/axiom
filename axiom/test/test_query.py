@@ -1,5 +1,5 @@
 
-import operator, random
+import operator, random, six
 
 from twisted.trial.unittest import TestCase
 
@@ -233,9 +233,9 @@ class BasicQuery(TestCase):
         s = Store()
 
         def createAndStuff():
-            text1 = 'Hello, \u1234 world.'
-            text2 = 'ThIs sTrInG iS nOt cAsE sEnSiTIvE.  \u4567'
-            bytes1 = '\x00, punk'
+            text1 = u'Hello, \u1234 world.'
+            text2 = u'ThIs sTrInG iS nOt cAsE sEnSiTIvE.  \u4567'
+            bytes1 = b'\x00, punk'
 
             x = ThingWithCharacterAndByteStrings(
                 store=s,
@@ -846,9 +846,12 @@ class QueryingTestCase(TestCase):
     def setUp(self):
         s = self.store = Store()
         def _createStuff():
-            self.d1 = D(store=s, one='d1.one', two='d1.two', three='d1.three', four='d1.four', id='1')
-            self.d2 = D(store=s, one='d2.one', two='d2.two', three='d2.three', four='d2.four', id='2')
-            self.d3 = D(store=s, one='d3.one', two='d3.two', three='d3.three', four='d3.four', id='3')
+            self.d1 = D(store=s, one=b'd1.one', two=b'd1.two',
+                        three=b'd1.three', four=u'd1.four', id=b'1')
+            self.d2 = D(store=s, one=b'd2.one', two=b'd2.two',
+                        three=b'd2.three', four=u'd2.four', id=b'2')
+            self.d3 = D(store=s, one=b'd3.one', two=b'd3.two',
+                        three=b'd3.three', four=u'd3.four', id=b'3')
         s.transact(_createStuff)
 
     def tearDown(self):
@@ -890,7 +893,7 @@ class QueryingTestCase(TestCase):
             expected,
             "\n%r != %r\n(if SQL generation code has changed, maybe this test "
             "should be updated)\n" % (sql, expected))
-        self.assertEqual([str(a) for a in query.getArgs(self.store)], args)
+        self.assertEqual([bytes(a) for a in query.getArgs(self.store)], args)
 
 
 
@@ -1038,8 +1041,8 @@ class AndOrQueries(QueryingTestCase):
             OR(A.type == u'Narf!'),
             '(({} = ?))'.format(A.type.getColumnName(self.store)),
             ['Narf!'])
-        self.assertEqual(self.query(D, AND(D.one == 'd1.one')), [self.d1])
-        self.assertEqual(self.query(D, OR(D.one == 'd1.one')), [self.d1])
+        self.assertEqual(self.query(D, AND(D.one == b'd1.one')), [self.d1])
+        self.assertEqual(self.query(D, OR(D.one == b'd1.one')), [self.d1])
 
 
     def testMultipleAndConditions(self):
@@ -1055,9 +1058,9 @@ class AndOrQueries(QueryingTestCase):
             expectedSQL,
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
         self.assertEqual(
-            self.query(D, AND(D.one == 'd1.one',
-                              D.two == 'd1.two',
-                              D.three == 'd1.three')),
+            self.query(D, AND(D.one == b'd1.one',
+                              D.two == b'd1.two',
+                              D.three == b'd1.three')),
             [self.d1])
 
     def testMultipleOrConditions(self):
@@ -1070,9 +1073,9 @@ class AndOrQueries(QueryingTestCase):
             condition,
             expectedSQL,
             ['Narf!', 'Poiuyt!', 'Try to take over the world'])
-        q = self.query(D, OR(D.one == 'd1.one',
-                             D.one == 'd2.one',
-                             D.one == 'd3.one'))
+        q = self.query(D, OR(D.one == b'd1.one',
+                             D.one == b'd2.one',
+                             D.one == b'd3.one'))
         e = [self.d1, self.d2, self.d3]
         self.assertEqual(sorted(q), sorted(e))
 
@@ -1139,7 +1142,7 @@ class SetMembershipQuery(QueryingTestCase):
         subselect and make sure they come out of the C{getArgs} method
         properly.
         """
-        value = '10'
+        value = b'10'
         subselect = self.store.query(
             D,
             AND(D.id == value,
@@ -1158,7 +1161,7 @@ class SetMembershipQuery(QueryingTestCase):
                 D.four.getColumnName(self.store),
                 C.name.getColumnName(self.store)))
         self.assertEquals(
-            list(map(str, comparison.getArgs(self.store))),
+            list(comparison.getArgs(self.store)),
             [value])
 
 
@@ -1212,15 +1215,15 @@ class WildcardQueries(QueryingTestCase):
 
     def testOneString(self):
         self.assertQuery(
-            D.one.like('foobar%'),
+            D.one.like(b'foobar%'),
             '({} LIKE (?))'.format(D.one.getColumnName(self.store)),
-            ['foobar%'])
+            [b'foobar%'])
         self.assertQuery(
-            D.one.notLike('foobar%'),
+            D.one.notLike(b'foobar%'),
             '({} NOT LIKE (?))'.format(D.one.getColumnName(self.store)),
-            ['foobar%'])
-        self.assertEqual(self.query(D, D.four.like('d1.four')), [self.d1])
-        self.assertEqual(self.query(D, D.four.notLike('d%.four')), [])
+            [b'foobar%'])
+        self.assertEqual(self.query(D, D.four.like(u'd1.four')), [self.d1])
+        self.assertEqual(self.query(D, D.four.notLike(u'd%.four')), [])
 
     def testOneColumn(self):
         self.assertQuery(
@@ -1241,13 +1244,13 @@ class WildcardQueries(QueryingTestCase):
 
     def testMultipleColumns(self):
         self.assertQuery(
-            D.one.like(D.two, '%', D.three),
+            D.one.like(D.two, b'%', D.three),
             '({} LIKE ({} || ? || {}))'.format(D.one.getColumnName(self.store),
                                            D.two.getColumnName(self.store),
                                            D.three.getColumnName(self.store)),
-            ['%'])
+            [b'%'])
         self.assertEqual(
-            self.query(D, D.one.like(D.two, '%', D.three)), [])
+            self.query(D, D.one.like(D.two, b'%', D.three)), [])
 
 
     def testStartsEndsWith(self):
@@ -1776,6 +1779,10 @@ class PlaceholderTestCase(TestCase):
 
 
 
+bytes_deprecated_prefix = 'axiom.attributes.bytes.' if six.PY3 else 'axiom.attributes.'
+
+
+
 class BytesDeprecatedLikeTests(TestCase):
     """
     Deprecated tests for LIKE queries on L{axiom.attributes.bytes}.
@@ -1783,7 +1790,7 @@ class BytesDeprecatedLikeTests(TestCase):
     def test_startsWith(self):
         self.assertWarns(
             DeprecationWarning,
-            'axiom.attributes.startswith was deprecated in Axiom 0.7.5',
+            bytes_deprecated_prefix + 'startswith was deprecated in Axiom 0.7.5',
             __file__,
             lambda: D.one.startswith('string'))
 
@@ -1791,7 +1798,7 @@ class BytesDeprecatedLikeTests(TestCase):
     def test_endsWith(self):
         self.assertWarns(
             DeprecationWarning,
-            'axiom.attributes.endswith was deprecated in Axiom 0.7.5',
+            bytes_deprecated_prefix + 'endswith was deprecated in Axiom 0.7.5',
             __file__,
             lambda: D.one.endswith('string'))
 
@@ -1799,7 +1806,7 @@ class BytesDeprecatedLikeTests(TestCase):
     def test_like(self):
         self.assertWarns(
             DeprecationWarning,
-            'axiom.attributes.like was deprecated in Axiom 0.7.5',
+            bytes_deprecated_prefix + 'like was deprecated in Axiom 0.7.5',
             __file__,
             lambda: D.one.like('string'))
 
@@ -1807,6 +1814,6 @@ class BytesDeprecatedLikeTests(TestCase):
     def test_notLike(self):
         self.assertWarns(
             DeprecationWarning,
-            'axiom.attributes.notLike was deprecated in Axiom 0.7.5',
+            bytes_deprecated_prefix + 'notLike was deprecated in Axiom 0.7.5',
             __file__,
             lambda: D.one.notLike('string'))
