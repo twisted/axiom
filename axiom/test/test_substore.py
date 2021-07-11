@@ -54,6 +54,7 @@ class SubStoreTest(unittest.TestCase):
         """
         topdb = filepath.FilePath(self.mktemp())
         s = Store(topdb)
+        inparent = SubStored(store=s, a=u'text value', b=b'bytes value')
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
@@ -65,6 +66,11 @@ class SubStoreTest(unittest.TestCase):
         s.close()
 
         reopens = Store(topdb)
+        reinparent = reopens.getItemByID(inparent.storeID)
+
+        self.assertEqual(reinparent.a, u'text value')
+        self.assertEqual(reinparent.b, b'bytes value')
+
         reopenss = reopens.getItemByID(oid)
         reopens2 = reopenss.open()
         reopenssd = reopens2.getItemByID(oid2)
