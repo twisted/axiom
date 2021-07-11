@@ -957,8 +957,8 @@ class BatchProcessingControllerService(service.Service):
 
         Return a Deferred which fires when the method has been invoked.
         """
-        item = itemMethod.__self__
-        method = itemMethod.__func__.__name__
+        item = six.get_method_self(itemMethod)
+        method = six.get_method_function(itemMethod).__name__
         return self.batchController.getProcess().addCallback(
             CallItemMethod(storepath=item.store.dbdir,
                            storeid=item.storeID,

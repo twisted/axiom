@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, six
 
 from zope.interface import Interface, implementer
 
@@ -415,7 +415,7 @@ class CheckpointTestCase(TestCase):
         self.checkpointed = []
         def checkpoint(item):
             self.checkpointed.append(item)
-        self.originalCheckpoint = TestItem.checkpoint.__func__
+        self.originalCheckpoint = six.get_unbound_function(TestItem.checkpoint)
         TestItem.checkpoint = checkpoint
 
 
