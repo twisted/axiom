@@ -159,7 +159,13 @@ def callWithStdoutRedirect(f, *a, **kw):
 
     @returns: C{(returnValue, stdout})
     """
-    output = io.StringIO()
+    if six.PY3:
+        output = io.StringIO()
+    else:
+        # We need to emulate stdio implicit encoding goofiness on python 2,
+        # because some things write text to stdout and some things write bytes
+        import StringIO
+        output = StringIO.StringIO()
     sys.stdout, stdout = output, sys.stdout
     try:
         result = f(*a, **kw)
