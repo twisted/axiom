@@ -3,6 +3,8 @@
 Helpers for writing Axiom tests.
 """
 
+import six
+
 from twisted.python.filepath import FilePath
 
 from twisted.trial.unittest import SkipTest
