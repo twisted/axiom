@@ -115,11 +115,14 @@ class TimedEvent(Item):
 
 
     def _defaultErrorHandler(self, now, failureObj):
+        tracebackText = failureObj.getTraceback()
+        if not isinstance(tracebackText, bytes):
+            tracebackText = tracebackText.encode("utf-8")
         TimedEventFailureLog(store=self.store,
                              desiredTime=self.time,
                              actualTime=now,
                              runnable=self.runnable,
-                             traceback=failureObj.getTraceback())
+                             traceback=tracebackText)
         self.deleteFromStore()
 
 
@@ -466,7 +469,8 @@ class _SubSchedulerParentHook(Item):
         """
         sched = IScheduler(self.store)
         for scheduledAt in sched.scheduledTimes(self):
-            if when < scheduledAt:
+            # https://github.com/twisted/epsilon/issues/38
+            if when._time < scheduledAt._time:
                 sched.reschedule(self, scheduledAt, when)
             break
         else:
