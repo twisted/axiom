@@ -175,7 +175,7 @@ class StoreTests(unittest.TestCase):
             TestItem,
             {(TestItem.typeName, TestItem.schemaVersion): schema[:-1]})
         self.assertEqual(
-            e1[0],
+            e1.args[0],
             "Schema mismatch on already-loaded "
             "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
             "version 1:\n"
@@ -190,7 +190,7 @@ class StoreTests(unittest.TestCase):
             {(TestItem.typeName, TestItem.schemaVersion):
              schema + [('extra', 'INTEGER')]})
         self.assertEqual(
-            e2[0],
+            e2.args[0],
             "Schema mismatch on already-loaded "
             "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
             "version 1:\n"
@@ -205,7 +205,7 @@ class StoreTests(unittest.TestCase):
             {(TestItem.typeName, TestItem.schemaVersion):
              [(schema[0][0], 'VARCHAR(64) (this is made up)')] + schema[1:]})
         self.assertEqual(
-            e3[0],
+            e3.args[0],
             "Schema mismatch on already-loaded "
             "<class 'axiom.test.test_xatop.TestItem'> <'TestItem'> object "
             "version 1:\n"
