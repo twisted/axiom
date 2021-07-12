@@ -117,11 +117,11 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         return __op__
 
     import operator
-    lt = _makeComparator(operator.lt)
-    le = _makeComparator(operator.le)
-    gt = _makeComparator(operator.gt)
-    ge = _makeComparator(operator.ge)
-    eq = _makeComparator(operator.eq)
+    __lt__ = _makeComparator(operator.lt)
+    __le__ = _makeComparator(operator.le)
+    __gt__ = _makeComparator(operator.gt)
+    __ge__ = _makeComparator(operator.ge)
+    __eq__ = _makeComparator(operator.eq)
 
     def __hash__(self):
         """
