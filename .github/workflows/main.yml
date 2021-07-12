@@ -16,13 +16,13 @@ jobs:
         python: [2.7, pypy2]
         twisted: [twpy27, twlowest]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v2.3.4
         with:
           fetch-depth: 0
       - name: Fetch tags
         run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
       - name: Setup Python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v2.2.2
         with:
           python-version: ${{ matrix.python }}
       - name: Install Tox and any other packages
@@ -30,6 +30,6 @@ jobs:
       - name: Run Tox
         run: tox -e py-${{ matrix.twisted }}
       - name: Codecov
-        uses: codecov/codecov-action@v1
+        uses: codecov/codecov-action@v1.5.0
         with:
           name: gh-${{ matrix.python }}-${{ matrix.twisted }}
