@@ -111,7 +111,7 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         since @total_ordering doesn't work on metaclasses, let's do our own
         """
         def __op__(self, other):
-            if not isinstance(other, MetaItem):
+            if not isinstance(other, MetaItem): # pragma: no cover
                 return NotImplemented
             return opfunc((self.typeName, self.schemaVersion), (other.typeName, other.schemaVersion))
         return __op__
