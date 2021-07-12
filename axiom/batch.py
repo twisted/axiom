@@ -12,7 +12,7 @@ from zope.interface import implementer
 from twisted.python import reflect, failure, log, procutils, util, runtime
 from twisted.internet import task, defer, reactor, error, protocol
 from twisted.application import service
-from twisted.protocols.amp import AMP, Command, QuitBox, Path, Integer, String
+from twisted.protocols.amp import AMP, Command, QuitBox, Path, Integer, String, Unicode
 from twisted.internet.task import cooperate
 
 from epsilon import extime, modal
@@ -893,6 +893,9 @@ class ResumeProcessor(Command):
 
 
 
+PythonIdentifier = Unicode if six.PY3 else String
+
+
 class CallItemMethod(Command):
     """
     Invoke a particular method of a particular item.
@@ -900,7 +903,7 @@ class CallItemMethod(Command):
     commandName = b'Call-Item-Method'
     arguments = [(b'storepath', Path()),
                  (b'storeid', Integer()),
-                 (b'method', String())]
+                 (b'method', PythonIdentifier())]
 
 
 @implementer(iaxiom.IBatchService)
