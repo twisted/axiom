@@ -5,15 +5,17 @@ Utilities for performing repetitive tasks over potentially large sets
 of data over an extended period of time.
 """
 
-import weakref, datetime, os, sys, six
+import weakref, datetime, sys, six
 
 from zope.interface import implementer
 
 from twisted.python import reflect, failure, log, procutils, util, runtime
 from twisted.internet import task, defer, reactor, error, protocol
 from twisted.application import service
+from twisted.protocols.amp import AMP, Command, QuitBox, Path, Integer, String
+from twisted.internet.task import cooperate
 
-from epsilon import extime, process, cooperator, modal, juice
+from epsilon import extime, modal
 
 from axiom import iaxiom, errors as eaxiom, item, attributes
 from axiom.scheduler import Scheduler, SubScheduler
@@ -529,7 +531,7 @@ class ProcessUnavailable(Exception):
 
 
 
-class Shutdown(juice.Command):
+class Shutdown(Command):
     """
     Abandon, belay, cancel, cease, close, conclude, cut it out, desist,
     determine, discontinue, drop it, end, finish, finish up, give over, go
@@ -537,8 +539,8 @@ class Shutdown(juice.Command):
     off, leave off, miscarry, perorate, quit, refrain, relinquish, renounce,
     resolve, scrap, scratch, scrub, stay, stop, terminate, wind up.
     """
-    commandName = "Shutdown"
-    responseType = juice.QuitBox
+    commandName = b"Shutdown"
+    responseType = QuitBox
 
 
 def _childProcTerminated(self, err):
@@ -659,9 +661,8 @@ class ProcessController(six.with_metaclass(modal.ModalType)):
 
     def _startProcess(self):
         executable = sys.executable
-        env = os.environ
 
-        twistdBinaries = procutils.which("twistd2.4") + procutils.which("twistd")
+        twistdBinaries = procutils.which("twistd")
         if not twistdBinaries:
             return defer.fail(RuntimeError("Couldn't find twistd to start subprocess"))
         twistd = twistdBinaries[0]
@@ -685,8 +686,8 @@ class ProcessController(six.with_metaclass(modal.ModalType)):
             args = ['setsid'] + args
             executable = setsid[0]
 
-        self.process = process.spawnProcess(
-            self.connector, executable, tuple(args), env=env)
+        self.process = reactor.spawnProcess(
+            self.connector, executable, tuple(args))
 
     class stopped(modal.mode):
         def getProcess(self):
@@ -741,7 +742,7 @@ class ProcessController(six.with_metaclass(modal.ModalType)):
         def stopProcess(self):
             self.mode = 'stopping'
             self.onShutdown = defer.Deferred()
-            Shutdown().do(self.juice)
+            self.juice.callRemote(Shutdown)
             return self.onShutdown
 
         def childProcessTerminated(self, reason):
@@ -839,7 +840,7 @@ class JuiceConnector(protocol.ProcessProtocol):
 
 
 
-class JuiceChild(juice.Juice):
+class JuiceChild(AMP):
     """
     Protocol class which runs in the child process
 
@@ -849,57 +850,57 @@ class JuiceChild(juice.Juice):
     shutdown = False
 
     def connectionLost(self, reason):
-        juice.Juice.connectionLost(self, reason)
+        AMP.connectionLost(self, reason)
         if self.shutdown:
             reactor.stop()
 
+    @Shutdown.responder
     def command_SHUTDOWN(self):
         log.msg("Shutdown message received, goodbye.")
         self.shutdown = True
         return {}
-    command_SHUTDOWN.command = Shutdown
 
 
 
-class SetStore(juice.Command):
+class SetStore(Command):
     """
     Specify the location of the site store.
     """
-    commandName = 'Set-Store'
-    arguments = [('storepath', juice.Path())]
+    commandName = b'Set-Store'
+    arguments = [(b'storepath', Path())]
 
 
-class SuspendProcessor(juice.Command):
+class SuspendProcessor(Command):
     """
     Prevent a particular reliable listener from receiving any notifications
     until a L{ResumeProcessor} command is sent or the batch process is
     restarted.
     """
-    commandName = 'Suspend-Processor'
-    arguments = [('storepath', juice.Path()),
-                 ('storeid', juice.Integer())]
+    commandName = b'Suspend-Processor'
+    arguments = [(b'storepath', Path()),
+                 (b'storeid', Integer())]
 
 
 
-class ResumeProcessor(juice.Command):
+class ResumeProcessor(Command):
     """
     Cause a particular reliable listener to begin receiving notifications
     again.
     """
-    commandName = 'Resume-Processor'
-    arguments = [('storepath', juice.Path()),
-                 ('storeid', juice.Integer())]
+    commandName = b'Resume-Processor'
+    arguments = [(b'storepath', Path()),
+                 (b'storeid', Integer())]
 
 
 
-class CallItemMethod(juice.Command):
+class CallItemMethod(Command):
     """
     Invoke a particular method of a particular item.
     """
-    commandName = 'Call-Item-Method'
-    arguments = [('storepath', juice.Path()),
-                 ('storeid', juice.Integer()),
-                 ('method', juice.String())]
+    commandName = b'Call-Item-Method'
+    arguments = [(b'storepath', Path()),
+                 (b'storeid', Integer()),
+                 (b'method', String())]
 
 
 @implementer(iaxiom.IBatchService)
@@ -937,7 +938,8 @@ class BatchProcessingControllerService(service.Service):
 
 
     def _setStore(self):
-        return SetStore(storepath=self.store.dbdir).do(self.batchController.juice)
+        return self.batchController.juice.callRemote(
+            SetStore, storepath=self.store.dbdir)
 
 
     def _restartProcess(self):
@@ -960,9 +962,11 @@ class BatchProcessingControllerService(service.Service):
         item = six.get_method_self(itemMethod)
         method = six.get_method_function(itemMethod).__name__
         return self.batchController.getProcess().addCallback(
-            CallItemMethod(storepath=item.store.dbdir,
-                           storeid=item.storeID,
-                           method=method).do)
+            lambda proto: proto.callRemote(
+                CallItemMethod,
+                storepath=item.store.dbdir,
+                storeid=item.storeID,
+                method=method))
 
 
     def start(self):
@@ -972,12 +976,14 @@ class BatchProcessingControllerService(service.Service):
 
     def suspend(self, storepath, storeID):
         return self.batchController.getProcess().addCallback(
-            SuspendProcessor(storepath=storepath, storeid=storeID).do)
+            lambda proto: proto.callRemote(
+                SuspendProcessor, storepath=storepath, storeid=storeID))
 
 
     def resume(self, storepath, storeID):
         return self.batchController.getProcess().addCallback(
-            ResumeProcessor(storepath=storepath, storeid=storeID).do)
+            lambda proto: proto.callRemote(
+                ResumeProcessor, storepath=storepath, storeid=storeID))
 
 
 @implementer(iaxiom.IBatchService)
@@ -1035,11 +1041,10 @@ class BatchProcessingProtocol(JuiceChild):
     siteStore = None
 
     def __init__(self, service=None, issueGreeting=False):
-        juice.Juice.__init__(self, issueGreeting)
+        AMP.__init__(self)
         self.storepaths = []
-        if service is not None:
-            service.cooperator = cooperator.Cooperator()
         self.service = service
+        self.isServer = issueGreeting
 
 
     def connectionLost(self, reason):
@@ -1049,6 +1054,7 @@ class BatchProcessingProtocol(JuiceChild):
             reactor.stop()
 
 
+    @SetStore.responder
     def command_SET_STORE(self, storepath):
         from axiom import store
 
@@ -1061,22 +1067,20 @@ class BatchProcessingProtocol(JuiceChild):
 
         return {}
 
-    command_SET_STORE.command = SetStore
 
-
+    @SuspendProcessor.responder
     def command_SUSPEND_PROCESSOR(self, storepath, storeid):
         return self.subStores[storepath.path].suspend(storeid).addCallback(lambda ign: {})
-    command_SUSPEND_PROCESSOR.command = SuspendProcessor
 
 
+    @ResumeProcessor.responder
     def command_RESUME_PROCESSOR(self, storepath, storeid):
         return self.subStores[storepath.path].resume(storeid).addCallback(lambda ign: {})
-    command_RESUME_PROCESSOR.command = ResumeProcessor
 
 
+    @CallItemMethod.responder
     def command_CALL_ITEM_METHOD(self, storepath, storeid, method):
         return self.subStores[storepath.path].call(storeid, method).addCallback(lambda ign: {})
-    command_CALL_ITEM_METHOD.command = CallItemMethod
 
 
     def _pollSubStores(self):
@@ -1206,7 +1210,7 @@ class BatchProcessingService(service.Service):
 
     def startService(self):
         service.Service.startService(self)
-        self.parent.cooperator.coiterate(self.processWhileRunning())
+        cooperate(self.processWhileRunning())
 
 
     def stopService(self):
