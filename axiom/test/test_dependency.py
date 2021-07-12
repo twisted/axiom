@@ -198,6 +198,7 @@ class Breadbox(Item):
 
 
 
+@dependency.dependable
 @empowerment(IAppliance)
 @empowerment(IBreadConsumer)
 class Toaster(Item):
@@ -229,6 +230,9 @@ class Toaster(Item):
 
 def powerstripSetup(ps):
     ps.setForUSElectricity()
+
+
+@dependency.dependable
 class Blender(Item):
     powerStrip = dependency.dependsOn(PowerStrip,
                                       powerstripSetup)
@@ -237,6 +241,8 @@ class Blender(Item):
     def __getPowerupInterfaces__(self, powerups):
         yield (IAppliance, 0)
 
+
+@dependency.dependable
 class IceCrusher(Item):
     blender = dependency.dependsOn(Blender)
 

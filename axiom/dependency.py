@@ -17,8 +17,11 @@ from axiom.errors import ItemNotFound, DependencyError, UnsatisfiedRequirement
 import six
 from six.moves import map, zip
 
-#There is probably a cleaner way to do this.
-_globalDependencyMap = {}
+# There is probably a cleaner way to do this.
+_globalDependencyMap = {
+    # map depending-class: (depended-upon-class,
+    # callable-to-customize-creation, reference-attribute)
+}
 
 def dependentsOf(cls):
     deps = _globalDependencyMap.get(cls, None)
@@ -61,22 +64,32 @@ def dependsOn(itemType, itemCustomizer=None, doc='',
     ref = reference(reftype=itemType, doc=doc, indexed=indexed, allowNone=True,
                     whenDeleted=whenDeleted)
     if "__dependsOn_advice_data__" not in locals and six.PY2:
-        addClassAdvisor(_dependsOn_advice)
+        addClassAdvisor(dependable)
     locals.setdefault('__dependsOn_advice_data__', []).append(
-    (itemType, itemCustomizer, ref))
+        (itemType, itemCustomizer, ref)
+    )
     return ref
 
-def _dependsOn_advice(cls):
+
+def dependable(cls):
+    """
+    Classes that use `dependsOn` in their bodies should be decorated with this
+    as a class decorator, like so::
+
+        @dependable
+        class A(Item):
+            b = dependsOn(B)
+    """
     if cls in _globalDependencyMap:
-        print("Double advising of %s. dependency map from first time: %s" % (
-            cls, _globalDependencyMap[cls]))
-        #bail if we end up here twice, somehow
+        # bail if we end up here twice, somehow
         return cls
     for itemType, itemCustomizer, ref in cls.__dict__[
-        '__dependsOn_advice_data__']:
+        '__dependsOn_advice_data__'
+    ]:
         classDependsOn(cls, itemType, itemCustomizer, ref)
     del cls.__dependsOn_advice_data__
     return cls
+
 
 def classDependsOn(cls, itemType, itemCustomizer, ref):
     _globalDependencyMap.setdefault(cls, []).append(
