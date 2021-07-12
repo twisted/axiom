@@ -319,7 +319,7 @@ class ItemTestCase(unittest.TestCase):
             raise unittest.SkipTest("Implement processes here")
 
         def cbOutput(output):
-            self.assertEqual(''.join(output).strip(), 'Hello, world!!!')
+            self.assertEqual(b''.join(output).strip(), b'Hello, world!!!')
 
         def ebBlah(err):
             log.err(err)

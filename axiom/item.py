@@ -49,7 +49,6 @@ class CantInstantiateItem(RuntimeError):
     """You can't instantiate Item directly.  Make a subclass.
     """
 
-@total_ordering
 class MetaItem(slotmachine.SchemaMetaMachine):
     """Simple metaclass for Item that adds Item (and its subclasses) to
     _typeNameToMostRecentClass mapping.
@@ -107,12 +106,25 @@ class MetaItem(slotmachine.SchemaMetaMachine):
                        (other.typeName, other.schemaVersion))
         return NotImplemented
 
-
     def __lt__(self, other):
-        # This plus __eq__ and total_ordering gets us comparisons in Python 3
         if not isinstance(other, MetaItem):
             return NotImplemented
         return (self.typeName, self.schemaVersion) < (other.typeName, other.schemaVersion)
+
+    def __le__(self, other):
+        if not isinstance(other, MetaItem):
+            return NotImplemented
+        return (self.typeName, self.schemaVersion) <= (other.typeName, other.schemaVersion)
+
+    def __gt__(self, other):
+        if not isinstance(other, MetaItem):
+            return NotImplemented
+        return (self.typeName, self.schemaVersion) > (other.typeName, other.schemaVersion)
+
+    def __ge__(self, other):
+        if not isinstance(other, MetaItem):
+            return NotImplemented
+        return (self.typeName, self.schemaVersion) >= (other.typeName, other.schemaVersion)
 
     def __eq__(self, other):
         if not isinstance(other, MetaItem):
