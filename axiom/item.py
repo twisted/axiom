@@ -106,30 +106,22 @@ class MetaItem(slotmachine.SchemaMetaMachine):
                        (other.typeName, other.schemaVersion))
         return NotImplemented
 
-    def __lt__(self, other):
-        if not isinstance(other, MetaItem):
-            return NotImplemented
-        return (self.typeName, self.schemaVersion) < (other.typeName, other.schemaVersion)
+    def _makeComparator(opfunc):
+        """
+        since @total_ordering doesn't work on metaclasses, let's do our own
+        """
+        def __op__(self, other):
+            if not isinstance(other, MetaItem):
+                return NotImplemented
+            return opfunc((self.typeName, self.schemaVersion), (other.typeName, other.schemaVersion))
+        return __op__
 
-    def __le__(self, other):
-        if not isinstance(other, MetaItem):
-            return NotImplemented
-        return (self.typeName, self.schemaVersion) <= (other.typeName, other.schemaVersion)
-
-    def __gt__(self, other):
-        if not isinstance(other, MetaItem):
-            return NotImplemented
-        return (self.typeName, self.schemaVersion) > (other.typeName, other.schemaVersion)
-
-    def __ge__(self, other):
-        if not isinstance(other, MetaItem):
-            return NotImplemented
-        return (self.typeName, self.schemaVersion) >= (other.typeName, other.schemaVersion)
-
-    def __eq__(self, other):
-        if not isinstance(other, MetaItem):
-            return NotImplemented
-        return (self.typeName, self.schemaVersion) == (other.typeName, other.schemaVersion)
+    import operator
+    lt = _makeComparator(operaror.lt)
+    le = _makeComparator(operaror.le)
+    gt = _makeComparator(operaror.gt)
+    ge = _makeComparator(operaror.ge)
+    eq = _makeComparator(operaror.eq)
 
     def __hash__(self):
         """
