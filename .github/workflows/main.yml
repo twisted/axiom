@@ -30,6 +30,6 @@ jobs:
       - name: Run Tox
         run: tox -e py-${{ matrix.twisted }}
       - name: Codecov
-        uses: codecov/codecov-action@v1.5.0
+        uses: codecov/codecov-action@v2.0.1
         with:
           name: gh-${{ matrix.python }}-${{ matrix.twisted }}
