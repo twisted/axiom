@@ -19,4 +19,4 @@ class UpgradeTest(StubbedTest):
         # the parent store startService, so we don't have to do that here;
         # let's just make sure that the substore's service wasn't started as
         # part of the upgrade.
-        self.failIf(thePowerup.everStarted)
+        self.assertFalse(thePowerup.everStarted)

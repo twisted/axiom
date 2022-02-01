@@ -37,7 +37,7 @@ class SubSchedulerParentHookUpgradeTests(StubbedTest):
         The record of the installation of L{_SubSchedulerParentHook} on the
         store is deleted in the upgrade to schema version 4.
         """
-        self.assertEquals(
+        self.assertEqual(
             list(self.store.query(
                     _DependencyConnector,
                     _DependencyConnector.installee == self.hook)),

@@ -7,9 +7,8 @@ This module holds the Axiom Store class and related classes, such as queries.
 from __future__ import print_function
 
 import six
-from six.moves import map
 
-import time, os, itertools, warnings, sys, operator, weakref
+import time, os, itertools, warnings, sys, operator, weakref, six, io
 
 from zope.interface import implementer
 
@@ -62,7 +61,7 @@ def _mkdirIfNotExists(dirname):
 
 
 @implementer(iaxiom.IAtomicFile)
-class AtomicFile(file):
+class AtomicFile(io.FileIO, object):
     """I am a file which is moved from temporary to permanent storage when it
     is closed.
 
@@ -79,7 +78,7 @@ class AtomicFile(file):
         called.
         """
         self._destpath = destpath
-        file.__init__(self, tempname, 'w+b')
+        super(AtomicFile, self).__init__(tempname, 'w+')
 
     def close(self):
         """
@@ -90,12 +89,12 @@ class AtomicFile(file):
         """
         now = time.time()
         try:
-            file.close(self)
+            super(AtomicFile, self).close()
             _mkdirIfNotExists(self._destpath.dirname())
             self.finalpath = self._destpath
             os.rename(self.name, self.finalpath.path)
             os.utime(self.finalpath.path, (now, now))
-        except:
+        except Exception:
             return defer.fail()
         return defer.succeed(self.finalpath)
 
@@ -167,7 +166,6 @@ def _typeIsTotallyUnknown(typename, version):
             and ((typename, version) not in _legacyTypes))
 
 
-
 @implementer(iaxiom.IQuery)
 class BaseQuery:
     """
@@ -181,7 +179,7 @@ class BaseQuery:
     # XXX: need a better convention for this sort of
     # abstract-but-provide-most-of-a-base-implementation thing. -glyph
 
-    # How about not putting the implements(iaxiom.IQuery) here, but on
+    # How about not putting the @implementer(iaxiom.IQuery) here, but on
     # subclasses instead? -exarkun
 
     def __init__(self, store, tableClass,
@@ -634,10 +632,13 @@ class ItemQuery(BaseQuery):
         # If there's a 'deleted' callback on the Item type or 'deleteFromStore'
         # is overridden, we have to do it the slow way.
         deletedOverridden = (
-            self.tableClass.deleted.im_func is not item.Item.deleted.im_func)
+            six.get_unbound_function(self.tableClass.deleted) is not
+            six.get_unbound_function(item.Item.deleted)
+        )
         deleteFromStoreOverridden = (
-            self.tableClass.deleteFromStore.im_func is not
-            item.Item.deleteFromStore.im_func)
+            six.get_unbound_function(self.tableClass.deleteFromStore) is not
+            six.get_unbound_function(item.Item.deleteFromStore)
+        )
 
         if deletedOverridden or deleteFromStoreOverridden:
             for it in self:
@@ -1021,12 +1022,11 @@ def _diffSchema(diskSchema, memorySchema):
     diff = []
     if diskOnly:
         diff.append('Only on disk:')
-        diff.extend(map(repr, diskOnly))
+        diff.extend(list(map(repr, diskOnly)))
     if memoryOnly:
         diff.append('Only in memory:')
-        diff.extend(map(repr, memoryOnly))
+        diff.extend(list(map(repr, memoryOnly)))
     return '\n'.join(diff)
-
 
 
 @implementer(iaxiom.IBeneficiary)
@@ -1167,7 +1167,9 @@ class Store(Empowered):
         self.typeToDeleteSQLCache = {}
 
         self.typeToTableNameCache = {}
-        self.attrToColumnNameCache = {}
+        self.attrNameToColumnNameCache = {}  # map fully-qualified attribute
+                                             # names (native str?) to database
+                                             # column names
 
         self._upgradeManager = upgrade._StoreUpgrade(self)
 
@@ -1752,13 +1754,13 @@ class Store(Empowered):
         indices = {}
         schema = [attr for (name, attr) in itemType.getSchema()]
         for i, attr in enumerate(itemAttributes):
-            indices[attr] = i
+            indices[attr.attrname] = i
         for row in dataRows:
             oid = self.store.executeSchemaSQL(
                 _schema.CREATE_OBJECT, [self.store.getTypeID(itemType)])
             insertArgs = [oid]
             for attr in schema:
-                i = indices.get(attr, _NEEDS_DEFAULT)
+                i = indices.get(attr.attrname, _NEEDS_DEFAULT)
                 if i is _NEEDS_DEFAULT:
                     pyval = attr.default
                 else:
@@ -1921,11 +1923,13 @@ class Store(Empowered):
                           self.typeToTableNameCache) :
                 if tableClass in cache:
                     del cache[tableClass]
-            if tableClass.storeID in self.attrToColumnNameCache:
-                del self.attrToColumnNameCache[tableClass.storeID]
+            qualifiedStoreIDName = tableClass.storeID.fullyQualifiedName()
+            if qualifiedStoreIDName in self.attrNameToColumnNameCache:
+                del self.attrNameToColumnNameCache[qualifiedStoreIDName]
             for name, attr in tableClass.getSchema():
-                if attr in self.attrToColumnNameCache:
-                    del self.attrToColumnNameCache[attr]
+                attrFQN = attr.fullyQualifiedName()
+                if attrFQN in self.attrNameToColumnNameCache:
+                    del self.attrNameToColumnNameCache[attrFQN]
 
         for sub in self._attachedChildren.values():
             sub._inMemoryRollback()
@@ -1937,7 +1941,7 @@ class Store(Empowered):
         self.touched = None
         self.executedThisTransaction = None
         self.tablesCreatedThisTransaction = []
-        for sub in self._attachedChildren.values():
+        for sub in list(self._attachedChildren.values()):
             sub._cleanupTxnState()
 
     def close(self, _report=True):
@@ -2045,11 +2049,12 @@ class Store(Empowered):
 
         @return: a string
         """
-        if attribute not in self.attrToColumnNameCache:
-            self.attrToColumnNameCache[attribute] = '.'.join(
+        name = attribute.fullyQualifiedName()
+        if name not in self.attrNameToColumnNameCache:
+            self.attrNameToColumnNameCache[name] = '.'.join(
                 (self.getTableName(attribute.type),
                  self.getShortColumnName(attribute)))
-        return self.attrToColumnNameCache[attribute]
+        return self.attrNameToColumnNameCache[name]
 
 
     def getTypeID(self, tableClass):

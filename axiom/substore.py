@@ -22,6 +22,7 @@ class SubStore(Item):
     storepath = path()
     substore = inmemory()
 
+    @classmethod
     def createNew(cls, store, pathSegments):
         """
         Create a new SubStore, allocating a new file space for it.
@@ -37,8 +38,6 @@ class SubStore(Item):
         self.open()
         self.close()
         return self
-
-    createNew = classmethod(createNew)
 
 
     def close(self):

@@ -29,15 +29,15 @@ class TestCountQuery(TestCase):
 
 
     def assertCountEqualsQuery(self, item, cond = None):
-        self.assertEquals(self.store.count(item, cond),
+        self.assertEqual(self.store.count(item, cond),
                           len(list(self.store.query(item, cond))),
                           'count and len(list(query)) not equals: %r,%r'%(item, cond))
 
     def setUp(self):
         self.store = Store()
         def populate():
-            for i in xrange(self.RANGE):
-                for j in xrange(self.RANGE):
+            for i in range(self.RANGE):
+                for j in range(self.RANGE):
                     ThingsWithIntegers(store = self.store, a = i, b = j)
         self.store.transact(populate)
 

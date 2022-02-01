@@ -279,7 +279,7 @@ class IReliableListener(Interface):
         """
 
 
-LOCAL, REMOTE = range(2)
+LOCAL, REMOTE = list(range(2))
 class IBatchProcessor(Interface):
     def addReliableListener(listener, style=LOCAL):
         """

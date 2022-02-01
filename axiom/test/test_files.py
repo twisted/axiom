@@ -27,9 +27,10 @@ class InStoreFilesTest(unittest.TestCase):
         Shared part of file creation tests.
         """
         f = s.newFile('test', 'whatever.txt')
-        f.write('crap')
+        f.write(b'crap')
+
         def cb(fpath):
-            self.assertEquals(fpath.open().read(), 'crap')
+            self.assertEqual(fpath.open().read(), b'crap')
 
         return f.close().addCallback(cb)
 
@@ -70,7 +71,7 @@ class PathAttributesTest(unittest.TestCase):
         npath = self.mktemp()
         s = Store(spath)
         rel = s.newFile("test", "123")
-        TEST_STR = "test 123"
+        TEST_STR = b"test 123"
 
         def cb(fpath):
             fpath.setContent(TEST_STR)
@@ -83,7 +84,7 @@ class PathAttributesTest(unittest.TestCase):
             s2 = Store(npath)
             pti = list(s2.query(PathTesterItem))[0]
 
-            self.assertEquals(pti.relpath.getContent(),
+            self.assertEqual(pti.relpath.getContent(),
                               TEST_STR)
 
         return rel.close().addCallback(cb)

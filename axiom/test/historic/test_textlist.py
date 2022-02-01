@@ -8,4 +8,4 @@ class TextlistTransitionTest(StubbedTest):
         Test that the textlist survives the encoding transition intact.
         """
         d = self.store.findUnique(Dummy)
-        self.assertEquals(d.attribute, [u'foo', u'bar'])
+        self.assertEqual(d.attribute, ['foo', 'bar'])

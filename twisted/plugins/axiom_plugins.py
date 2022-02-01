@@ -27,7 +27,6 @@ class _CheckSystemVersion(Service):
         checkSystemVersion(self.store)
 
 
-
 @provider(IPlugin, IServiceMaker)
 class AxiomaticStart(object):
     """

@@ -7,6 +7,7 @@ import sys
 import glob
 import errno
 import signal
+import six
 
 from twisted.plugin import IPlugin, getPlugins
 from twisted.python import usage
@@ -21,10 +22,14 @@ class AxiomaticSubCommandMixin(object):
     store = property(lambda self: self.parent.getStore())
 
     def decodeCommandLine(self, cmdline):
-        """Turn a byte string from the command line into a unicode string.
         """
+        Turn whatever type the command line was (possibly text in py3, possibly
+        bytes in py2) into a text string.
+        """
+        if isinstance(cmdline, six.text_type):
+            return cmdline
         codec = getattr(sys.stdin, 'encoding', None) or sys.getdefaultencoding()
-        return unicode(cmdline, codec)
+        return six.text_type(cmdline, codec)
 
 
 
@@ -98,9 +103,9 @@ class Status(usage.Options, PIDMixin):
 class Start(twistd.ServerOptions):
     run = staticmethod(twistd.run)
 
-    def subCommands():
+    @property
+    def subCommands(self):
         raise AttributeError()
-    subCommands = property(subCommands)
 
 
     def getArguments(self, store, args):
@@ -204,7 +209,7 @@ class Options(usage.Options):
         from axiom.store import Store
         jm = self['journal-mode']
         if jm is not None:
-            jm = jm.decode('ascii')
+            jm = six.ensure_str(jm)
         if self.store is None:
             self.store = Store(
                 self.getStoreDirectory(), debug=self['debug'], journalMode=jm)

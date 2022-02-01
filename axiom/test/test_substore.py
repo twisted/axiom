@@ -54,10 +54,11 @@ class SubStoreTest(unittest.TestCase):
         """
         topdb = filepath.FilePath(self.mktemp())
         s = Store(topdb)
+        inparent = SubStored(store=s, a=u'text value', b=b'bytes value')
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
-        ssd = SubStored(store=s2, a=u'hello world', b='what, its text')
+        ssd = SubStored(store=s2, a=u'hello world', b=b'what, its text')
         oid = ss.storeID
         oid2 = ssd.storeID
 
@@ -65,12 +66,17 @@ class SubStoreTest(unittest.TestCase):
         s.close()
 
         reopens = Store(topdb)
+        reinparent = reopens.getItemByID(inparent.storeID)
+
+        self.assertEqual(reinparent.a, u'text value')
+        self.assertEqual(reinparent.b, b'bytes value')
+
         reopenss = reopens.getItemByID(oid)
         reopens2 = reopenss.open()
         reopenssd = reopens2.getItemByID(oid2)
 
-        self.assertEquals(reopenssd.a, u'hello world')
-        self.assertEquals(reopenssd.b, 'what, its text')
+        self.assertEqual(reopenssd.a, u'hello world')
+        self.assertEqual(reopenssd.b, b'what, its text')
 
 
     def test_oneThingMemory(self):
@@ -81,7 +87,7 @@ class SubStoreTest(unittest.TestCase):
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
-        ssd = SubStored(store=s2, a=u'hello world', b='what, its text')
+        ssd = SubStored(store=s2, a=u'hello world', b=b'what, its text')
         oid = ss.storeID
         oid2 = ssd.storeID
 
@@ -89,8 +95,8 @@ class SubStoreTest(unittest.TestCase):
         self.assertIdentical(s.getItemByID(oid), ss)
         self.assertIdentical(ss.open(), s2)
         item = s2.getItemByID(oid2)
-        self.assertEquals(item.a, u'hello world')
-        self.assertEquals(item.b, 'what, its text')
+        self.assertEqual(item.a, u'hello world')
+        self.assertEqual(item.b, b'what, its text')
 
 
     def test_hereTodayGoneTomorrow(self):
@@ -101,7 +107,7 @@ class SubStoreTest(unittest.TestCase):
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
 
-        ssd = SubStored(store=s2, a=u'hello world', b='what, its text')
+        ssd = SubStored(store=s2, a=u'hello world', b=b'what, its text')
         oid = ss.storeID
         oid2 = ssd.storeID
         s2.close()
@@ -111,8 +117,8 @@ class SubStoreTest(unittest.TestCase):
         ss = s.getItemByID(oid)
         s2 = ss.open()
         item = s2.getItemByID(oid2)
-        self.assertEquals(item.a, u'hello world')
-        self.assertEquals(item.b, 'what, its text')
+        self.assertEqual(item.a, u'hello world')
+        self.assertEqual(item.b, b'what, its text')
 
 
     def test_memorySubstoreFile(self):
@@ -125,7 +131,7 @@ class SubStoreTest(unittest.TestCase):
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
         f = s2.newFile("test.txt")
-        f.write("yay")
+        f.write(b"yay")
         f.close()
         self.assertEqual(open(f.finalpath.path).read(), "yay")
 
@@ -147,11 +153,11 @@ class SubStoreTest(unittest.TestCase):
         Substores use the debug and journal configuration of the parent store.
         """
         filesdir = filepath.FilePath(self.mktemp())
-        s = Store(filesdir=filesdir, debug=True, journalMode=u'MEMORY')
+        s = Store(filesdir=filesdir, debug=True, journalMode='MEMORY')
         ss = SubStore.createNew(s, ['account', 'bob@divmod.com'])
         s2 = ss.open()
         self.assertEqual(s2.debug, True)
-        self.assertEqual(s2.journalMode, u'MEMORY')
+        self.assertEqual(s2.journalMode, 'MEMORY')
 
 
 
@@ -182,7 +188,7 @@ class SubStoreStartupSemantics(unittest.TestCase):
         ycst = YouCantStartThis(store=ss)
         ss.powerUp(ycst, IService)
         self._startService()
-        self.failIf(ycst.started)
+        self.assertFalse(ycst.started)
 
     def testStartEverythingExplicitly(self):
         """
@@ -194,7 +200,7 @@ class SubStoreStartupSemantics(unittest.TestCase):
         ss.powerUp(ysst, IService)
         self.topdb.powerUp(self.ssitem, IService)
         self._startService()
-        self.failUnless(ysst.started)
+        self.assertTrue(ysst.started)
 
     def _startService(self):
         """

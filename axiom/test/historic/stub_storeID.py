@@ -25,10 +25,10 @@ def createDatabase(s):
     """
     Populate the given Store with some Dummy items.
     """
-    Dummy(store=s, attribute=u'one')
-    Dummy(store=s, attribute=u'two')
-    i = Dummy(store=s, attribute=u'three')
-    Dummy2(store=s, attribute=u'four')
+    Dummy(store=s, attribute='one')
+    Dummy(store=s, attribute='two')
+    i = Dummy(store=s, attribute='three')
+    Dummy2(store=s, attribute='four')
     # Work around https://github.com/twisted/axiom/issues/86
     i.checkpoint()
     i.deleteFromStore()

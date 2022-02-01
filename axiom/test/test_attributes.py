@@ -33,18 +33,18 @@ class IEEE754DoubleTest(TestCase):
         s = Store()
         Number(store=s, value=7.1)
         n = s.findFirst(Number)
-        self.assertEquals(n.value, 7.1)
+        self.assertEqual(n.value, 7.1)
 
     def testFPSumsAreBrokenSoDontUseThem(self):
         s = Store()
         for x in range(10):
             Number(store=s,
                    value=0.1)
-        self.assertNotEquals(s.query(Number).getColumn("value").sum(),
+        self.assertNotEqual(s.query(Number).getColumn("value").sum(),
                              1.0)
 
         # This isn't really a unit test.  It's documentation.
-        self.assertEquals(s.query(Number).getColumn("value").sum(),
+        self.assertEqual(s.query(Number).getColumn("value").sum(),
                           0.99999999999999989)
 
 
@@ -70,15 +70,15 @@ class IntegerTests(TestCase):
         A Python int roundtrips through an integer attribute.
         """
         i = _Integer(store=self.store, value=42)
-        self.assertEquals(i.value, 42)
+        self.assertEqual(i.value, 42)
 
 
     def test_roundtripLong(self):
         """
         A Python long roundtrips through an integer attribute.
         """
-        i = _Integer(store=self.store, value=42L)
-        self.assertEquals(i.value, 42)
+        i = _Integer(store=self.store, value=42)
+        self.assertEqual(i.value, 42)
 
 
     def test_magnitudeBound(self):
@@ -107,7 +107,7 @@ class FixedPointDecimalTest(TestCase):
         for x in range(10):
             DecimalDoodad(store=s,
                           money=Decimal("0.10"))
-        self.assertEquals(s.query(DecimalDoodad).getColumn("money").sum(),
+        self.assertEqual(s.query(DecimalDoodad).getColumn("money").sum(),
                           1)
 
     def testRoundTrip(self):
@@ -116,28 +116,28 @@ class FixedPointDecimalTest(TestCase):
                       money=Decimal("4.3"),
                       otherMoney=Decimal("-17.94"))
         gc.collect() # Force the item to be reloaded from the database
-        self.assertEquals(s.findFirst(DecimalDoodad).integral, 19947)
-        self.assertEquals(s.findFirst(DecimalDoodad).money, Decimal("4.3"))
-        self.assertEquals(s.findFirst(DecimalDoodad).otherMoney, Decimal("-17.9400"))
+        self.assertEqual(s.findFirst(DecimalDoodad).integral, 19947)
+        self.assertEqual(s.findFirst(DecimalDoodad).money, Decimal("4.3"))
+        self.assertEqual(s.findFirst(DecimalDoodad).otherMoney, Decimal("-17.9400"))
 
     def testComparisons(self):
         s = Store()
         DecimalDoodad(store=s,
                       money=Decimal("19947.000000"),
                       otherMoney=19947)
-        self.assertEquals(
+        self.assertEqual(
             s.query(DecimalDoodad,
                     DecimalDoodad.money == DecimalDoodad.otherMoney).count(),
             1)
-        self.assertEquals(
+        self.assertEqual(
             s.query(DecimalDoodad,
                     DecimalDoodad.money != DecimalDoodad.otherMoney).count(),
             0)
-        self.assertEquals(
+        self.assertEqual(
             s.query(DecimalDoodad,
                     DecimalDoodad.money == 19947).count(),
             1)
-        self.assertEquals(
+        self.assertEqual(
             s.query(DecimalDoodad,
                     DecimalDoodad.money == Decimal("19947")).count(),
             1)
@@ -178,7 +178,7 @@ class SpecialStoreIDAttributeTest(TestCase):
         sid = Number(store=s, value=1.0).storeID
         self.assertRaises(TypeError, s.getItemByID, str(sid))
         self.assertRaises(TypeError, s.getItemByID, float(sid))
-        self.assertRaises(TypeError, s.getItemByID, unicode(sid))
+        self.assertRaises(TypeError, s.getItemByID, str(sid))
 
 class SortedItem(Item):
     typeName = 'test_sorted_thing'
@@ -193,7 +193,7 @@ class SortingTest(TestCase):
     def testCompoundSort(self):
         s = Store()
         L = []
-        r10 = range(10)
+        r10 = list(range(10))
         random.shuffle(r10)
         L.append(SortedItem(store=s,
                             goingUp=0,
@@ -216,15 +216,15 @@ class SortingTest(TestCase):
             ascsort = [getattr(SortedItem, colnm).ascending for colnm in colnms]
             descsort = [getattr(SortedItem, colnm).descending for colnm in colnms]
 
-            self.assertEquals(LN, list(s.query(SortedItem,
+            self.assertEqual(LN, list(s.query(SortedItem,
                                                sort=ascsort)))
             LN.reverse()
-            self.assertEquals(LN, list(s.query(SortedItem,
+            self.assertEqual(LN, list(s.query(SortedItem,
                                                sort=descsort)))
 
 
 class FunkyItem(Item):
-    name = unicode()
+    name = str()
 
 class BadAttributeTest(TestCase):
 
@@ -233,9 +233,9 @@ class BadAttributeTest(TestCase):
         L{Item} should not allow setting undeclared attributes.
         """
         s = Store()
-        err = self.failUnlessRaises(AttributeError,
-                                    FunkyItem, store=s, name=u"foo")
-        self.assertEquals(str(err), "'FunkyItem' can't set attribute 'name'")
+        err = self.assertRaises(AttributeError,
+                                    FunkyItem, store=s, name="foo")
+        self.assertEqual(str(err), "'FunkyItem' can't set attribute 'name'")
 
 
 
@@ -276,13 +276,13 @@ class StructuredDefaultTestCase(TestCase):
     def testTimestampDefault(self):
         s = Store()
         sid = DatedThing(store=s).storeID
-        self.assertEquals(s.getItemByID(sid).date,
+        self.assertEqual(s.getItemByID(sid).date,
                           someRandomDate)
 
     def testTimestampNow(self):
         s = Store()
         sid = CreationDatedThing(store=s).storeID
-        self.failUnless(
+        self.assertTrue(
             (Time().asDatetime() - s.getItemByID(sid).creationDate.asDatetime()).seconds <
             10)
 
@@ -301,20 +301,20 @@ class StringListTestCase(TestCase):
         """
         s = Store()
         tlt = TaggedListyThing(store=s, strlist=value)
-        self.assertEquals(tlt.strlist, value)
+        self.assertEqual(tlt.strlist, value)
 
         # Force it out of the cache, so it gets reloaded from the store
         del tlt
         gc.collect()
         tlt = s.findUnique(TaggedListyThing)
-        self.assertEquals(tlt.strlist, value)
+        self.assertEqual(tlt.strlist, value)
 
 
     def test_simpleListOfStrings(self):
         """
         Test that a simple list can be stored and retrieved successfully.
         """
-        SOME_VALUE = [u'abc', u'def, ghi', u'jkl']
+        SOME_VALUE = ['abc', 'def, ghi', 'jkl']
         self.tryRoundtrip(SOME_VALUE)
 
 
@@ -332,10 +332,10 @@ class StringListTestCase(TestCase):
         """
 
         oldCases = [
-            (u'foo', [u'foo']),
-            (u'', [u'']),
-            (u'\x1f', [u'', u'']),
-            (u'foo\x1fbar', [u'foo', u'bar']),
+            ('foo', ['foo']),
+            ('', ['']),
+            ('\x1f', ['', '']),
+            ('foo\x1fbar', ['foo', 'bar']),
             ]
 
         for dbval, pyval in oldCases:
@@ -370,7 +370,7 @@ class SQLAttributeTestCase(TestCase):
         """
         Test that an L{SQLAttribute} knows its own local name.
         """
-        self.assertEquals(
+        self.assertEqual(
             SQLAttributeDummyClass.dummyAttribute.attrname,
             'dummyAttribute')
 
@@ -382,7 +382,7 @@ class SQLAttributeTestCase(TestCase):
         fully qualified Python name of the type it is defined on (plus a dot)
         plus the name of the attribute.
         """
-        self.assertEquals(
+        self.assertEqual(
             SQLAttributeDummyClass.dummyAttribute.fullyQualifiedName(),
             'axiom.test.test_attributes.SQLAttributeDummyClass.dummyAttribute')
 
@@ -394,7 +394,7 @@ class SQLAttributeTestCase(TestCase):
         is unfortunately implemented differently than other columns, due to its
         presence on Item.
         """
-        self.assertEquals(
+        self.assertEqual(
             SQLAttributeDummyClass.storeID.fullyQualifiedName(),
             'axiom.test.test_attributes.SQLAttributeDummyClass.storeID')
 
@@ -406,7 +406,7 @@ class SQLAttributeTestCase(TestCase):
         recognizable as an invalid Python identifier.
         """
         ph = Placeholder(SQLAttributeDummyClass)
-        self.assertEquals(
+        self.assertEqual(
             'axiom.test.test_attributes.SQLAttributeDummyClass'
             '.dummyAttribute.<placeholder:%d>' % (ph._placeholderCount,),
             ph.dummyAttribute.fullyQualifiedName())
@@ -418,9 +418,9 @@ class SQLAttributeTestCase(TestCase):
         its value when given an instance.
         """
         dummy = FullImplementationDummyClass(dummyAttribute=1234)
-        self.assertEquals(
+        self.assertEqual(
             FullImplementationDummyClass.dummyAttribute.__get__(dummy), 1234)
-        self.assertEquals(dummy.dummyAttribute, 1234)
+        self.assertEqual(dummy.dummyAttribute, 1234)
 
 
     def test_storeIDAccessor(self):
@@ -438,10 +438,10 @@ class SQLAttributeTestCase(TestCase):
         its value when given an instance.
         """
         dummy = FullImplementationDummyClass(dummyAttribute=1234)
-        self.assertEquals(
+        self.assertEqual(
             Placeholder(FullImplementationDummyClass
                         ).dummyAttribute.__get__(dummy), 1234)
-        self.assertEquals(dummy.dummyAttribute, 1234)
+        self.assertEqual(dummy.dummyAttribute, 1234)
 
 
     def test_typeAttribute(self):

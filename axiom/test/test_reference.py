@@ -38,7 +38,7 @@ class BadReferenceTestCase(TestCase):
 
     def testSanity(self):
         store = Store()
-        for i in xrange(self.ntimes):
+        for i in range(self.ntimes):
             SimpleReferent(store=store, ref=Referee(store=store, topSecret=i))
             (referee,) = list(store.query(Referee))
             (referent,) = list(store.query(SimpleReferent))
@@ -223,7 +223,7 @@ class BadReferenceTestCase(TestCase):
         """
         store = Store()
         t = nonUpgradedItem(store=store)
-        self.assertEquals(t.__legacy__, True)
+        self.assertEqual(t.__legacy__, True)
         self.assertRaises(KeyError, store.objectCache.get, t.storeID)
         t2 = store.getItemByID(t.storeID)
         self.assertNotIdentical(t, t2)

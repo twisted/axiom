@@ -10,13 +10,13 @@ from epsilon import extime
 _d = extime.Time.fromISO8601TimeAndDate
 
 _books = [
-    (u'Heart of Darkness', u'Joseph Conrad', u'0486264645', 80, _d('1990-07-01T00:00:00.000001')),
-    (u'The Dark Tower, Book 7', u'Stephen King', u'1880418622', 864, _d('2004-11-21T00:00:00.000001')),
-    (u'Guns, Germs, and Steel: The Fates of Human Societies', u'Jared Diamond', u'0393317552', 480, _d('1999-04-01T00:00:00.000001')),
-    (u'The Lions of al-Rassan', u'Guy Gavriel Kay', u'0060733497', 528, _d('2005-06-28T00:00:00.000001')),
+    ('Heart of Darkness', 'Joseph Conrad', '0486264645', 80, _d('1990-07-01T00:00:00.000001')),
+    ('The Dark Tower, Book 7', 'Stephen King', '1880418622', 864, _d('2004-11-21T00:00:00.000001')),
+    ('Guns, Germs, and Steel: The Fates of Human Societies', 'Jared Diamond', '0393317552', 480, _d('1999-04-01T00:00:00.000001')),
+    ('The Lions of al-Rassan', 'Guy Gavriel Kay', '0060733497', 528, _d('2005-06-28T00:00:00.000001')),
     ]
 
-_borrowers = [u'Anne', u'Bob', u'Carol', u'Dave']
+_borrowers = ['Anne', 'Bob', 'Carol', 'Dave']
 
 
 class Borrower(Item):

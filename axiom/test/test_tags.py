@@ -19,18 +19,18 @@ class TagTestCase(unittest.TestCase):
     def testTagging(self):
         s = Store()
         c = Catalog(store=s)
-        g1 = Gizmo(store=s, name=u'one')
-        g2 = Gizmo(store=s, name=u'two')
+        g1 = Gizmo(store=s, name='one')
+        g2 = Gizmo(store=s, name='two')
 
-        c.tag(g1, u'single')
-        c.tag(g1, u'multi')
-        c.tag(g2, u'multi')
-        c.tag(g1, u'multi')
+        c.tag(g1, 'single')
+        c.tag(g1, 'multi')
+        c.tag(g2, 'multi')
+        c.tag(g1, 'multi')
 
-        self.assertEquals(list(c.tagsOf(g1)),
-                          [u'single', u'multi'])
-        self.assertEquals(list(c.tagsOf(g2)),
-                          [u'multi'])
+        self.assertEqual(list(c.tagsOf(g1)),
+                          ['single', 'multi'])
+        self.assertEqual(list(c.tagsOf(g2)),
+                          ['multi'])
 
-        self.assertEquals(list(c.objectsIn(u'single')), [g1])
-        self.assertEquals(list(c.objectsIn(u'multi')), [g1, g2])
+        self.assertEqual(list(c.objectsIn('single')), [g1])
+        self.assertEqual(list(c.objectsIn('multi')), [g1, g2])

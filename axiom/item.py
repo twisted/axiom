@@ -3,6 +3,7 @@
 __metaclass__ = type
 
 import gc
+import six
 from zope.interface import implementer, Interface
 
 from inspect import getabsfile
@@ -24,6 +25,7 @@ from axiom.attributes import (
     reference, text, integer, AND, _cascadingDeletes, _disallows)
 import six
 from six.moves import zip
+from functools import total_ordering
 
 _typeNameToMostRecentClass = WeakValueDictionary()
 
@@ -98,10 +100,35 @@ class MetaItem(slotmachine.SchemaMetaMachine):
         in SQL generation, which is beneficial for debugging and performance
         purposes.
         """
-        if isinstance(other, MetaItem):
+        # cmp is only available on Python 2
+        if six.PY2 and isinstance(other, MetaItem):
             return cmp((self.typeName, self.schemaVersion),
                        (other.typeName, other.schemaVersion))
         return NotImplemented
+
+    def _makeComparator(opfunc):
+        """
+        since @total_ordering doesn't work on metaclasses, let's do our own
+        """
+        def __op__(self, other):
+            if not isinstance(other, MetaItem): # pragma: no cover
+                return NotImplemented
+            return opfunc((self.typeName, self.schemaVersion), (other.typeName, other.schemaVersion))
+        return __op__
+
+    import operator
+    __lt__ = _makeComparator(operator.lt)
+    __le__ = _makeComparator(operator.le)
+    __gt__ = _makeComparator(operator.gt)
+    __ge__ = _makeComparator(operator.ge)
+    __eq__ = _makeComparator(operator.eq)
+
+    def __hash__(self):
+        """
+        Since we've defined an ordering, we have to implement hashability for py3 as well.
+        """
+        return hash((self.typeName, self.schemaVersion)) + 7
+
 
 
 def noop():
@@ -268,7 +295,7 @@ class Empowered(object):
         else:
             forc = self.store.findOrCreate(_PowerupConnector,
                                            item=self,
-                                           interface=unicode(qual(interface)),
+                                           interface=str(qual(interface)),
                                            powerup=powerup)
             forc.priority = priority
 
@@ -298,7 +325,7 @@ class Empowered(object):
         else:
             for cable in self.store.query(_PowerupConnector,
                                           AND(_PowerupConnector.item == self,
-                                              _PowerupConnector.interface == unicode(qual(interface)),
+                                              _PowerupConnector.interface == str(qual(interface)),
                                               _PowerupConnector.powerup == powerup)):
                 cable.deleteFromStore()
                 return
@@ -344,7 +371,7 @@ class Empowered(object):
             yield inMemoryPowerup
         if self.store is None:
             return
-        name = unicode(qual(interface), 'ascii')
+        name = qual(interface)
         for cable in self.store.query(
             _PowerupConnector,
             AND(_PowerupConnector.interface == name,
@@ -570,7 +597,7 @@ class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
         """
         attrs = ", ".join("{n}={v}".format(n=name, v=attr.reprFor(self))
                           for name, attr in sorted(self.getSchema()))
-        template = b"{s.__name__}({attrs}, storeID={s.storeID})@{id:#x}"
+        template = "{s.__name__}({attrs}, storeID={s.storeID})@{id:#x}"
         return template.format(s=self, attrs=attrs, id=id(self))
 
 
@@ -955,7 +982,6 @@ class Item(six.with_metaclass(MetaItem, Empowered, slotmachine._Strict)):
     getTableAlias = classmethod(getTableAlias)
 
 
-
 @implementer(IColumn)
 class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
                          _MatchingOperationMuxer, _OrderingMixin):
@@ -1007,6 +1033,7 @@ class _PlaceholderColumn(_ContainableMixin, _ComparisonOperatorMuxer,
 
 _placeholderCount = 0
 
+@total_ordering
 class Placeholder(object):
     """
     Wrap an existing L{Item} type to provide a different name for it.
@@ -1044,6 +1071,24 @@ class Placeholder(object):
         _placeholderCount += 1
 
         self.existingInStore = self._placeholderItemClass.existingInStore
+
+
+    def __lt__(self, other):
+        """
+        Provide a deterministic sort order between Placeholder instances.
+        """
+        if isinstance(other, Placeholder):
+            return self._placeholderCount < other._placeholderCount
+        return NotImplemented
+
+
+    def __eq__(self, other):
+        """
+        Provide a deterministic sort order between Placeholder instances.
+        """
+        if isinstance(other, Placeholder):
+            return self._placeholderCount == other._placeholderCount
+        return NotImplemented
 
 
     def __cmp__(self, other):

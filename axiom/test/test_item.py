@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, six
 
 from zope.interface import Interface, implementer
 
@@ -69,7 +69,7 @@ class TransactedMethodItem(item.Item):
     calledWith = inmemory()
 
     def method(self, a, b, c):
-        self.value = u"changed"
+        self.value = "changed"
         self.calledWith = [a, b, c]
         raise Exception("TransactedMethodItem.method test exception")
     method.attribute = 'value'
@@ -153,14 +153,14 @@ class ItemTestCase(unittest.TestCase):
         A = TransactedMethodItem
         B = NoAttrsItem
 
-        self.failUnless(A < B)
-        self.failUnless(B >= A)
-        self.failIf(A >= B)
-        self.failIf(B <= A)
-        self.failUnless(A != B)
-        self.failUnless(B != A)
-        self.failIf(A == B)
-        self.failIf(B == A)
+        self.assertTrue(A < B)
+        self.assertTrue(B >= A)
+        self.assertFalse(A >= B)
+        self.assertFalse(B <= A)
+        self.assertTrue(A != B)
+        self.assertTrue(B != A)
+        self.assertFalse(A == B)
+        self.assertFalse(B == A)
 
 
     def test_legacyItemComparison(self):
@@ -196,7 +196,7 @@ class ItemTestCase(unittest.TestCase):
         """
         st = store.Store()
         i = StoredNoticingItem(store=st)
-        self.assertEquals(i.activatedCount, 1)
+        self.assertEqual(i.activatedCount, 1)
 
 
     def test_storedCallbackOnAttributeSet(self):
@@ -206,9 +206,9 @@ class ItemTestCase(unittest.TestCase):
         """
         st = store.Store()
         i = StoredNoticingItem()
-        self.assertEquals(i.storedCount, 0)
+        self.assertEqual(i.storedCount, 0)
         i.store = st
-        self.assertEquals(i.storedCount, 1)
+        self.assertEqual(i.storedCount, 1)
 
 
     def test_storedCallbackOnItemCreation(self):
@@ -218,7 +218,7 @@ class ItemTestCase(unittest.TestCase):
         """
         st = store.Store()
         i = StoredNoticingItem(store=st)
-        self.assertEquals(i.storedCount, 1)
+        self.assertEqual(i.storedCount, 1)
 
 
     def test_storedCallbackNotOnLoad(self):
@@ -228,7 +228,7 @@ class ItemTestCase(unittest.TestCase):
         """
         st = store.Store()
         storeID = StoredNoticingItem(store=st).storeID
-        self.assertEquals(st.getItemByID(storeID).storedCount, 1)
+        self.assertEqual(st.getItemByID(storeID).storedCount, 1)
 
 
     def testTransactedTransacts(self):
@@ -237,10 +237,10 @@ class ItemTestCase(unittest.TestCase):
         run in a transaction.
         """
         s = store.Store()
-        i = TransactedMethodItem(store=s, value=u"unchanged")
+        i = TransactedMethodItem(store=s, value="unchanged")
         exc = self.assertRaises(Exception, i.method, 'a', 'b', 'c')
-        self.assertEquals(exc.args, ("TransactedMethodItem.method test exception",))
-        self.assertEquals(i.value, u"unchanged")
+        self.assertEqual(exc.args, ("TransactedMethodItem.method test exception",))
+        self.assertEqual(i.value, "unchanged")
 
 
     def testTransactedPassedArguments(self):
@@ -251,8 +251,8 @@ class ItemTestCase(unittest.TestCase):
         s = store.Store()
         i = TransactedMethodItem(store=s)
         exc = self.assertRaises(Exception, i.method, 'a', b='b', c='c')
-        self.assertEquals(exc.args, ("TransactedMethodItem.method test exception",))
-        self.assertEquals(i.calledWith, ['a', 'b', 'c'])
+        self.assertEqual(exc.args, ("TransactedMethodItem.method test exception",))
+        self.assertEqual(i.calledWith, ['a', 'b', 'c'])
 
 
     def testTransactedPreservesAttributes(self):
@@ -260,13 +260,13 @@ class ItemTestCase(unittest.TestCase):
         Test that the original function attributes are available on a
         L{axiom.item.transacted}-wrapped function.
         """
-        self.assertEquals(TransactedMethodItem.method.attribute, 'value')
+        self.assertEqual(TransactedMethodItem.method.attribute, 'value')
 
 
     def testPersistentValues(self):
         st = store.Store()
-        pi = itemtest.PlainItem(store=st, plain=u'hello')
-        self.assertEqual(pi.persistentValues(), {'plain': u'hello'})
+        pi = itemtest.PlainItem(store=st, plain='hello')
+        self.assertEqual(pi.persistentValues(), {'plain': 'hello'})
 
 
     def testPersistentValuesWithoutValue(self):
@@ -307,7 +307,7 @@ class ItemTestCase(unittest.TestCase):
         """
         storePath = filepath.FilePath(self.mktemp())
         st = store.Store(storePath)
-        itemID = itemtest.PlainItem(store=st, plain=u'Hello, world!!!').storeID
+        itemID = itemtest.PlainItem(store=st, plain='Hello, world!!!').storeID
         st.close()
 
         e = os.environ.copy()
@@ -319,7 +319,7 @@ class ItemTestCase(unittest.TestCase):
             raise unittest.SkipTest("Implement processes here")
 
         def cbOutput(output):
-            self.assertEquals(''.join(output).strip(), 'Hello, world!!!')
+            self.assertEqual(b''.join(output).strip(), b'Hello, world!!!')
 
         def ebBlah(err):
             log.err(err)
@@ -339,18 +339,18 @@ class ItemTestCase(unittest.TestCase):
         oldStoreID = i.storeID
         i.deleteFromStore()
         j = itemtest.PlainItem(store=st)
-        self.failIfEqual(oldStoreID, j.storeID)
+        self.assertNotEqual(oldStoreID, j.storeID)
 
     def testDeleteThenLoad(self):
         st = store.Store()
         i = itemtest.PlainItem(store=st)
         oldStoreID = i.storeID
-        self.assertEquals(st.getItemByID(oldStoreID, default=1234),
+        self.assertEqual(st.getItemByID(oldStoreID, default=1234),
                           i)
         i.deleteFromStore()
-        self.assertEquals(st.getItemByID(oldStoreID+100, default=1234),
+        self.assertEqual(st.getItemByID(oldStoreID+100, default=1234),
                           1234)
-        self.assertEquals(st.getItemByID(oldStoreID, default=1234),
+        self.assertEqual(st.getItemByID(oldStoreID, default=1234),
                           1234)
 
 
@@ -415,7 +415,7 @@ class CheckpointTestCase(TestCase):
         self.checkpointed = []
         def checkpoint(item):
             self.checkpointed.append(item)
-        self.originalCheckpoint = TestItem.checkpoint.im_func
+        self.originalCheckpoint = six.get_unbound_function(TestItem.checkpoint)
         TestItem.checkpoint = checkpoint
 
 
@@ -508,7 +508,7 @@ class CheckpointTestCase(TestCase):
         """
         store = Store()
         item = TestItem(store=store)
-        self.assertEquals(self.checkpointed, [item])
+        self.assertEqual(self.checkpointed, [item])
 
 
     def test_transactionCheckpoint(self):
@@ -519,10 +519,10 @@ class CheckpointTestCase(TestCase):
         store = Store()
         def txn():
             item = TestItem(store=store)
-            self.assertEquals(self.checkpointed, [])
+            self.assertEqual(self.checkpointed, [])
             return item
         item = store.transact(txn)
-        self.assertEquals(self.checkpointed, [item])
+        self.assertEqual(self.checkpointed, [item])
 
 
     def test_queryCheckpoint(self):
@@ -534,7 +534,7 @@ class CheckpointTestCase(TestCase):
         def txn():
             item = TestItem(store=store)
             list(store.query(TestItem))
-            self.assertEquals(self.checkpointed, [item])
+            self.assertEqual(self.checkpointed, [item])
         store.transact(txn)
 
 
@@ -550,7 +550,7 @@ class CheckpointTestCase(TestCase):
         self.checkpointed = []
 
         item.attribute = 0
-        self.assertEquals(self.checkpointed, [item])
+        self.assertEqual(self.checkpointed, [item])
 
 
     def test_transactionTouchCheckpoint(self):
@@ -567,7 +567,7 @@ class CheckpointTestCase(TestCase):
         def txn():
             item.touch()
             store.checkpoint()
-            self.assertEquals(self.checkpointed, [item])
+            self.assertEqual(self.checkpointed, [item])
         store.transact(txn)
 
 
@@ -585,9 +585,9 @@ class CheckpointTestCase(TestCase):
         def txn():
             item.touch()
             list(store.query(TestItem))
-            self.assertEquals(self.checkpointed, [item])
+            self.assertEqual(self.checkpointed, [item])
             list(store.query(TestItem))
-            self.assertEquals(self.checkpointed, [item])
+            self.assertEqual(self.checkpointed, [item])
         store.transact(txn)
 
 

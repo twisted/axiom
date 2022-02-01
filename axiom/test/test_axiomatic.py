@@ -4,7 +4,7 @@
 Tests for L{axiom.scripts.axiomatic}.
 """
 
-import sys, os, signal, StringIO
+import sys, os, signal, io, six
 
 from zope.interface import implementer
 
@@ -27,6 +27,7 @@ from axiom.attributes import boolean
 from axiom.scripts import axiomatic
 from axiom.listversions import SystemVersion
 from axiom.iaxiom import IAxiomaticCommand
+from axiom.test.util import callWithStdoutRedirect
 from twisted.plugins.axiom_plugins import AxiomaticStart
 
 from axiom.test.reactorimporthelper import SomeItem
@@ -98,7 +99,7 @@ class StartTests(TestCase):
         store it is passed. It also adds I{--journal-mode} if this is passed.
         """
         dbdir = FilePath(self.mktemp())
-        store = Store(dbdir, journalMode=u'WAL')
+        store = Store(dbdir, journalMode='WAL')
         run = self._getRunDir(dbdir)
         logs = self._getLogDir(dbdir)
         start = axiomatic.Start()
@@ -112,7 +113,7 @@ class StartTests(TestCase):
         else:
             pidfileArg = ["--pidfile", run.child("axiomatic.pid").path]
         restArg = [
-            "axiomatic-start", "--dbdir", dbdir.path, "--journal-mode", "WAL"]
+            "axiomatic-start", "--dbdir", dbdir.path, "--journal-mode", b"WAL"]
 
         self.assertEqual(
             start.getArguments(store, []),
@@ -187,12 +188,7 @@ class StartTests(TestCase):
         """
         start = axiomatic.Start()
         start.run = None
-        original = sys.stdout
-        sys.stdout = stdout = StringIO.StringIO()
-        try:
-            self.assertRaises(SystemExit, start.parseOptions, ["--help"])
-        finally:
-            sys.stdout = original
+        result, output = callWithStdoutRedirect(self.assertRaises, SystemExit, start.parseOptions, ["--help"])
 
         # Some random options that should be present.  This is a bad test
         # because we don't control what C{opt_help} actually does and we don't
@@ -200,13 +196,13 @@ class StartTests(TestCase):
         # does.  We could try running them both and comparing, but then we'd
         # still want to do some sanity check against one of them in case we end
         # up getting the twistd version incorrectly somehow... -exarkun
-        self.assertIn("--reactor", stdout.getvalue())
+        self.assertIn("--reactor", output.getvalue())
         if not platform.isWindows():
             # This isn't an option on Windows, so it shouldn't be there.
-            self.assertIn("--uid", stdout.getvalue())
+            self.assertIn("--uid", output.getvalue())
 
         # Also, we don't want to see twistd plugins here.
-        self.assertNotIn("axiomatic-start", stdout.getvalue())
+        self.assertNotIn("axiomatic-start", output.getvalue())
 
 
 
@@ -449,7 +445,7 @@ class AxiomaticStartProcessProtocol(ProcessProtocol):
         L{Deferred} if so.
         """
         msg("Received stdout from axiomatic: {!r}".format(bytes))
-        self._output += bytes
+        self._output += six.ensure_str(bytes)
         if not self._success:
             for line in self._output.splitlines():
                 for expectedLine in self._expected:
@@ -487,14 +483,14 @@ class TestMisc(TestCase):
         Test that AxiomaticCommand itself does not provide IAxiomaticCommand or
         IPlugin, but subclasses do.
         """
-        self.failIf(IAxiomaticCommand.providedBy(axiomatic.AxiomaticCommand), 'IAxiomaticCommand provided')
-        self.failIf(IPlugin.providedBy(axiomatic.AxiomaticCommand), 'IPlugin provided')
+        self.assertFalse(IAxiomaticCommand.providedBy(axiomatic.AxiomaticCommand), 'IAxiomaticCommand provided')
+        self.assertFalse(IPlugin.providedBy(axiomatic.AxiomaticCommand), 'IPlugin provided')
 
         class _TestSubClass(axiomatic.AxiomaticCommand):
             pass
 
-        self.failUnless(IAxiomaticCommand.providedBy(_TestSubClass), 'IAxiomaticCommand not provided')
-        self.failUnless(IPlugin.providedBy(_TestSubClass), 'IPlugin not provided')
+        self.assertTrue(IAxiomaticCommand.providedBy(_TestSubClass), 'IAxiomaticCommand not provided')
+        self.assertTrue(IPlugin.providedBy(_TestSubClass), 'IPlugin not provided')
 
 
 

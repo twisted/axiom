@@ -116,11 +116,11 @@ class ConnectionTestCaseMixin:
         axiomConnection = self.createAxiomConnection(stubConnection)
         axiomCursor = axiomConnection.cursor()
 
-        self.assertEquals(len(stubConnection.cursors), 1)
+        self.assertEqual(len(stubConnection.cursors), 1)
         statement = "SELECT foo FROM bar"
         axiomCursor.execute(statement)
-        self.assertEquals(len(stubConnection.cursors[0].statements), 1)
-        self.assertEquals(stubConnection.cursors[0].statements[0], statement)
+        self.assertEqual(len(stubConnection.cursors[0].statements), 1)
+        self.assertEqual(stubConnection.cursors[0].statements[0], statement)
 
 
     def test_timeoutExceeded(self):
@@ -152,13 +152,13 @@ class ConnectionTestCaseMixin:
             TimeoutError,
             axiomCursor.execute, statement)
 
-        self.failUnless(
+        self.assertTrue(
             self.TIMEOUT <= time() <= self.TIMEOUT + self.ALLOWED_SLOP,
             "Wallclock duration of execute() call out of bounds.")
 
-        self.assertEquals(timeoutException.statement, statement)
-        self.assertEquals(timeoutException.timeout, self.TIMEOUT)
-        self.failUnless(isinstance(
+        self.assertEqual(timeoutException.statement, statement)
+        self.assertEqual(timeoutException.timeout, self.TIMEOUT)
+        self.assertTrue(isinstance(
                 timeoutException.underlying,
                 self.expectedUnderlyingExceptionClass))
 

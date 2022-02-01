@@ -3,7 +3,6 @@ Hypothesis strategies for generating Axiom-related data.
 """
 from epsilon.extime import Time
 from hypothesis import strategies as st
-from hypothesis.extra.datetime import datetimes
 
 from axiom.attributes import LARGEST_NEGATIVE, LARGEST_POSITIVE
 
@@ -16,7 +15,7 @@ def axiomText(*a, **kw):
     return st.text(
         alphabet=st.characters(
             blacklist_categories={'Cs'},
-            blacklist_characters={u'\x00'}),
+            blacklist_characters={'\x00'}),
         *a, **kw)
 
 
@@ -27,7 +26,7 @@ def textlists():
     return st.lists(st.text(
         alphabet=st.characters(
             blacklist_categories={'Cs'},
-            blacklist_characters={u'\x00', u'\x02', u'\x1f'})))
+            blacklist_characters={'\x00', '\x02', '\x1f'})))
 
 
 
@@ -51,7 +50,7 @@ def timestamps(*a, **kw):
     """
     Strategy for generating L{epsilon.extime.Time} objects.
     """
-    return st.builds(Time.fromDatetime, datetimes(timezones=[], *a, **kw))
+    return st.builds(Time.fromDatetime, st.datetimes(*a, **kw))
 
 
 

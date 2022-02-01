@@ -107,7 +107,7 @@ class _MatchingOperationMuxer:
                 likeParts.append(LikeValue(other))
 
         if allValues:
-            likeParts = [LikeValue(''.join(others))]
+            likeParts = [LikeValue(type(firstOther)().join(others))]
 
         return LikeComparison(self, negate, likeParts)
 
@@ -511,7 +511,6 @@ class SQLAttribute(inmemory, Comparable):
                 st._rejectChanges -= 1
 
 
-
 @implementer(IComparison)
 class TwoAttributeComparison:
     def __init__(self, leftAttribute, operationString, rightAttribute):
@@ -542,7 +541,6 @@ class TwoAttributeComparison:
                          self.rightAttribute.fullyQualifiedName()))
 
 
-
 @implementer(IComparison)
 class AttributeValueComparison:
     def __init__(self, attribute, operationString, value):
@@ -564,7 +562,6 @@ class AttributeValueComparison:
         return ' '.join((self.attribute.fullyQualifiedName(),
                          self.operationString,
                          repr(self.value)))
-
 
 
 @implementer(IComparison)
@@ -622,7 +619,6 @@ class LikeColumn(LikeFragment):
         return [self.attribute.type]
 
 
-
 @implementer(IComparison)
 class LikeComparison:
     # Not AggregateComparison or AttributeValueComparison because there is a
@@ -658,7 +654,6 @@ class LikeComparison:
                     self.attribute.infilter(
                         pyval, None, store))
         return l
-
 
 
 @implementer(IComparison)
@@ -699,7 +694,6 @@ class AggregateComparison:
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__,
                            ', '.join(map(repr, self.conditions)))
-
 
 
 @implementer(IComparison)
@@ -805,7 +799,6 @@ class OR(AggregateComparison):
     Combine 2 L{IComparison}s such that this is true when either is true.
     """
     operator = 'OR'
-
 
 
 @implementer(IComparison)
@@ -925,15 +918,15 @@ class bytes(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if isinstance(pyval, unicode):
-            raise ConstraintError(self, "str or other byte buffer", pyval)
-        return buffer(pyval)
+        if not isinstance(pyval, six.binary_type):
+            raise ConstraintError(self, "'bytes'", pyval)
+        return pyval
 
 
     def outfilter(self, dbval, oself):
         if dbval is None:
             return None
-        return str(dbval)
+        return six.binary_type(dbval)
 
 
     @deprecated(Version("Axiom", 0, 7, 5))
@@ -980,7 +973,7 @@ class text(SQLAttribute):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        if not isinstance(pyval, unicode) or u'\0' in pyval:
+        if not isinstance(pyval, six.string_types) or '\0' in pyval:
             raise ConstraintError(
                 self, "unicode string without NULL bytes", pyval)
         return pyval
@@ -1043,7 +1036,7 @@ class path(text):
     def infilter(self, pyval, oself, store):
         if pyval is None:
             return None
-        mypath = unicode(pyval.path)
+        mypath = str(pyval.path)
         if store is None:
             store = oself.store
         if store is None:

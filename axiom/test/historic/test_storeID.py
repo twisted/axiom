@@ -34,13 +34,13 @@ class StoreIDTransitionTest(StubbedTest):
         # Make sure we push the upgraded items out of cache
         gc.collect()
 
-        self.assertEquals(self.store.getItemByID(1).attribute, u'one')
-        self.assertEquals(
-            self.store.findUnique(Dummy, Dummy.attribute == u'two').storeID,
+        self.assertEqual(self.store.getItemByID(1).attribute, 'one')
+        self.assertEqual(
+            self.store.findUnique(Dummy, Dummy.attribute == 'two').storeID,
             2)
         self.assertRaises(ItemNotFound, self.store.getItemByID, 3)
         i2 = self.store.getItemByID(4)
-        self.assertEquals(i2.attribute, u'four')
+        self.assertEqual(i2.attribute, 'four')
         self.assertIsInstance(i2, Dummy2)
 
 

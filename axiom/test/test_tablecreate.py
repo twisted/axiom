@@ -77,10 +77,10 @@ class TableCreationTest(TestCase):
         s2 = store.Store(storedir)
         a1 = A(store=s1)
         a2 = A(store=s2)
-        self.assertEquals(list(s1.query(
+        self.assertEqual(list(s1.query(
                     A, sort=A.storeID.ascending).getColumn("storeID")),
                           [a1.storeID, a2.storeID])
-        self.assertEquals(list(s2.query(
+        self.assertEqual(list(s2.query(
                     A, sort=A.storeID.ascending).getColumn("storeID")),
                           [a1.storeID, a2.storeID])
 

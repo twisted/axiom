@@ -5,14 +5,14 @@ Utilities for performing repetitive tasks over potentially large sets
 of data over an extended period of time.
 """
 
-import weakref, datetime, sys
+import weakref, datetime, sys, six
 
 from zope.interface import implementer
 
 from twisted.python import reflect, failure, log, procutils, util, runtime
 from twisted.internet import task, defer, reactor, error, protocol
 from twisted.application import service
-from twisted.protocols.amp import AMP, Command, QuitBox, Path, Integer, String
+from twisted.protocols.amp import AMP, Command, QuitBox, Path, Integer, String, Unicode
 from twisted.internet.task import cooperate
 
 from epsilon import extime, modal
@@ -112,7 +112,7 @@ class BatchProcessingError(item.Item):
     The item which actually failed to be processed.
     """)
 
-    error = attributes.bytes(doc="""
+    error = attributes.text(doc="""
     The error message which was associated with this failure.
     """)
 
@@ -506,7 +506,7 @@ def processor(forType):
             """, default=None),
 
             # MAGIC NUMBERS AREN'T THEY WONDERFUL?
-            'busyInterval': attributes.integer(doc="", default=MILLI / 10),
+            'busyInterval': attributes.integer(doc="", default=MILLI // 10),
             }
         _processors[forType] = processor = item.MetaItem(
             attrs['__name__'],
@@ -893,6 +893,9 @@ class ResumeProcessor(Command):
 
 
 
+PythonIdentifier = Unicode if six.PY3 else String
+
+
 class CallItemMethod(Command):
     """
     Invoke a particular method of a particular item.
@@ -900,7 +903,7 @@ class CallItemMethod(Command):
     commandName = b'Call-Item-Method'
     arguments = [(b'storepath', Path()),
                  (b'storeid', Integer()),
-                 (b'method', String())]
+                 (b'method', PythonIdentifier())]
 
 
 @implementer(iaxiom.IBatchService)
@@ -959,8 +962,8 @@ class BatchProcessingControllerService(service.Service):
 
         Return a Deferred which fires when the method has been invoked.
         """
-        item = itemMethod.im_self
-        method = itemMethod.im_func.func_name
+        item = six.get_method_self(itemMethod)
+        method = six.get_method_function(itemMethod).__name__
         return self.batchController.getProcess().addCallback(
             lambda proto: proto.callRemote(
                 CallItemMethod,
@@ -984,7 +987,6 @@ class BatchProcessingControllerService(service.Service):
         return self.batchController.getProcess().addCallback(
             lambda proto: proto.callRemote(
                 ResumeProcessor, storepath=storepath, storeid=storeID))
-
 
 
 @implementer(iaxiom.IBatchService)
@@ -1090,7 +1092,7 @@ class BatchProcessingProtocol(JuiceChild):
         # Any service which has encountered an error will have logged it and
         # then stopped.  Prune those here, so that they are noticed as missing
         # below and re-added.
-        for path, svc in self.subStores.items():
+        for path, svc in list(self.subStores.items()):
             if not svc.running:
                 del self.subStores[path]
 

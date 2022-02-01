@@ -96,8 +96,8 @@ def makeSoftwareVersion(store, version, systemVersion):
     """
     return store.findOrCreate(SoftwareVersion,
                               systemVersion=systemVersion,
-                              package=unicode(version.package),
-                              version=unicode(version.short()),
+                              package=str(version.package),
+                              version=str(version.short()),
                               major=version.major,
                               minor=version.minor,
                               micro=version.micro)

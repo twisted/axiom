@@ -43,7 +43,7 @@ from axiom.substore import SubStore
 
 VERBOSE = False
 
-SITE_SCHEDULER = u"Site Scheduler"
+SITE_SCHEDULER = "Site Scheduler"
 
 
 class TimedEventFailureLog(Item):
@@ -115,11 +115,14 @@ class TimedEvent(Item):
 
 
     def _defaultErrorHandler(self, now, failureObj):
+        tracebackText = failureObj.getTraceback()
+        if not isinstance(tracebackText, bytes):
+            tracebackText = tracebackText.encode("utf-8")
         TimedEventFailureLog(store=self.store,
                              desiredTime=self.time,
                              actualTime=now,
                              runnable=self.runnable,
-                             traceback=failureObj.getTraceback())
+                             traceback=tracebackText)
         self.deleteFromStore()
 
 
@@ -226,7 +229,6 @@ class SchedulerMixin:
 _EPSILON = 1e-20      # A very small amount of time.
 
 
-
 @implementer(IScheduler)
 class _SiteScheduler(SchedulerMixin, Service, object):
     """
@@ -292,7 +294,6 @@ class _SiteScheduler(SchedulerMixin, Service, object):
         self.nextEventAt = when
 
 
-
 @implementer(IScheduler)
 class _UserScheduler(SchedulerMixin, Service, object):
     """
@@ -355,7 +356,6 @@ class _UserScheduler(SchedulerMixin, Service, object):
             self._transientSchedule(te.time, None)
 
 
-
 @implementer(IScheduler)
 class _SchedulerCompatMixin(object):
     """
@@ -402,7 +402,6 @@ class _SchedulerCompatMixin(object):
             "Just adapt stores to IScheduler.",
             category=PendingDeprecationWarning,
             stacklevel=stacklevel)
-
 
 
 @implementer(IService)
@@ -470,7 +469,8 @@ class _SubSchedulerParentHook(Item):
         """
         sched = IScheduler(self.store)
         for scheduledAt in sched.scheduledTimes(self):
-            if when < scheduledAt:
+            # https://github.com/twisted/epsilon/issues/38
+            if when._time < scheduledAt._time:
                 sched.reschedule(self, scheduledAt, when)
             break
         else:

@@ -9,6 +9,6 @@ class CatalogUpgradeTest(StubbedTest):
         correct tag names.
         """
         c = self.store.findUnique(Catalog)
-        self.assertEquals(
+        self.assertEqual(
             sorted(c.tagNames()),
-            [u"external", u"green", u"internal"])
+            ["external", "green", "internal"])

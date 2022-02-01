@@ -16,7 +16,8 @@ class AccountUpgradeTest(stubloader.StubbedTest):
         p = Portal(IRealm(self.store),
                    [ICredentialsChecker(self.store)])
 
-        def loggedIn((ifc, av, lgo)):
+        def loggedIn(args):
+            (ifc, av, lgo) = args
             assert av.garbage == 7
             return av.store.whenFullyUpgraded()
         d = p.login(

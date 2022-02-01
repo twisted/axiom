@@ -30,7 +30,6 @@ class IElectricityGrid(Interface):
 FAKE_POWER = 'fake power'
 REAL_POWER = 'real power'
 
-
 @implementer(IElectricityGrid)
 class NullGrid(object):
     """
@@ -199,6 +198,7 @@ class Breadbox(Item):
 
 
 
+@dependency.dependable
 @empowerment(IAppliance)
 @empowerment(IBreadConsumer)
 class Toaster(Item):
@@ -230,6 +230,9 @@ class Toaster(Item):
 
 def powerstripSetup(ps):
     ps.setForUSElectricity()
+
+
+@dependency.dependable
 class Blender(Item):
     powerStrip = dependency.dependsOn(PowerStrip,
                                       powerstripSetup)
@@ -238,6 +241,8 @@ class Blender(Item):
     def __getPowerupInterfaces__(self, powerups):
         yield (IAppliance, 0)
 
+
+@dependency.dependable
 class IceCrusher(Item):
     blender = dependency.dependsOn(Blender)
 
@@ -277,7 +282,7 @@ class DependencyTest(unittest.TestCase):
         """
         foo = Kitchen(store=self.store)
         e = Toaster(store=self.store)
-        self.assertEquals(e.powerStrip, None)
+        self.assertEqual(e.powerStrip, None)
         dependency.installOn(e, foo)
         e.toast()
         ps = self.store.findUnique(PowerStrip, default=None)
@@ -313,7 +318,7 @@ class DependencyTest(unittest.TestCase):
         dependency.installOn(e, foo)
 
         ps = self.store.findUnique(PowerStrip)
-        self.failUnlessRaises(dependency.DependencyError,
+        self.assertRaises(dependency.DependencyError,
                               dependency.uninstallFrom, ps, foo)
 
     def test_properOrphaning(self):
@@ -331,7 +336,7 @@ class DependencyTest(unittest.TestCase):
         f = Blender(store=self.store)
         dependency.installOn(f, foo)
 
-        self.assertEquals(list(self.store.query(PowerStrip)), [ps])
+        self.assertEqual(list(self.store.query(PowerStrip)), [ps])
         #XXX does ordering matter?
         self.assertEquals(set(dependency.installedDependents(ps, foo)),
                           {e, f})
@@ -341,10 +346,10 @@ class DependencyTest(unittest.TestCase):
                           [ps])
 
         dependency.uninstallFrom(e, foo)
-        self.assertEquals(dependency.installedOn(ps), foo)
+        self.assertEqual(dependency.installedOn(ps), foo)
 
         dependency.uninstallFrom(f, foo)
-        self.assertEquals(dependency.installedOn(ps), None)
+        self.assertEqual(dependency.installedOn(ps), None)
 
     def test_installedUniqueRequirements(self):
         """
@@ -359,7 +364,7 @@ class DependencyTest(unittest.TestCase):
         f = Blender(store=self.store)
         dependency.installOn(f, foo)
 
-        self.assertEquals(list(dependency.installedUniqueRequirements(e, foo)),
+        self.assertEqual(list(dependency.installedUniqueRequirements(e, foo)),
                           [bb])
 
     def test_customizerCalledOnce(self):
@@ -390,7 +395,7 @@ class DependencyTest(unittest.TestCase):
         dependency.installOn(e, foo)
         self.assertEqual(e.powerStrip, ps)
         dependency.uninstallFrom(e, foo)
-        self.assertEquals(dependency.installedOn(ps), foo)
+        self.assertEqual(dependency.installedOn(ps), foo)
 
     def test_doubleInstall(self):
         """
@@ -402,7 +407,7 @@ class DependencyTest(unittest.TestCase):
         e = Toaster(store=self.store)
         dependency.installOn(e, foo)
         ps = PowerStrip(store=self.store)
-        self.failUnlessRaises(dependency.DependencyError,
+        self.assertRaises(dependency.DependencyError,
                               dependency.installOn, ps, foo)
         e2 = Toaster(store=self.store)
         dependency.installOn(e2, foo)
@@ -419,9 +424,9 @@ class DependencyTest(unittest.TestCase):
         blender = self.store.findUnique(Blender)
         ps = self.store.findUnique(PowerStrip)
 
-        self.assertEquals(dependency.installedOn(blender), foo)
-        self.assertEquals(dependency.installedOn(ps), foo)
-        self.assertEquals(list(dependency.installedRequirements(ic, foo)),
+        self.assertEqual(dependency.installedOn(blender), foo)
+        self.assertEqual(dependency.installedOn(ps), foo)
+        self.assertEqual(list(dependency.installedRequirements(ic, foo)),
                           [blender])
 
     def test_recursiveUninstall(self):
@@ -437,9 +442,9 @@ class DependencyTest(unittest.TestCase):
 
         dependency.uninstallFrom(ic, foo)
 
-        self.failIf(dependency.installedOn(blender))
-        self.failIf(dependency.installedOn(ps))
-        self.failIf(dependency.installedOn(ic))
+        self.assertFalse(dependency.installedOn(blender))
+        self.assertFalse(dependency.installedOn(ps))
+        self.assertFalse(dependency.installedOn(ic))
 
     def test_wrongDependsOn(self):
         """
@@ -452,8 +457,8 @@ class DependencyTest(unittest.TestCase):
         dependsOn should accept (most of) attributes.reference's args.
         """
 
-        self.failUnless("power source" in Toaster.powerStrip.doc)
-        self.assertEquals(Toaster.breadFactory.whenDeleted, reference.CASCADE)
+        self.assertTrue("power source" in Toaster.powerStrip.doc)
+        self.assertEqual(Toaster.breadFactory.whenDeleted, reference.CASCADE)
 
     def test_powerupInterfaces(self):
         """
@@ -465,10 +470,10 @@ class DependencyTest(unittest.TestCase):
         f = Blender(store=self.store)
         dependency.installOn(e, foo)
         dependency.installOn(f, foo)
-        self.assertEquals(IAppliance(foo), e)
-        self.assertEquals(IBreadConsumer(foo), e)
+        self.assertEqual(IAppliance(foo), e)
+        self.assertEqual(IBreadConsumer(foo), e)
         dependency.uninstallFrom(e, foo)
-        self.assertEquals(IAppliance(foo), f)
+        self.assertEqual(IAppliance(foo), f)
         dependency.uninstallFrom(f, foo)
         self.assertRaises(TypeError, IAppliance, foo)
 
@@ -483,11 +488,11 @@ class DependencyTest(unittest.TestCase):
         self.installCallbackCalled = False
         e.callback = lambda _: setattr(self, 'installCallbackCalled', True)
         dependency.installOn(e, foo)
-        self.failUnless(self.installCallbackCalled)
+        self.assertTrue(self.installCallbackCalled)
         self.uninstallCallbackCalled = False
         e.callback = lambda _: setattr(self, 'uninstallCallbackCalled', True)
         dependency.uninstallFrom(e, foo)
-        self.failUnless(self.uninstallCallbackCalled)
+        self.assertTrue(self.uninstallCallbackCalled)
 
 
     def test_onlyInstallPowerups(self):
@@ -500,8 +505,8 @@ class DependencyTest(unittest.TestCase):
         f = Toaster(store=self.store)
         dependency.onlyInstallPowerups(e, foo)
         dependency.onlyInstallPowerups(f, foo)
-        self.assertEquals(list(foo.powerupsFor(IBreadConsumer)), [e, f])
-        self.assertEquals(list(self.store.query(
+        self.assertEqual(list(foo.powerupsFor(IBreadConsumer)), [e, f])
+        self.assertEqual(list(self.store.query(
                     dependency._DependencyConnector)), [])
 
 
@@ -525,7 +530,7 @@ class RequireFromSiteTests(unittest.TestCase):
         """
         dependency.installOn(RealGrid(store=self.store), self.store)
         substore = SubStore.createNew(self.store, ['sub']).open()
-        self.assertEquals(PowerStrip(store=substore).draw(1), REAL_POWER)
+        self.assertEqual(PowerStrip(store=substore).draw(1), REAL_POWER)
 
 
     def test_requiresFromSiteDefault(self):
@@ -536,8 +541,8 @@ class RequireFromSiteTests(unittest.TestCase):
         """
         substore = SubStore.createNew(self.store, ['sub']).open()
         ps = PowerStrip(store=substore)
-        self.assertEquals(ps.draw(1), FAKE_POWER)
-        self.assertEquals(ps.grid.siteStore, self.store)
+        self.assertEqual(ps.draw(1), FAKE_POWER)
+        self.assertEqual(ps.grid.siteStore, self.store)
 
 
     def test_requiresFromSiteInSiteStore(self):
@@ -563,11 +568,11 @@ class RequireFromSiteTests(unittest.TestCase):
         L{dependency.requiresFromSite}.
         """
         plant = PowerPlant(store=self.store)
-        self.assertEquals(plant.grid.siteStore, self.store)
-        self.assertEquals(plant.grid.draw(100), FAKE_POWER)
+        self.assertEqual(plant.grid.siteStore, self.store)
+        self.assertEqual(plant.grid.draw(100), FAKE_POWER)
         dependency.installOn(RealGrid(store=self.store), self.store)
-        self.assertEquals(plant.grid.siteStore, self.store)
-        self.assertEquals(plant.grid.draw(100), FAKE_POWER)
+        self.assertEqual(plant.grid.siteStore, self.store)
+        self.assertEqual(plant.grid.draw(100), FAKE_POWER)
 
 
     def test_requiresFromSiteNoDefault(self):
@@ -577,7 +582,7 @@ class RequireFromSiteTests(unittest.TestCase):
         """
         dependency.installOn(RealGrid(store=self.store), self.store)
         substore = SubStore.createNew(self.store, ['sub']).open()
-        self.assertEquals(SpecifiedBadDefaults(store=substore).pump(),
+        self.assertEqual(SpecifiedBadDefaults(store=substore).pump(),
                           REAL_POWER)
 
 

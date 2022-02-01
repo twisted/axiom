@@ -114,7 +114,7 @@ class PowerUpTest(unittest.TestCase):
         s.powerUp(SumContributor(store=s, value=2), IValueHaver)
         s.powerUp(SumContributor(store=s, value=3), IValueHaver)
 
-        self.assertEquals(mm.doSum(), 6)
+        self.assertEqual(mm.doSum(), 6)
 
         s.close()
 
@@ -131,7 +131,7 @@ class PowerUpTest(unittest.TestCase):
         s.powerUp(sc3, IValueHaver)
         s.powerUp(sc3, IValueHaver)
 
-        self.assertEquals(mm.doSum(), 6)
+        self.assertEqual(mm.doSum(), 6)
 
         s.close()
 
@@ -149,7 +149,7 @@ class PowerUpTest(unittest.TestCase):
         p = PlusTwo(store=s)
         s.powerUp(p)
 
-        self.assertEquals(mm.doSum(), 2)
+        self.assertEqual(mm.doSum(), 2)
 
 
     def test_dynamicAutomaticPowerupInstall(self):
@@ -164,7 +164,7 @@ class PowerUpTest(unittest.TestCase):
         p = PlusOneTimesFour(store=s)
         s.powerUp(p)
 
-        self.assertEquals(mm.doSum(), 4)
+        self.assertEqual(mm.doSum(), 4)
 
 
     def test_dynamicAutomaticPowerupFailure(self):
@@ -177,7 +177,7 @@ class PowerUpTest(unittest.TestCase):
         s.powerUp(mm, ISumProducer)
         p = BrokenPowerup(store=s)
         err = self.assertRaises(ValueError, s.powerUp, p)
-        self.assertEquals(str(err),
+        self.assertEqual(str(err),
                           'return value from %r.__getPowerupInterfaces__'
                           ' not an iterable of 2-tuples' % (p,))
 
@@ -191,7 +191,7 @@ class PowerUpTest(unittest.TestCase):
         p = PlusTwo(store=s)
         s.powerUp(p)
         s.powerDown(p)
-        self.assertEquals(len(list(s.powerupsFor(IValueHaver))), 0)
+        self.assertEqual(len(list(s.powerupsFor(IValueHaver))), 0)
 
     def test_automaticDynamicPowerDown(self):
         """
@@ -202,8 +202,8 @@ class PowerUpTest(unittest.TestCase):
         p = PlusOneTimesFour(store=s)
         s.powerUp(p)
         s.powerDown(p)
-        self.assertEquals(len(list(s.powerupsFor(IValueHaver))), 0)
-        self.assertEquals(len(list(s.powerupsFor(IScalingFactor))), 0)
+        self.assertEqual(len(list(s.powerupsFor(IValueHaver))), 0)
+        self.assertEqual(len(list(s.powerupsFor(IScalingFactor))), 0)
 
     def testIndirectedPowerups(self):
         """
@@ -217,7 +217,7 @@ class PowerUpTest(unittest.TestCase):
             SubtractThree(
                 store=s, valueHaver=SumContributor(store=s, value=5)),
             IValueHaver)
-        self.assertEquals(mm.doSum(), 2)
+        self.assertEqual(mm.doSum(), 2)
         s.close()
 
 
@@ -265,9 +265,9 @@ class SpecialCaseTest(unittest.TestCase):
         s.powerUp(ss, IService)
         IService(s).startService()
         IService(s).stopService()
-        self.assertEquals(ss.started, 1)
-        self.assertEquals(ss.stopped, 1)
-        self.assertEquals(ss.running, 0)
+        self.assertEqual(ss.started, 1)
+        self.assertEqual(ss.stopped, 1)
+        self.assertEqual(ss.running, 0)
 
     def testItemServicePowerup(self):
         s = Store()
@@ -276,9 +276,9 @@ class SpecialCaseTest(unittest.TestCase):
         sm.powerUp(ss, IService)
         IService(sm).startService()
         IService(sm).stopService()
-        self.assertEquals(ss.started, 1)
-        self.assertEquals(ss.stopped, 1)
-        self.assertEquals(ss.running, 0)
+        self.assertEqual(ss.started, 1)
+        self.assertEqual(ss.stopped, 1)
+        self.assertEqual(ss.running, 0)
 
 
 
@@ -339,7 +339,7 @@ class InMemoryPowerupTests(unittest.TestCase):
         with L{TypeError}.
         """
         item = SumContributor()
-        self.assertEquals(list(item.powerupsFor(ISumProducer)), [])
+        self.assertEqual(list(item.powerupsFor(ISumProducer)), [])
         self.assertRaises(TypeError, ISumProducer, item)
 
 
@@ -349,4 +349,4 @@ class InMemoryPowerupTests(unittest.TestCase):
         will allow adaption to proceed via a registered adapter.
         """
         item = ItemWithAdapter()
-        self.assertEquals(ISumProducer(item), 42)
+        self.assertEqual(ISumProducer(item), 42)

@@ -43,8 +43,8 @@ from axiom.store import Store
 
 s = Store()
 
-u = Bucket(name=u'whatever', store=s)
-c = Chicken(epistemologicalBasisForCrossingTheRoad=u'extropian', store=s)
+u = Bucket(name='whatever', store=s)
+c = Chicken(epistemologicalBasisForCrossingTheRoad='extropian', store=s)
 b = Biscuit(fluffiness=100, store=s)
 
 FoodItem(store=s, deliciousness=3, extra=c, bucket=u)
