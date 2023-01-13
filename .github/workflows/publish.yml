@@ -14,7 +14,7 @@ jobs:
     - name: Fetch tags
       run: git fetch --depth=1 origin +refs/tags/*:refs/tags/*
     - name: Set up Python
-      uses: actions/setup-python@v2.3.2
+      uses: actions/setup-python@v4.5.0
       with:
         python-version: '2.7'
     - name: Install dependencies
