@@ -22,3 +22,8 @@ upgraders, robust failure handling, and Twisted integration.
 Axiom is tightly integrated with Twisted, and can store, start, and stop
 Twisted services directly from the database using the included 'axiomatic'
 command-line tool.
+
+AI Policy
+---------
+
+Axiom follows the `Twisted AI Policy <https://docs.twisted.org/en/latest/development/ai-policy.html>`_. This means this project does not allow the inclusion of the outputs of generative AI tools.
